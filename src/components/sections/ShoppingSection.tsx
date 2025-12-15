@@ -1,21 +1,25 @@
 import { useState } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Plus, Trash, ShoppingCart } from '@phosphor-icons/react'
+import { Plus, Trash, ShoppingCart, Sparkle } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import type { ShoppingItem } from '@/lib/types'
+import type { ShoppingItem, Meal, Recipe } from '@/lib/types'
 import { toast } from 'sonner'
+import { startOfWeek, addDays, format } from 'date-fns'
 
 const CATEGORIES = ['Produce', 'Dairy', 'Meat', 'Pantry', 'Frozen', 'Bakery', 'Beverages', 'Household', 'Other']
 
 export default function ShoppingSection() {
   const [items = [], setItems] = useKV<ShoppingItem[]>('shopping-items', [])
+  const [meals = []] = useKV<Meal[]>('meals', [])
+  const [recipes = []] = useKV<Recipe[]>('recipes', [])
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null)
   const [itemForm, setItemForm] = useState({
     name: '',
@@ -85,6 +89,54 @@ export default function ShoppingSection() {
     toast.success('Purchased items cleared')
   }
 
+  const generateWeeklyShoppingList = () => {
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 })
+    const weekEnd = addDays(weekStart, 6)
+    
+    const weekMeals = meals.filter((meal) => {
+      const mealDate = new Date(meal.date)
+      return mealDate >= weekStart && mealDate <= weekEnd
+    })
+
+    if (weekMeals.length === 0) {
+      toast.error('No meals planned for this week')
+      return
+    }
+
+    const mealsWithRecipes = weekMeals.filter((meal) => meal.recipeId)
+    
+    if (mealsWithRecipes.length === 0) {
+      toast.error('No recipes linked to meals this week')
+      return
+    }
+
+    const allIngredients: string[] = []
+    mealsWithRecipes.forEach((meal) => {
+      const recipe = recipes.find((r) => r.id === meal.recipeId)
+      if (recipe) {
+        allIngredients.push(...recipe.ingredients)
+      }
+    })
+
+    if (allIngredients.length === 0) {
+      toast.error('No ingredients found in linked recipes')
+      return
+    }
+
+    const newItems: ShoppingItem[] = allIngredients.map((ingredient) => ({
+      id: `${Date.now()}-${Math.random()}`,
+      name: ingredient,
+      category: 'Other',
+      quantity: '',
+      purchased: false,
+      createdAt: Date.now()
+    }))
+
+    setItems((current = []) => [...current, ...newItems])
+    setGenerateDialogOpen(false)
+    toast.success(`Added ${newItems.length} items from meal plan`)
+  }
+
   const activeItems = items.filter((item) => !item.purchased)
   const purchasedItems = items.filter((item) => item.purchased)
 
@@ -105,66 +157,103 @@ export default function ShoppingSection() {
             {activeItems.length} to buy, {purchasedItems.length} purchased
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(open) => {
-          setDialogOpen(open)
-          if (!open) {
-            setEditingItem(null)
-            setItemForm({ name: '', category: 'Other', quantity: '' })
-          }
-        }}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus />
-              Add Item
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingItem ? 'Edit Item' : 'Add Shopping Item'}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label htmlFor="item-name">Item</Label>
-                <Input
-                  id="item-name"
-                  value={itemForm.name}
-                  onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
-                  placeholder="e.g., Milk"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity</Label>
-                <Input
-                  id="quantity"
-                  value={itemForm.quantity}
-                  onChange={(e) => setItemForm({ ...itemForm, quantity: e.target.value })}
-                  placeholder="e.g., 2 gallons"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <Select
-                  value={itemForm.category}
-                  onValueChange={(value) => setItemForm({ ...itemForm, category: value })}
-                >
-                  <SelectTrigger id="category">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button onClick={handleSaveItem} className="w-full">
-                {editingItem ? 'Update Item' : 'Add to List'}
+        <div className="flex gap-2">
+          <Dialog open={generateDialogOpen} onOpenChange={setGenerateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Sparkle />
+                Generate from Meals
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Generate Weekly Shopping List</DialogTitle>
+                <DialogDescription>
+                  This will add all ingredients from recipes linked to this week's meal plan to your shopping list.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <div className="rounded-lg bg-muted p-4 space-y-2">
+                  <h4 className="font-semibold text-sm">What will be added:</h4>
+                  <ul className="text-sm space-y-1 text-muted-foreground">
+                    <li>• Ingredients from all recipes linked to meals this week</li>
+                    <li>• Week starts on {format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'MMM d, yyyy')}</li>
+                    <li>• Items will be added as uncategorized (you can edit them after)</li>
+                  </ul>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setGenerateDialogOpen(false)} className="flex-1">
+                    Cancel
+                  </Button>
+                  <Button onClick={generateWeeklyShoppingList} className="flex-1 gap-2">
+                    <Sparkle />
+                    Generate List
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={dialogOpen} onOpenChange={(open) => {
+            setDialogOpen(open)
+            if (!open) {
+              setEditingItem(null)
+              setItemForm({ name: '', category: 'Other', quantity: '' })
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus />
+                Add Item
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingItem ? 'Edit Item' : 'Add Shopping Item'}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="item-name">Item</Label>
+                  <Input
+                    id="item-name"
+                    value={itemForm.name}
+                    onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
+                    placeholder="e.g., Milk"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">Quantity</Label>
+                  <Input
+                    id="quantity"
+                    value={itemForm.quantity}
+                    onChange={(e) => setItemForm({ ...itemForm, quantity: e.target.value })}
+                    placeholder="e.g., 2 gallons"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category</Label>
+                  <Select
+                    value={itemForm.category}
+                    onValueChange={(value) => setItemForm({ ...itemForm, category: value })}
+                  >
+                    <SelectTrigger id="category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CATEGORIES.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handleSaveItem} className="w-full">
+                  {editingItem ? 'Update Item' : 'Add to List'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {items.length === 0 ? (
