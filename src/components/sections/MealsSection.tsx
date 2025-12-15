@@ -194,16 +194,15 @@ export default function MealsSection() {
               <div className="space-y-2">
                 <Label htmlFor="recipe">Link to Recipe (Optional)</Label>
                 <Select
-                  value={mealForm.recipeId}
+                  value={mealForm.recipeId || undefined}
                   onValueChange={(value) =>
                     setMealForm({ ...mealForm, recipeId: value })
                   }
                 >
                   <SelectTrigger id="recipe">
-                    <SelectValue placeholder="Select a recipe" />
+                    <SelectValue placeholder="No recipe" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No recipe</SelectItem>
                     {recipes.map((recipe) => (
                       <SelectItem key={recipe.id} value={recipe.id}>
                         {recipe.name}
