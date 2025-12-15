@@ -16,31 +16,45 @@ const CATEGORIES = ['Produce', 'Dairy', 'Meat', 'Pantry', 'Frozen', 'Bakery', 'B
 export default function ShoppingSection() {
   const [items = [], setItems] = useKV<ShoppingItem[]>('shopping-items', [])
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null)
   const [itemForm, setItemForm] = useState({
     name: '',
     category: 'Other',
     quantity: ''
   })
 
-  const handleAddItem = () => {
+  const handleSaveItem = () => {
     if (!itemForm.name.trim()) {
       toast.error('Please enter an item name')
       return
     }
 
-    const newItem: ShoppingItem = {
-      id: Date.now().toString(),
-      name: itemForm.name.trim(),
-      category: itemForm.category,
-      quantity: itemForm.quantity.trim(),
-      purchased: false,
-      createdAt: Date.now()
+    if (editingItem) {
+      setItems((current = []) =>
+        current.map((item) =>
+          item.id === editingItem.id
+            ? { ...item, name: itemForm.name.trim(), category: itemForm.category, quantity: itemForm.quantity.trim() }
+            : item
+        )
+      )
+      toast.success('Item updated')
+    } else {
+      const newItem: ShoppingItem = {
+        id: Date.now().toString(),
+        name: itemForm.name.trim(),
+        category: itemForm.category,
+        quantity: itemForm.quantity.trim(),
+        purchased: false,
+        createdAt: Date.now()
+      }
+
+      setItems((current = []) => [...current, newItem])
+      toast.success('Item added to list')
     }
 
-    setItems((current = []) => [...current, newItem])
     setDialogOpen(false)
+    setEditingItem(null)
     setItemForm({ name: '', category: 'Other', quantity: '' })
-    toast.success('Item added to list')
   }
 
   const handleToggleItem = (id: string) => {
@@ -53,6 +67,17 @@ export default function ShoppingSection() {
 
   const handleDeleteItem = (id: string) => {
     setItems((current = []) => current.filter((item) => item.id !== id))
+    toast.success('Item deleted')
+  }
+
+  const openEditDialog = (item: ShoppingItem) => {
+    setEditingItem(item)
+    setItemForm({
+      name: item.name,
+      category: item.category,
+      quantity: item.quantity || ''
+    })
+    setDialogOpen(true)
   }
 
   const clearPurchased = () => {
@@ -80,7 +105,13 @@ export default function ShoppingSection() {
             {activeItems.length} to buy, {purchasedItems.length} purchased
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) {
+            setEditingItem(null)
+            setItemForm({ name: '', category: 'Other', quantity: '' })
+          }
+        }}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus />
@@ -89,7 +120,7 @@ export default function ShoppingSection() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add Shopping Item</DialogTitle>
+              <DialogTitle>{editingItem ? 'Edit Item' : 'Add Shopping Item'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
@@ -128,8 +159,8 @@ export default function ShoppingSection() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleAddItem} className="w-full">
-                Add to List
+              <Button onClick={handleSaveItem} className="w-full">
+                {editingItem ? 'Update Item' : 'Add to List'}
               </Button>
             </div>
           </DialogContent>
@@ -173,13 +204,22 @@ export default function ShoppingSection() {
                             </span>
                           )}
                         </label>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteItem(item.id)}
-                        >
-                          <Trash />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditDialog(item)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteItem(item.id)}
+                          >
+                            <Trash />
+                          </Button>
+                        </div>
                       </div>
                     </Card>
                   ))}

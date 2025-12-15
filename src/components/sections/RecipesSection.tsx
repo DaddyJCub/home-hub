@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Plus, Trash, CookingPot, MagnifyingGlass, Clock, Users } from '@phosphor-icons/react'
+import { Plus, Trash, CookingPot, MagnifyingGlass, Clock, Users, Pencil } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -17,6 +17,7 @@ export default function RecipesSection() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null)
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [recipeForm, setRecipeForm] = useState({
     name: '',
@@ -27,25 +28,47 @@ export default function RecipesSection() {
     servings: ''
   })
 
-  const handleAddRecipe = () => {
+  const handleSaveRecipe = () => {
     if (!recipeForm.name.trim() || !recipeForm.ingredients.trim() || !recipeForm.instructions.trim()) {
       toast.error('Please fill in name, ingredients, and instructions')
       return
     }
 
-    const newRecipe: Recipe = {
-      id: Date.now().toString(),
-      name: recipeForm.name.trim(),
-      ingredients: recipeForm.ingredients.split('\n').filter((i) => i.trim()),
-      instructions: recipeForm.instructions.trim(),
-      prepTime: recipeForm.prepTime.trim() || undefined,
-      cookTime: recipeForm.cookTime.trim() || undefined,
-      servings: recipeForm.servings.trim() || undefined,
-      createdAt: Date.now()
+    if (editingRecipe) {
+      setRecipes((current = []) =>
+        current.map((recipe) =>
+          recipe.id === editingRecipe.id
+            ? {
+                ...recipe,
+                name: recipeForm.name.trim(),
+                ingredients: recipeForm.ingredients.split('\n').filter((i) => i.trim()),
+                instructions: recipeForm.instructions.trim(),
+                prepTime: recipeForm.prepTime.trim() || undefined,
+                cookTime: recipeForm.cookTime.trim() || undefined,
+                servings: recipeForm.servings.trim() || undefined
+              }
+            : recipe
+        )
+      )
+      toast.success('Recipe updated')
+    } else {
+      const newRecipe: Recipe = {
+        id: Date.now().toString(),
+        name: recipeForm.name.trim(),
+        ingredients: recipeForm.ingredients.split('\n').filter((i) => i.trim()),
+        instructions: recipeForm.instructions.trim(),
+        prepTime: recipeForm.prepTime.trim() || undefined,
+        cookTime: recipeForm.cookTime.trim() || undefined,
+        servings: recipeForm.servings.trim() || undefined,
+        createdAt: Date.now()
+      }
+
+      setRecipes((current = []) => [...current, newRecipe])
+      toast.success('Recipe added')
     }
 
-    setRecipes((current = []) => [...current, newRecipe])
     setDialogOpen(false)
+    setEditingRecipe(null)
     setRecipeForm({
       name: '',
       ingredients: '',
@@ -54,7 +77,6 @@ export default function RecipesSection() {
       cookTime: '',
       servings: ''
     })
-    toast.success('Recipe added')
   }
 
   const handleDeleteRecipe = (id: string) => {
@@ -66,6 +88,20 @@ export default function RecipesSection() {
   const viewRecipe = (recipe: Recipe) => {
     setSelectedRecipe(recipe)
     setViewDialogOpen(true)
+  }
+
+  const openEditDialog = (recipe: Recipe) => {
+    setEditingRecipe(recipe)
+    setRecipeForm({
+      name: recipe.name,
+      ingredients: recipe.ingredients.join('\n'),
+      instructions: recipe.instructions,
+      prepTime: recipe.prepTime || '',
+      cookTime: recipe.cookTime || '',
+      servings: recipe.servings || ''
+    })
+    setViewDialogOpen(false)
+    setDialogOpen(true)
   }
 
   const filteredRecipes = recipes.filter((recipe) =>
@@ -81,7 +117,20 @@ export default function RecipesSection() {
             {recipes.length} recipe{recipes.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) {
+            setEditingRecipe(null)
+            setRecipeForm({
+              name: '',
+              ingredients: '',
+              instructions: '',
+              prepTime: '',
+              cookTime: '',
+              servings: ''
+            })
+          }
+        }}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus />
@@ -90,7 +139,7 @@ export default function RecipesSection() {
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh]">
             <DialogHeader>
-              <DialogTitle>Add New Recipe</DialogTitle>
+              <DialogTitle>{editingRecipe ? 'Edit Recipe' : 'Add New Recipe'}</DialogTitle>
             </DialogHeader>
             <ScrollArea className="max-h-[calc(90vh-8rem)] pr-4">
               <div className="space-y-4 pt-4">
@@ -156,8 +205,8 @@ export default function RecipesSection() {
                   />
                 </div>
 
-                <Button onClick={handleAddRecipe} className="w-full">
-                  Add Recipe
+                <Button onClick={handleSaveRecipe} className="w-full">
+                  {editingRecipe ? 'Update Recipe' : 'Add Recipe'}
                 </Button>
               </div>
             </ScrollArea>
@@ -273,14 +322,24 @@ export default function RecipesSection() {
                     </p>
                   </div>
 
-                  <Button
-                    variant="destructive"
-                    onClick={() => handleDeleteRecipe(selectedRecipe.id)}
-                    className="w-full gap-2"
-                  >
-                    <Trash />
-                    Delete Recipe
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => openEditDialog(selectedRecipe)}
+                      className="flex-1 gap-2"
+                    >
+                      <Pencil />
+                      Edit Recipe
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => handleDeleteRecipe(selectedRecipe.id)}
+                      className="flex-1 gap-2"
+                    >
+                      <Trash />
+                      Delete Recipe
+                    </Button>
+                  </div>
                 </div>
               </ScrollArea>
             </>
