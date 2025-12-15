@@ -1,16 +1,27 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Broom, ShoppingCart, CalendarBlank, CookingPot, House } from '@phosphor-icons/react'
+import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear } from '@phosphor-icons/react'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useKV } from '@github/spark/hooks'
+import { getThemeById, applyTheme } from '@/lib/themes'
 import DashboardSection from '@/components/sections/DashboardSection'
 import ChoresSection from '@/components/sections/ChoresSection'
 import ShoppingSection from '@/components/sections/ShoppingSection'
 import MealsSection from '@/components/sections/MealsSection'
 import RecipesSection from '@/components/sections/RecipesSection'
+import SettingsSection from '@/components/sections/SettingsSection'
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const isMobile = useIsMobile()
+  const [currentThemeId = 'warm-home'] = useKV<string>('theme-id', 'warm-home')
+
+  useEffect(() => {
+    const theme = getThemeById(currentThemeId)
+    if (theme) {
+      applyTheme(theme)
+    }
+  }, [currentThemeId])
 
   return (
     <div className="min-h-screen bg-background">
@@ -24,7 +35,7 @@ function App() {
       <main className="container mx-auto px-4 py-6 pb-24 md:pb-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {!isMobile && (
-            <TabsList className="grid w-full grid-cols-5 mb-6">
+            <TabsList className="grid w-full grid-cols-6 mb-6">
               <TabsTrigger value="dashboard" className="gap-2">
                 <House />
                 <span>Dashboard</span>
@@ -44,6 +55,10 @@ function App() {
               <TabsTrigger value="recipes" className="gap-2">
                 <CookingPot />
                 <span>Recipes</span>
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="gap-2">
+                <Gear />
+                <span>Settings</span>
               </TabsTrigger>
             </TabsList>
           )}
@@ -67,12 +82,16 @@ function App() {
           <TabsContent value="recipes" className="mt-0">
             <RecipesSection />
           </TabsContent>
+
+          <TabsContent value="settings" className="mt-0">
+            <SettingsSection />
+          </TabsContent>
         </Tabs>
       </main>
 
       {isMobile && (
         <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-20">
-          <div className="grid grid-cols-5">
+          <div className="grid grid-cols-6">
             <button
               onClick={() => setActiveTab('dashboard')}
               className={`flex flex-col items-center gap-1 py-3 transition-colors ${
@@ -117,6 +136,15 @@ function App() {
             >
               <CookingPot size={24} />
               <span className="text-xs">Recipes</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`flex flex-col items-center gap-1 py-3 transition-colors ${
+                activeTab === 'settings' ? 'text-primary' : 'text-muted-foreground'
+              }`}
+            >
+              <Gear size={24} />
+              <span className="text-xs">Settings</span>
             </button>
           </div>
         </nav>

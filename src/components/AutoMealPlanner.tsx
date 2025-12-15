@@ -53,33 +53,23 @@ export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerP
         tags: r.tags || []
       }))
 
-      const prompt = window.spark.llmPrompt`You are a meal planning assistant. Generate a balanced weekly meal plan using the provided recipes.
+      const recipesJson = JSON.stringify(recipeList, null, 2)
+      const mealTypesStr = preferences.mealTypes.join(', ')
+      const weekDaysStr = weekDays.join(', ')
 
-Available recipes:
-${JSON.stringify(recipeList, null, 2)}
-
-Meal types to include: ${preferences.mealTypes.join(', ')}
-Week dates: ${weekDays.join(', ')}
-
-Please create a balanced meal plan that:
-- Uses variety (don't repeat the same recipe too often)
-- Considers tags for appropriate meal times (e.g., "breakfast" tagged recipes for breakfast)
-- Balances different types of meals throughout the week
-- Uses each recipe at most 2 times in the week
-
-Return a JSON object with a single property "meals" containing an array of meal objects with this exact structure:
-{
-  "meals": [
-    {
-      "date": "YYYY-MM-DD",
-      "type": "breakfast" | "lunch" | "dinner",
-      "recipeId": "recipe-id-from-list",
-      "name": "Recipe name"
-    }
-  ]
-}
-
-Generate meals for all 7 days, for each meal type in the list: ${preferences.mealTypes.join(', ')}.`
+      const prompt = window.spark.llmPrompt(
+        [
+          'You are a meal planning assistant. Generate a balanced weekly meal plan using the provided recipes.\n\nAvailable recipes:\n',
+          '\n\nMeal types to include: ',
+          '\nWeek dates: ',
+          '\n\nPlease create a balanced meal plan that:\n- Uses variety (don\'t repeat the same recipe too often)\n- Considers tags for appropriate meal times (e.g., "breakfast" tagged recipes for breakfast)\n- Balances different types of meals throughout the week\n- Uses each recipe at most 2 times in the week\n\nReturn a JSON object with a single property "meals" containing an array of meal objects with this exact structure:\n{\n  "meals": [\n    {\n      "date": "YYYY-MM-DD",\n      "type": "breakfast" | "lunch" | "dinner",\n      "recipeId": "recipe-id-from-list",\n      "name": "Recipe name"\n    }\n  ]\n}\n\nGenerate meals for all 7 days, for each meal type in the list: ',
+          '.'
+        ],
+        recipesJson,
+        mealTypesStr,
+        weekDaysStr,
+        mealTypesStr
+      )
 
       const response = await window.spark.llm(prompt, 'gpt-4o', true)
       const parsed = JSON.parse(response)

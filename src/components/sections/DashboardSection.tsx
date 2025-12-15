@@ -7,11 +7,18 @@ import type { Chore, ShoppingItem, Meal, Recipe } from '@/lib/types'
 import { format, startOfWeek, addDays, isToday } from 'date-fns'
 import { useState } from 'react'
 
+interface DashboardWidget {
+  id: string
+  label: string
+  enabled: boolean
+}
+
 export default function DashboardSection() {
   const [chores = []] = useKV<Chore[]>('chores', [])
   const [shoppingItems = []] = useKV<ShoppingItem[]>('shopping-items', [])
   const [meals = []] = useKV<Meal[]>('meals', [])
   const [recipes = []] = useKV<Recipe[]>('recipes', [])
+  const [dashboardWidgets = []] = useKV<DashboardWidget[]>('dashboard-widgets', [])
 
   const pendingChores = chores.filter((c) => !c.completed)
   const unpurchasedItems = shoppingItems.filter((i) => !i.purchased)
@@ -33,6 +40,12 @@ export default function DashboardSection() {
     return meals.filter((meal) => meal.date === dateStr)
   }
 
+  const isWidgetEnabled = (widgetId: string) => {
+    if (dashboardWidgets.length === 0) return true
+    const widget = dashboardWidgets.find((w) => w.id === widgetId)
+    return widget ? widget.enabled : true
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -40,7 +53,8 @@ export default function DashboardSection() {
         <p className="text-muted-foreground">Your household at a glance</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {isWidgetEnabled('stats') && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Pending Chores</CardTitle>
@@ -97,9 +111,11 @@ export default function DashboardSection() {
           </CardContent>
         </Card>
       </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        {isWidgetEnabled('today-meals') && (
+          <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CalendarBlank size={24} />
@@ -145,8 +161,10 @@ export default function DashboardSection() {
             )}
           </CardContent>
         </Card>
+        )}
 
-        <Card>
+        {isWidgetEnabled('priorities') && (
+          <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle size={24} />
@@ -182,9 +200,11 @@ export default function DashboardSection() {
             </div>
           </CardContent>
         </Card>
+        )}
       </div>
 
-      <Card>
+      {isWidgetEnabled('weekly-calendar') && (
+        <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CalendarBlank size={24} />
@@ -232,8 +252,9 @@ export default function DashboardSection() {
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {unpurchasedItems.length > 0 && (
+      {isWidgetEnabled('shopping-preview') && unpurchasedItems.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

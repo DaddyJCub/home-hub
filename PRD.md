@@ -61,6 +61,27 @@ This is a multi-feature application with distinct but related sections (chores, 
 - **Progression**: Access settings → Add household members (names only) → Assign tasks to members → View who's responsible for what
 - **Success criteria**: Multiple household members can be added and assigned to tasks
 
+### Theme Customization
+- **Functionality**: Choose from multiple pre-designed color themes
+- **Purpose**: Personalize the visual appearance to match user preferences
+- **Trigger**: User navigates to settings section
+- **Progression**: View settings → Browse theme options → Select new theme → Theme applies instantly → Save preference
+- **Success criteria**: Users can switch between themes and preference persists across sessions
+
+### Dashboard Customization
+- **Functionality**: Toggle visibility of dashboard widgets
+- **Purpose**: Allow users to customize which information appears on their dashboard
+- **Trigger**: User navigates to settings section
+- **Progression**: View settings → Toggle widget switches → Dashboard updates → Layout preference saved
+- **Success criteria**: Users can show/hide widgets and preferences persist
+
+### Admin Functions
+- **Functionality**: Data management including export backup and selective/full data deletion
+- **Purpose**: Give users control over their data with backup and cleanup options
+- **Trigger**: User accesses admin section in settings
+- **Progression**: View settings → Export data as JSON backup or Delete specific data categories → Confirm destructive actions → System updates
+- **Success criteria**: Users can export all data and selectively delete data categories safely
+
 ## Edge Case Handling
 
 - **Empty States**: Display helpful prompts with suggested first actions when lists/schedules are empty
@@ -75,8 +96,17 @@ The design should evoke a warm, welcoming feeling that makes household managemen
 
 ## Color Selection
 
-A warm, earthy palette that feels grounded and homey with touches of natural green for freshness.
+A warm, earthy palette that feels grounded and homey with touches of natural green for freshness (default theme). Multiple theme options available for customization.
 
+**Available Themes:**
+1. **Warm Home (Default)** - Cozy terracotta and sage
+2. **Ocean Breeze** - Cool blues and aqua tones
+3. **Forest Calm** - Deep greens and earth tones
+4. **Sunset Glow** - Warm oranges and purples
+5. **Monochrome** - Clean black and white
+6. **Lavender Dream** - Soft purples and pinks
+
+**Default Theme (Warm Home):**
 - **Primary Color**: Warm terracotta (oklch(0.62 0.15 35)) - Conveys warmth, home, and approachability
 - **Secondary Colors**: 
   - Sage green (oklch(0.75 0.08 145)) - Represents growth, freshness, and calm organization
@@ -109,17 +139,19 @@ Animations should feel responsive and helpful - confirming actions and guiding a
 ## Component Selection
 
 - **Components**:
-  - **Tabs**: Main navigation between Dashboard/Chores/Shopping/Meals/Recipes sections
+  - **Tabs**: Main navigation between Dashboard/Chores/Shopping/Meals/Recipes/Settings sections
   - **Card**: Container for individual chores, recipes, meal entries, and dashboard widgets
   - **Checkbox**: Completing chores, checking off shopping items, selecting preferences
-  - **Dialog**: Adding/editing chores, recipes, meals, auto-planning meals, URL parsing
+  - **Dialog**: Adding/editing chores, recipes, meals, auto-planning meals, URL parsing, confirmations
   - **Button**: Primary actions (add, save, delete, auto-plan, parse)
   - **Input/Textarea**: Form fields for entering data
   - **Select**: Category selection, household member assignment, meal type selection
   - **Calendar**: Custom weekly view for meal planning
-  - **Badge**: Categories, frequency indicators, assignment labels, recipe tags
+  - **Badge**: Categories, frequency indicators, assignment labels, recipe tags, theme status
   - **ScrollArea**: Long lists and recipe instructions
   - **Toast**: User feedback for actions (using sonner)
+  - **Switch**: Toggle controls for dashboard widgets
+  - **Separator**: Visual dividers in settings
 
 - **Customizations**:
   - Custom weekly calendar grid component for meal planning
@@ -152,6 +184,12 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - MagnifyingGlass for search
   - Clock for time indicators
   - Pencil for editing
+  - Gear for settings
+  - Palette for theme selection
+  - SquaresFour for dashboard organization
+  - ShieldCheck for admin functions
+  - FloppyDisk for export/save
+  - X for remove/close
 
 - **Spacing**:
   - Container padding: p-6 (desktop) / p-4 (mobile)
@@ -161,7 +199,7 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - Button padding: px-6 py-3
 
 - **Mobile**:
-  - Tabs convert to bottom navigation bar on mobile with 5 sections (Dashboard, Chores, Shopping, Meals, Recipes)
+  - Tabs convert to bottom navigation bar on mobile with 6 sections (Dashboard, Chores, Shopping, Meals, Recipes, Settings)
   - Cards stack vertically with full width
   - Dialogs slide up from bottom on mobile vs centered on desktop
   - Meal planning calendar shows fewer days at a time with better stacking on mobile
@@ -169,3 +207,5 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - Touch targets minimum 44px height
   - Reduced padding throughout (p-4 becomes p-3)
   - Recipe tag filters scroll horizontally on mobile
+  - Theme selector grid adapts to single column on mobile
+  - Settings cards stack with full width on mobile
