@@ -47,12 +47,19 @@ export default function RecipesSection() {
     setIsParsingUrl(true)
     try {
       const url = recipeForm.sourceUrl
+      
+      const htmlResponse = await fetch(url)
+      if (!htmlResponse.ok) {
+        throw new Error('Failed to fetch recipe URL')
+      }
+      const htmlContent = await htmlResponse.text()
+
       const prompt = window.spark.llmPrompt(
         [
-          'You are a recipe extraction assistant. Extract recipe information from the following URL: ',
-          '\n\nPlease extract and return the following information in JSON format:\n- name: The recipe title/name\n- ingredients: Array of ingredient strings (each ingredient on its own line)\n- instructions: The cooking instructions as a single text block\n- prepTime: Preparation time (e.g., "15 min", "1 hour")\n- cookTime: Cooking time (e.g., "30 min", "1 hour")\n- servings: Number of servings (e.g., "4", "6-8")\n- tags: Array of relevant tags/categories (e.g., ["vegetarian", "quick", "dinner"])\n\nReturn ONLY the JSON object with these fields. If you cannot access the URL directly, provide a reasonable recipe structure with placeholder text indicating the fields need to be filled in manually.'
+          'You are a recipe extraction assistant. Extract recipe information from the following HTML content.\n\nHTML Content:\n',
+          '\n\nPlease extract and return the following information in JSON format:\n- name: The recipe title/name\n- ingredients: Array of ingredient strings (each ingredient as a separate item)\n- instructions: The cooking instructions as a single text block\n- prepTime: Preparation time (e.g., "15 min", "1 hour")\n- cookTime: Cooking time (e.g., "30 min", "1 hour")\n- servings: Number of servings (e.g., "4", "6-8")\n- tags: Array of relevant tags/categories (e.g., ["vegetarian", "quick", "dinner"])\n\nReturn ONLY a valid JSON object with these fields. Extract actual content from the HTML, not placeholders.'
         ],
-        url
+        htmlContent
       )
 
       const response = await window.spark.llm(prompt, 'gpt-4o', true)
