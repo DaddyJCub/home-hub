@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Plus, Trash, CalendarBlank, CookingPot } from '@phosphor-icons/react'
+import { Plus, Trash, CalendarBlank, CookingPot, Sparkle } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import AutoMealPlanner from '@/components/AutoMealPlanner'
 import type { Meal, Recipe } from '@/lib/types'
 import { toast } from 'sonner'
 import { format, startOfWeek, addDays } from 'date-fns'
@@ -16,6 +17,7 @@ export default function MealsSection() {
   const [meals = [], setMeals] = useKV<Meal[]>('meals', [])
   const [recipes = []] = useKV<Recipe[]>('recipes', [])
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [autoPlannerOpen, setAutoPlannerOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string>('')
   const [mealForm, setMealForm] = useState({
     name: '',
@@ -80,7 +82,17 @@ export default function MealsSection() {
             Week of {format(weekStart, 'MMM d, yyyy')}
           </p>
         </div>
+        <Button 
+          onClick={() => setAutoPlannerOpen(true)} 
+          variant="outline" 
+          className="gap-2"
+        >
+          <Sparkle />
+          Auto-Plan Week
+        </Button>
       </div>
+
+      <AutoMealPlanner open={autoPlannerOpen} onOpenChange={setAutoPlannerOpen} />
 
       <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
         {weekDays.map((day) => {

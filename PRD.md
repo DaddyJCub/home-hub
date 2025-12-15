@@ -34,11 +34,25 @@ This is a multi-feature application with distinct but related sections (chores, 
 - **Success criteria**: Meals can be planned for specific days/times, linked to recipes, and viewed in calendar format
 
 ### Recipe Collection
-- **Functionality**: Store and organize favorite recipes with ingredients and instructions
-- **Purpose**: Keep household recipes in one accessible place and integrate with meal planning
+- **Functionality**: Store and organize favorite recipes with ingredients, instructions, tags, and labels; automatically parse recipes from website URLs
+- **Purpose**: Keep household recipes in one accessible place, enable better organization and discovery, and integrate with meal planning
 - **Trigger**: User navigates to recipes section
-- **Progression**: View recipe list → Add new recipe → Enter name, ingredients, instructions → Save → Search/filter recipes → Select recipe to view details → Optional: add to meal plan
-- **Success criteria**: Recipes can be created, viewed, searched, and linked to meal plans
+- **Progression**: View recipe list → Add new recipe manually or from URL → AI parses website content → Enter/edit name, ingredients, instructions, tags → Save → Filter by tags/search recipes → Select recipe to view details → Optional: add to meal plan
+- **Success criteria**: Recipes can be created manually or from URLs, tagged/labeled, filtered, searched, and linked to meal plans
+
+### Automated Meal Planning
+- **Functionality**: AI-powered meal plan generation based on recipes, preferences, and dietary constraints
+- **Purpose**: Save time planning weekly meals by automatically suggesting balanced meal plans
+- **Trigger**: User clicks "Auto-plan Week" or "Suggest Meals" button
+- **Progression**: User sets preferences (optional) → AI analyzes available recipes and tags → Generates balanced weekly meal plan → User reviews suggestions → Accept all, modify, or regenerate → Meals populate calendar
+- **Success criteria**: System generates coherent weekly meal plans using available recipes and allows easy customization
+
+### Dashboard Overview
+- **Functionality**: Unified view showing upcoming meals, pending chores, shopping list summary, and quick stats
+- **Purpose**: Provide at-a-glance household status without navigating between sections
+- **Trigger**: User navigates to dashboard (new default/home section)
+- **Progression**: View dashboard → See today's meals → Check pending chores count → View shopping items needed → Access calendar of upcoming week → Quick-add items → Navigate to detailed sections
+- **Success criteria**: Dashboard displays real-time data from all sections and enables quick actions
 
 ### User Profiles
 - **Functionality**: Simple identification for each household member
@@ -95,22 +109,26 @@ Animations should feel responsive and helpful - confirming actions and guiding a
 ## Component Selection
 
 - **Components**:
-  - **Tabs**: Main navigation between Chores/Shopping/Meals/Recipes sections
-  - **Card**: Container for individual chores, recipes, and meal entries
-  - **Checkbox**: Completing chores and checking off shopping items
-  - **Dialog**: Adding/editing chores, recipes, and meals
-  - **Button**: Primary actions (add, save, delete)
+  - **Tabs**: Main navigation between Dashboard/Chores/Shopping/Meals/Recipes sections
+  - **Card**: Container for individual chores, recipes, meal entries, and dashboard widgets
+  - **Checkbox**: Completing chores, checking off shopping items, selecting preferences
+  - **Dialog**: Adding/editing chores, recipes, meals, auto-planning meals, URL parsing
+  - **Button**: Primary actions (add, save, delete, auto-plan, parse)
   - **Input/Textarea**: Form fields for entering data
   - **Select**: Category selection, household member assignment, meal type selection
   - **Calendar**: Custom weekly view for meal planning
-  - **Badge**: Categories, frequency indicators, assignment labels
+  - **Badge**: Categories, frequency indicators, assignment labels, recipe tags
   - **ScrollArea**: Long lists and recipe instructions
+  - **Toast**: User feedback for actions (using sonner)
 
 - **Customizations**:
   - Custom weekly calendar grid component for meal planning
-  - Recipe card with expandable ingredients/instructions
-  - Shopping list with category grouping headers
+  - Recipe card with expandable ingredients/instructions and tag filtering
+  - Shopping list with category grouping headers and auto-generation from meals
   - Chore frequency selector (daily/weekly/biweekly/monthly)
+  - Dashboard with stat cards and preview widgets
+  - AI-powered recipe URL parser
+  - AI-powered automated meal planner with preferences
 
 - **States**:
   - Buttons: Solid primary for main actions, ghost for secondary, with pressed state that feels substantial
@@ -119,14 +137,21 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - Inputs: Clear focus ring with accent color, validation feedback inline
 
 - **Icon Selection**:
+  - House for dashboard/home
   - Broom/cleaning icons for chores (using @phosphor-icons/react)
   - ShoppingCart for shopping list
-  - CalendarBlank for meal planning
+  - CalendarBlank for meal planning and calendar views
   - CookingPot for recipes
   - Plus for add actions
-  - Check for completion
+  - Check/CheckCircle for completion
   - Trash for deletion
   - User/Users for assignment
+  - Sparkle for AI-powered features
+  - LinkIcon for recipe URLs
+  - Tag for recipe tags/categories
+  - MagnifyingGlass for search
+  - Clock for time indicators
+  - Pencil for editing
 
 - **Spacing**:
   - Container padding: p-6 (desktop) / p-4 (mobile)
@@ -136,9 +161,11 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - Button padding: px-6 py-3
 
 - **Mobile**:
-  - Tabs convert to bottom navigation bar on mobile
+  - Tabs convert to bottom navigation bar on mobile with 5 sections (Dashboard, Chores, Shopping, Meals, Recipes)
   - Cards stack vertically with full width
   - Dialogs slide up from bottom on mobile vs centered on desktop
-  - Meal planning calendar shows 3 days at a time with horizontal scroll on mobile
+  - Meal planning calendar shows fewer days at a time with better stacking on mobile
+  - Dashboard widgets stack vertically with responsive grid
   - Touch targets minimum 44px height
   - Reduced padding throughout (p-4 becomes p-3)
+  - Recipe tag filters scroll horizontally on mobile

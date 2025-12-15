@@ -31,6 +31,8 @@ export interface Recipe {
   prepTime?: string
   cookTime?: string
   servings?: string
+  tags?: string[]
+  sourceUrl?: string
   createdAt: number
 }
 
