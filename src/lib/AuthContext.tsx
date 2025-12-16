@@ -18,10 +18,10 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [users = []] = useKV<User[]>('users', [])
+  const [users, setUsers] = useKV<User[]>('users', [])
   const [currentUserId, setCurrentUserId] = useKV<string | null>('current-user-id', null)
-  const [households = []] = useKV<Household[]>('households', [])
-  const [householdMembers = []] = useKV<HouseholdMember[]>('household-members-v2', [])
+  const [households, setHouseholds] = useKV<Household[]>('households', [])
+  const [householdMembers, setHouseholdMembers] = useKV<HouseholdMember[]>('household-members-v2', [])
   const [currentHouseholdId, setCurrentHouseholdId] = useKV<string | null>('current-household-id', null)
   
   const [currentUser, setCurrentUser] = useState<User | null>(null)
@@ -30,17 +30,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentHouseholdMembers, setCurrentHouseholdMembers] = useState<HouseholdMember[]>([])
 
   useEffect(() => {
-    if (currentUserId) {
+    if (currentUserId && users) {
       const user = users.find(u => u.id === currentUserId)
       setCurrentUser(user || null)
       
-      const userMemberships = householdMembers.filter(m => m.userId === currentUserId)
-      const userHouseholdIds = userMemberships.map(m => m.householdId)
-      const userHouseholdsList = households.filter(h => userHouseholdIds.includes(h.id))
-      setUserHouseholds(userHouseholdsList)
-      
-      if (!currentHouseholdId && userHouseholdsList.length > 0) {
-        setCurrentHouseholdId(userHouseholdsList[0].id)
+      if (householdMembers && households) {
+        const userMemberships = householdMembers.filter(m => m.userId === currentUserId)
+        const userHouseholdIds = userMemberships.map(m => m.householdId)
+        const userHouseholdsList = households.filter(h => userHouseholdIds.includes(h.id))
+        setUserHouseholds(userHouseholdsList)
+        
+        if (!currentHouseholdId && userHouseholdsList.length > 0) {
+          setCurrentHouseholdId(userHouseholdsList[0].id)
+        }
       }
     } else {
       setCurrentUser(null)
@@ -49,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [currentUserId, users, households, householdMembers])
 
   useEffect(() => {
-    if (currentHouseholdId) {
+    if (currentHouseholdId && households && householdMembers) {
       const household = households.find(h => h.id === currentHouseholdId)
       setCurrentHousehold(household || null)
       
@@ -66,6 +68,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     : null
 
   const login = async (email: string, password: string): Promise<boolean> => {
+    if (!users) return false
+    
     const { verifyPassword } = await import('@/lib/auth')
     const user = users.find(u => u.email === email.toLowerCase().trim())
     
@@ -86,20 +90,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signup = async (email: string, password: string, displayName: string): Promise<boolean> => {
+    if (!users || !households || !householdMembers) return false
+    
     const { createUser, createHousehold, createHouseholdMember } = await import('@/lib/auth')
     
     const existingUser = users.find(u => u.email === email.toLowerCase().trim())
     if (existingUser) return false
     
     const newUser = await createUser(email, password, displayName)
-    
-    await window.spark.kv.set('users', [...users, newUser])
+    setUsers((currentUsers) => [...(currentUsers || []), newUser])
     
     const newHousehold = await createHousehold(`${displayName}'s Household`, newUser.id)
-    await window.spark.kv.set('households', [...households, newHousehold])
+    setHouseholds((currentHouseholds) => [...(currentHouseholds || []), newHousehold])
     
     const newMember = createHouseholdMember(newHousehold.id, newUser.id, displayName, 'owner')
-    await window.spark.kv.set('household-members-v2', [...householdMembers, newMember])
+    setHouseholdMembers((currentMembers) => [...(currentMembers || []), newMember])
     
     setCurrentUserId(newUser.id)
     setCurrentHouseholdId(newHousehold.id)
