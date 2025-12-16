@@ -1,9 +1,10 @@
 import { useKV } from '@github/spark/hooks'
-import { CalendarBlank, CheckCircle, ShoppingCart, CookingPot, Broom, TrendUp, Sparkle, MapPin, Clock } from '@phosphor-icons/react'
+import { CalendarBlank, CheckCircle, ShoppingCart, CookingPot, Broom, TrendUp, Sparkle, MapPin, Clock, User } from '@phosphor-icons/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent } from '@/lib/types'
+import { Progress } from '@/components/ui/progress'
+import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent, HouseholdMember } from '@/lib/types'
 import { format, startOfWeek, addDays, isToday, isAfter, isSameDay, startOfDay } from 'date-fns'
 import { useState } from 'react'
 
@@ -19,6 +20,7 @@ export default function DashboardSection() {
   const [meals = []] = useKV<Meal[]>('meals', [])
   const [recipes = []] = useKV<Recipe[]>('recipes', [])
   const [events = []] = useKV<CalendarEvent[]>('calendar-events', [])
+  const [members = []] = useKV<HouseholdMember[]>('household-members', [])
   const [dashboardWidgets = []] = useKV<DashboardWidget[]>('dashboard-widgets', [])
 
   const pendingChores = chores.filter((c) => !c.completed)
@@ -70,6 +72,30 @@ export default function DashboardSection() {
     appointment: 'bg-green-500/20 text-green-700 border-green-300',
     booking: 'bg-orange-500/20 text-orange-700 border-orange-300',
     other: 'bg-gray-500/20 text-gray-700 border-gray-300'
+  }
+
+  const getMemberStats = (memberName: string) => {
+    const memberChores = chores.filter(c => c.assignedTo === memberName)
+    const pendingChores = memberChores.filter(c => !c.completed)
+    const completedChores = memberChores.filter(c => c.completed)
+    const memberEvents = events.filter(e => 
+      e.attendees?.includes(memberName) || e.bookedBy === memberName
+    )
+    
+    const completionRate = memberChores.length > 0 
+      ? Math.round((completedChores.length / memberChores.length) * 100)
+      : 0
+
+    return {
+      totalChores: memberChores.length,
+      pendingChores: pendingChores.length,
+      completedChores: completedChores.length,
+      completionRate,
+      upcomingEvents: memberEvents.length,
+      estimatedTime: pendingChores.reduce((acc, chore) => 
+        acc + (chore.estimatedMinutes || 0), 0
+      )
+    }
   }
 
   return (
@@ -150,6 +176,75 @@ export default function DashboardSection() {
           </CardContent>
         </Card>
       </div>
+      )}
+
+      {members.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User size={24} />
+              Household Members
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {members.map((member) => {
+                const stats = getMemberStats(member.name)
+                return (
+                  <div key={member.id} className="p-4 rounded-lg border bg-card space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <User size={20} className="text-primary" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-lg">{member.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {stats.pendingChores} pending tasks
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-primary">{stats.completionRate}%</div>
+                        <div className="text-xs text-muted-foreground">completion</div>
+                      </div>
+                    </div>
+                    
+                    {stats.totalChores > 0 && (
+                      <div className="space-y-2">
+                        <Progress value={stats.completionRate} className="h-2" />
+                        <div className="flex items-center justify-between text-sm text-muted-foreground">
+                          <span>{stats.completedChores} of {stats.totalChores} chores done</span>
+                          {stats.estimatedTime > 0 && (
+                            <span className="flex items-center gap-1">
+                              <Clock size={14} />
+                              ~{stats.estimatedTime} min
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="text-center p-2 rounded-md bg-secondary/30">
+                        <div className="text-lg font-bold text-primary">{stats.totalChores}</div>
+                        <div className="text-xs text-muted-foreground">Total Chores</div>
+                      </div>
+                      <div className="text-center p-2 rounded-md bg-secondary/30">
+                        <div className="text-lg font-bold text-primary">{stats.upcomingEvents}</div>
+                        <div className="text-xs text-muted-foreground">Events</div>
+                      </div>
+                      <div className="text-center p-2 rounded-md bg-secondary/30">
+                        <div className="text-lg font-bold text-primary">{stats.pendingChores}</div>
+                        <div className="text-xs text-muted-foreground">Pending</div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {isWidgetEnabled('todays-events') && todaysEvents.length > 0 && (

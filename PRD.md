@@ -62,11 +62,11 @@ This is a multi-feature application with distinct but related sections (chores, 
 - **Success criteria**: Dashboard displays real-time data from all sections including calendar events and enables quick actions
 
 ### User Profiles
-- **Functionality**: Simple identification for each household member
-- **Purpose**: Enable task assignment and contribution tracking
-- **Trigger**: Initial setup or settings access
-- **Progression**: Access settings → Add household members (names only) → Assign tasks to members → View who's responsible for what
-- **Success criteria**: Multiple household members can be added and assigned to tasks
+- **Functionality**: Simple identification for each household member with visual contribution tracking
+- **Purpose**: Enable task assignment, contribution tracking, and workload visibility
+- **Trigger**: Settings section or inline during chore creation
+- **Progression**: Access settings → Add household members (names only) → Assign chores to members → View member stats on dashboard → Filter chores by assignee → Track completion rates and estimated time
+- **Success criteria**: Multiple household members can be added, assigned to tasks, and their contributions are visualized with completion rates, pending tasks, event attendance, and estimated time remaining
 
 ### Theme Customization
 - **Functionality**: Choose from multiple pre-designed color themes
