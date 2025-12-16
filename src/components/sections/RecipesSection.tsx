@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Plus, Trash, CookingPot, MagnifyingGlass, Clock, Users, Pencil, Link as LinkIcon, X, Tag, Sparkle } from '@phosphor-icons/react'
+import { Plus, Trash, CookingPot, MagnifyingGlass, Clock, Users, Pencil, Link as LinkIcon, X, Tag, Sparkle, Image as ImageIcon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -31,7 +31,8 @@ export default function RecipesSection() {
     cookTime: '',
     servings: '',
     tags: '',
-    sourceUrl: ''
+    sourceUrl: '',
+    imageUrl: ''
   })
 
   const allTags = Array.from(
@@ -57,7 +58,7 @@ export default function RecipesSection() {
       const prompt = window.spark.llmPrompt(
         [
           'You are a recipe extraction assistant. Extract recipe information from the following HTML content.\n\nHTML Content:\n',
-          '\n\nPlease extract and return the following information in JSON format:\n- name: The recipe title/name\n- ingredients: Array of ingredient strings (each ingredient as a separate item)\n- instructions: The cooking instructions as a single text block\n- prepTime: Preparation time (e.g., "15 min", "1 hour")\n- cookTime: Cooking time (e.g., "30 min", "1 hour")\n- servings: Number of servings (e.g., "4", "6-8")\n- tags: Array of relevant tags/categories (e.g., ["vegetarian", "quick", "dinner"])\n\nReturn ONLY a valid JSON object with these fields. Extract actual content from the HTML, not placeholders.'
+          '\n\nPlease extract and return the following information in JSON format:\n- name: The recipe title/name\n- ingredients: Array of ingredient strings (each ingredient as a separate item)\n- instructions: The cooking instructions as a single text block\n- prepTime: Preparation time (e.g., "15 min", "1 hour")\n- cookTime: Cooking time (e.g., "30 min", "1 hour")\n- servings: Number of servings (e.g., "4", "6-8")\n- tags: Array of relevant tags/categories (e.g., ["vegetarian", "quick", "dinner"])\n- imageUrl: The main recipe image URL (look for og:image meta tag, recipe photo, or main food image - must be a full absolute URL)\n\nReturn ONLY a valid JSON object with these fields. Extract actual content from the HTML, not placeholders. For imageUrl, ensure it\'s a complete URL starting with http:// or https://.'
         ],
         htmlContent
       )
@@ -77,7 +78,8 @@ export default function RecipesSection() {
         tags: Array.isArray(parsed.tags) 
           ? parsed.tags.join(', ') 
           : parsed.tags || '',
-        sourceUrl: recipeForm.sourceUrl
+        sourceUrl: recipeForm.sourceUrl,
+        imageUrl: parsed.imageUrl || ''
       })
 
       toast.success('Recipe parsed! Please review and adjust as needed.')
@@ -114,7 +116,8 @@ export default function RecipesSection() {
                 cookTime: recipeForm.cookTime.trim() || undefined,
                 servings: recipeForm.servings.trim() || undefined,
                 tags: tags.length > 0 ? tags : undefined,
-                sourceUrl: recipeForm.sourceUrl.trim() || undefined
+                sourceUrl: recipeForm.sourceUrl.trim() || undefined,
+                imageUrl: recipeForm.imageUrl.trim() || undefined
               }
             : recipe
         )
@@ -131,6 +134,7 @@ export default function RecipesSection() {
         servings: recipeForm.servings.trim() || undefined,
         tags: tags.length > 0 ? tags : undefined,
         sourceUrl: recipeForm.sourceUrl.trim() || undefined,
+        imageUrl: recipeForm.imageUrl.trim() || undefined,
         createdAt: Date.now()
       }
 
@@ -149,7 +153,8 @@ export default function RecipesSection() {
       cookTime: '',
       servings: '',
       tags: '',
-      sourceUrl: ''
+      sourceUrl: '',
+      imageUrl: ''
     })
   }
 
@@ -174,7 +179,8 @@ export default function RecipesSection() {
       cookTime: recipe.cookTime || '',
       servings: recipe.servings || '',
       tags: recipe.tags?.join(', ') || '',
-      sourceUrl: recipe.sourceUrl || ''
+      sourceUrl: recipe.sourceUrl || '',
+      imageUrl: recipe.imageUrl || ''
     })
     setViewDialogOpen(false)
     setDialogOpen(true)
@@ -208,7 +214,8 @@ export default function RecipesSection() {
               cookTime: '',
               servings: '',
               tags: '',
-              sourceUrl: ''
+              sourceUrl: '',
+              imageUrl: ''
             })
           }
         }}>
@@ -308,6 +315,41 @@ export default function RecipesSection() {
                   <p className="text-xs text-muted-foreground">
                     Add tags to organize and filter recipes
                   </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="image-url">Image URL (optional)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="image-url"
+                      value={recipeForm.imageUrl}
+                      onChange={(e) => setRecipeForm({ ...recipeForm, imageUrl: e.target.value })}
+                      placeholder="https://example.com/recipe-image.jpg"
+                      className="flex-1"
+                    />
+                    {recipeForm.imageUrl && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setRecipeForm({ ...recipeForm, imageUrl: '' })}
+                      >
+                        <X size={16} />
+                      </Button>
+                    )}
+                  </div>
+                  {recipeForm.imageUrl && (
+                    <div className="relative w-full h-32 bg-muted rounded-lg overflow-hidden">
+                      <img 
+                        src={recipeForm.imageUrl} 
+                        alt="Recipe preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center text-muted-foreground text-sm">Invalid image URL</div>'
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -412,10 +454,22 @@ export default function RecipesSection() {
           {filteredRecipes.map((recipe) => (
             <Card
               key={recipe.id}
-              className="p-4 cursor-pointer hover:shadow-md transition-shadow"
+              className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => viewRecipe(recipe)}
             >
-              <div className="space-y-3">
+              {recipe.imageUrl && (
+                <div className="relative w-full h-48 bg-muted overflow-hidden">
+                  <img 
+                    src={recipe.imageUrl} 
+                    alt={recipe.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
+                </div>
+              )}
+              <div className="p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="font-semibold text-lg flex-1">{recipe.name}</h3>
                   {recipe.sourceUrl && (
@@ -471,6 +525,19 @@ export default function RecipesSection() {
               </DialogHeader>
               <ScrollArea className="max-h-[calc(90vh-8rem)] pr-4">
                 <div className="space-y-6 pt-4">
+                  {selectedRecipe.imageUrl && (
+                    <div className="relative w-full h-64 bg-muted rounded-lg overflow-hidden">
+                      <img 
+                        src={selectedRecipe.imageUrl} 
+                        alt={selectedRecipe.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                        }}
+                      />
+                    </div>
+                  )}
+
                   {selectedRecipe.tags && selectedRecipe.tags.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {selectedRecipe.tags.map((tag) => (

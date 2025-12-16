@@ -33,6 +33,7 @@ export interface Recipe {
   servings?: string
   tags?: string[]
   sourceUrl?: string
+  imageUrl?: string
   createdAt: number
 }
 
