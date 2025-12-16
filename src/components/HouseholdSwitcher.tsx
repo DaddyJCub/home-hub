@@ -1,0 +1,213 @@
+import { useAuth } from '@/lib/AuthContext'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { House, SignOut, Plus, UserPlus } from '@phosphor-icons/react'
+import { useState } from 'react'
+import { toast } from 'sonner'
+import { useKV } from '@github/spark/hooks'
+import { generateInviteCode, generateId, createHouseholdMember } from '@/lib/auth'
+import type { Household, HouseholdMember } from '@/lib/types'
+
+export default function HouseholdSwitcher() {
+  const { currentHousehold, userHouseholds, switchHousehold, logout, currentUser, currentUserRole } = useAuth()
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false)
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
+  const [newHouseholdName, setNewHouseholdName] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
+  
+  const [households = [], setHouseholds] = useKV<Household[]>('households', [])
+  const [householdMembers = [], setHouseholdMembers] = useKV<HouseholdMember[]>('household-members-v2', [])
+
+  const handleCreateHousehold = async () => {
+    if (!newHouseholdName.trim() || !currentUser) return
+
+    const newHousehold: Household = {
+      id: generateId(),
+      name: newHouseholdName.trim(),
+      ownerId: currentUser.id,
+      createdAt: Date.now(),
+      inviteCode: generateInviteCode()
+    }
+
+    const newMember = createHouseholdMember(newHousehold.id, currentUser.id, currentUser.displayName, 'owner')
+
+    setHouseholds((current: Household[]) => [...current, newHousehold])
+    setHouseholdMembers((current: HouseholdMember[]) => [...current, newMember])
+
+    switchHousehold(newHousehold.id)
+    setNewHouseholdName('')
+    setCreateDialogOpen(false)
+    toast.success(`${newHousehold.name} created!`)
+  }
+
+  const handleJoinHousehold = () => {
+    if (!inviteCode.trim() || !currentUser) return
+
+    const household = households.find(h => h.inviteCode?.toUpperCase() === inviteCode.toUpperCase().trim())
+    
+    if (!household) {
+      toast.error('Invalid invite code')
+      return
+    }
+
+    const alreadyMember = householdMembers.some(
+      m => m.householdId === household.id && m.userId === currentUser.id
+    )
+
+    if (alreadyMember) {
+      toast.error('You are already a member of this household')
+      switchHousehold(household.id)
+      setJoinDialogOpen(false)
+      return
+    }
+
+    const newMember = createHouseholdMember(household.id, currentUser.id, currentUser.displayName, 'member')
+    setHouseholdMembers((current: HouseholdMember[]) => [...current, newMember])
+
+    switchHousehold(household.id)
+    setInviteCode('')
+    setJoinDialogOpen(false)
+    toast.success(`Joined ${household.name}!`)
+  }
+
+  const canInvite = currentUserRole === 'owner' || currentUserRole === 'admin'
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 bg-secondary/50 px-3 py-2 rounded-lg border">
+        <House size={18} className="text-primary" />
+        {userHouseholds.length > 1 ? (
+          <Select
+            value={currentHousehold?.id || ''}
+            onValueChange={switchHousehold}
+          >
+            <SelectTrigger className="w-48 h-8 border-0 bg-background/80">
+              <SelectValue placeholder="Select household" />
+            </SelectTrigger>
+            <SelectContent>
+              {userHouseholds.map((household) => (
+                <SelectItem key={household.id} value={household.id}>
+                  {household.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-sm font-medium">{currentHousehold?.name}</span>
+        )}
+      </div>
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-2">
+            <Plus size={16} />
+            New
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Household</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="household-name">Household Name</Label>
+              <Input
+                id="household-name"
+                value={newHouseholdName}
+                onChange={(e) => setNewHouseholdName(e.target.value)}
+                placeholder="The Smith Family"
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateHousehold()}
+              />
+            </div>
+            <Button onClick={handleCreateHousehold} className="w-full">
+              Create Household
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={joinDialogOpen} onOpenChange={setJoinDialogOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-2">
+            <UserPlus size={16} />
+            Join
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Join Household</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="invite-code">Invite Code</Label>
+              <Input
+                id="invite-code"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder="Enter 8-character code"
+                maxLength={8}
+                className="uppercase"
+                onKeyDown={(e) => e.key === 'Enter' && handleJoinHousehold()}
+              />
+              <p className="text-xs text-muted-foreground">
+                Ask the household owner or admin for an invite code
+              </p>
+            </div>
+            <Button onClick={handleJoinHousehold} className="w-full">
+              Join Household
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {canInvite && currentHousehold?.inviteCode && (
+        <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2">
+              <UserPlus size={16} />
+              Invite
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Invite Members</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>Invite Code</Label>
+                <div className="flex items-center gap-2">
+                  <Badge className="text-2xl font-mono px-4 py-2">
+                    {currentHousehold.inviteCode}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(currentHousehold.inviteCode!)
+                      toast.success('Invite code copied!')
+                    }}
+                  >
+                    Copy
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Share this code with people you want to invite to {currentHousehold.name}
+                </p>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Button variant="ghost" size="sm" onClick={logout} className="gap-2">
+        <SignOut size={16} />
+        Sign Out
+      </Button>
+    </div>
+  )
+}

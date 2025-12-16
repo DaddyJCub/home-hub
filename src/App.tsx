@@ -4,7 +4,9 @@ import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear } from '@ph
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useKV } from '@github/spark/hooks'
 import { getThemeById, applyTheme } from '@/lib/themes'
-import MemberFilter from '@/components/MemberFilter'
+import { AuthProvider, useAuth } from '@/lib/AuthContext'
+import AuthPage from '@/components/AuthPage'
+import HouseholdSwitcher from '@/components/HouseholdSwitcher'
 import DashboardSection from '@/components/sections/DashboardSection'
 import ChoresSection from '@/components/sections/ChoresSection'
 import ShoppingSection from '@/components/sections/ShoppingSection'
@@ -13,10 +15,11 @@ import RecipesSection from '@/components/sections/RecipesSection'
 import CalendarSection from '@/components/sections/CalendarSection'
 import SettingsSection from '@/components/sections/SettingsSection'
 
-function App() {
+function AppContent() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const isMobile = useIsMobile()
   const [currentThemeId = 'warm-home'] = useKV<string>('theme-id', 'warm-home')
+  const { isAuthenticated, currentHousehold, logout } = useAuth()
 
   useEffect(() => {
     const theme = getThemeById(currentThemeId)
@@ -25,6 +28,10 @@ function App() {
     }
   }, [currentThemeId])
 
+  if (!isAuthenticated) {
+    return <AuthPage />
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card sticky top-0 z-10">
@@ -32,9 +39,13 @@ function App() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h1 className="text-3xl font-bold text-primary">HomeHub</h1>
-              <p className="text-sm text-muted-foreground">Household harmony made simple</p>
+              <p className="text-sm text-muted-foreground">
+                {currentHousehold?.name || 'Household harmony made simple'}
+              </p>
             </div>
-            <MemberFilter />
+            <div className="flex items-center gap-3 flex-wrap">
+              <HouseholdSwitcher />
+            </div>
           </div>
         </div>
       </header>
@@ -174,6 +185,14 @@ function App() {
         </nav>
       )}
     </div>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 

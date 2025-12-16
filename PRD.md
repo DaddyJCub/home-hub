@@ -1,16 +1,45 @@
 # Planning Guide
 
-A collaborative household management application that helps partners coordinate chores, shopping, meal planning, and recipes in one unified space.
+A collaborative household management application that helps households coordinate chores, shopping, meal planning, and recipes in one unified space with real user accounts and multi-household support.
 
 **Experience Qualities**:
-1. **Collaborative** - Both partners should feel equally empowered to add, edit, and complete tasks with real-time visibility into each other's contributions.
-2. **Organized** - Information should be logically grouped and easy to find, reducing mental overhead of household coordination.
-3. **Practical** - Quick access to daily needs like shopping lists and upcoming meals without unnecessary complexity.
+1. **Secure & Personal** - Each user has their own account and can belong to multiple households with role-based permissions.
+2. **Collaborative** - Household members can work together with real-time visibility into contributions and shared data.
+3. **Organized** - Information is logically grouped by household, reducing mental overhead of coordination.
+4. **Practical** - Quick access to daily needs like shopping lists and upcoming meals without unnecessary complexity.
 
-**Complexity Level**: Light Application (multiple features with basic state)
-This is a multi-feature application with distinct but related sections (chores, shopping, meals, recipes) that share a common household context. The state management is straightforward with persistent storage needs but doesn't require complex user flows or advanced integrations.
+**Complexity Level**: Complex Application (advanced functionality with multiple views and user management)
+This is a multi-feature application with user authentication, household management, role-based access control, and distinct but related sections (chores, shopping, meals, recipes, calendar) that are scoped to households. The state management includes user sessions, household switching, and permission-based feature access.
 
 ## Essential Features
+
+### User Authentication
+- **Functionality**: Email and password-based authentication with secure password hashing
+- **Purpose**: Provide secure, personal accounts for each user to access their households
+- **Trigger**: User visits app without valid session
+- **Progression**: View login screen → Enter email and password → Sign in → Access household dashboard OR Create new account → Enter display name, email, password → Automatically create first household → Access dashboard
+- **Success criteria**: Users can create accounts, sign in, sign out, and maintain sessions. Passwords are securely hashed. First household is automatically created on signup.
+
+### Household Management
+- **Functionality**: Create multiple households, join existing households via invite codes, switch between households
+- **Purpose**: Allow users to manage separate household spaces (e.g., family home, shared apartment, vacation property)
+- **Trigger**: User clicks household switcher or create/join buttons
+- **Progression**: Create: Click "New" → Enter household name → Household created with user as owner → Invite code generated | Join: Click "Join" → Enter 8-character invite code → Join household as member | Switch: Select household from dropdown → All data filtered to selected household
+- **Success criteria**: Users can create unlimited households, join via invite codes, switch between them seamlessly, and see only data for the active household
+
+### Role-Based Access Control
+- **Functionality**: Three role levels - Owner (full control), Admin (manage members/settings), Member (normal use)
+- **Purpose**: Provide appropriate permissions and prevent accidental data loss or unauthorized changes
+- **Trigger**: Role is assigned when user creates or joins household
+- **Progression**: Owner/Admin can view invite code → Share with new members → New members join with Member role → Owner/Admin can manage members in settings
+- **Success criteria**: Owners and Admins can invite members and access admin functions. Members have standard access. Only Owners can delete households or transfer ownership.
+
+### Household Invitations
+- **Functionality**: Generate and share unique 8-character invite codes for each household
+- **Purpose**: Allow secure, controlled addition of new household members
+- **Trigger**: Owner or Admin clicks "Invite" button
+- **Progression**: Click "Invite" → View unique invite code → Copy code → Share with new member → New member uses "Join" feature → Enters code → Added to household as Member
+- **Success criteria**: Each household has a unique, persistent invite code. Codes can be copied easily. Invalid codes show error message. Users cannot join the same household twice.
 
 ### Chore Management
 - **Functionality**: Create, assign, and track household chores with customizable recurring schedules, room assignments, priorities, estimated time, notes, and member-specific filtering
