@@ -12,6 +12,12 @@ export interface Chore {
   lastCompleted?: number
   nextDue?: number
   createdAt: number
+  room?: string
+  priority?: 'low' | 'medium' | 'high'
+  dueDate?: string
+  notes?: string
+  daysOfWeek?: number[]
+  estimatedMinutes?: number
 }
 
 export interface ShoppingItem {
@@ -21,6 +27,9 @@ export interface ShoppingItem {
   quantity: string
   purchased: boolean
   createdAt: number
+  priority?: 'low' | 'medium' | 'high'
+  notes?: string
+  store?: string
 }
 
 export interface Recipe {

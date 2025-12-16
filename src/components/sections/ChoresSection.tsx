@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Plus, Check, Trash, Repeat, Broom } from '@phosphor-icons/react'
+import { Plus, Check, Trash, Repeat, Broom, Funnel, CaretDown, MapPin, Clock, Flag } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -9,8 +9,35 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Textarea } from '@/components/ui/textarea'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { Chore, HouseholdMember } from '@/lib/types'
 import { toast } from 'sonner'
+
+const ROOMS = [
+  'Kitchen',
+  'Living Room',
+  'Bedroom',
+  'Bathroom',
+  'Garage',
+  'Yard',
+  'Office',
+  'Laundry',
+  'Dining Room',
+  'Basement',
+  'Attic',
+  'Other'
+]
+
+const DAYS_OF_WEEK = [
+  { value: 0, label: 'Sun' },
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' }
+]
 
 export default function ChoresSection() {
   const [chores = [], setChores] = useKV<Chore[]>('chores', [])
@@ -19,14 +46,31 @@ export default function ChoresSection() {
   const [memberDialogOpen, setMemberDialogOpen] = useState(false)
   const [editingChore, setEditingChore] = useState<Chore | null>(null)
   
+  const [filterRoom, setFilterRoom] = useState<string>('all')
+  const [filterAssignee, setFilterAssignee] = useState<string>('all')
+  const [filterPriority, setFilterPriority] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<'dueDate' | 'priority' | 'room' | 'created'>('created')
+  
   const [choreForm, setChoreForm] = useState<{
     title: string
     assignedTo: string
     frequency: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly'
+    room: string
+    priority: 'low' | 'medium' | 'high'
+    dueDate: string
+    notes: string
+    daysOfWeek: number[]
+    estimatedMinutes: string
   }>({
     title: '',
     assignedTo: '',
-    frequency: 'once'
+    frequency: 'once',
+    room: '',
+    priority: 'medium',
+    dueDate: '',
+    notes: '',
+    daysOfWeek: [],
+    estimatedMinutes: ''
   })
   
   const [memberName, setMemberName] = useState('')
@@ -45,17 +89,43 @@ export default function ChoresSection() {
     toast.success(`${newMember.name} added to household`)
   }
 
+  const toggleDayOfWeek = (day: number) => {
+    setChoreForm(prev => ({
+      ...prev,
+      daysOfWeek: prev.daysOfWeek.includes(day)
+        ? prev.daysOfWeek.filter(d => d !== day)
+        : [...prev.daysOfWeek, day].sort()
+    }))
+  }
+
   const handleSaveChore = () => {
     if (!choreForm.title.trim() || !choreForm.assignedTo) {
-      toast.error('Please fill in all fields')
+      toast.error('Please fill in required fields')
       return
+    }
+
+    if ((choreForm.frequency === 'weekly' || choreForm.frequency === 'biweekly') && choreForm.daysOfWeek.length === 0) {
+      toast.error('Please select at least one day of the week for recurring chores')
+      return
+    }
+
+    const choreData = {
+      title: choreForm.title.trim(),
+      assignedTo: choreForm.assignedTo,
+      frequency: choreForm.frequency,
+      room: choreForm.room || undefined,
+      priority: choreForm.priority,
+      dueDate: choreForm.dueDate || undefined,
+      notes: choreForm.notes.trim() || undefined,
+      daysOfWeek: choreForm.daysOfWeek.length > 0 ? choreForm.daysOfWeek : undefined,
+      estimatedMinutes: choreForm.estimatedMinutes ? parseInt(choreForm.estimatedMinutes) : undefined
     }
 
     if (editingChore) {
       setChores((current = []) =>
         current.map((chore) =>
           chore.id === editingChore.id
-            ? { ...chore, ...choreForm }
+            ? { ...chore, ...choreData }
             : chore
         )
       )
@@ -63,7 +133,7 @@ export default function ChoresSection() {
     } else {
       const newChore: Chore = {
         id: Date.now().toString(),
-        ...choreForm,
+        ...choreData,
         completed: false,
         createdAt: Date.now()
       }
@@ -73,7 +143,21 @@ export default function ChoresSection() {
 
     setDialogOpen(false)
     setEditingChore(null)
-    setChoreForm({ title: '', assignedTo: '', frequency: 'once' })
+    resetForm()
+  }
+
+  const resetForm = () => {
+    setChoreForm({
+      title: '',
+      assignedTo: '',
+      frequency: 'once',
+      room: '',
+      priority: 'medium',
+      dueDate: '',
+      notes: '',
+      daysOfWeek: [],
+      estimatedMinutes: ''
+    })
   }
 
   const handleToggleChore = (id: string) => {
@@ -125,13 +209,50 @@ export default function ChoresSection() {
     setChoreForm({
       title: chore.title,
       assignedTo: chore.assignedTo,
-      frequency: chore.frequency
+      frequency: chore.frequency,
+      room: chore.room || '',
+      priority: chore.priority || 'medium',
+      dueDate: chore.dueDate || '',
+      notes: chore.notes || '',
+      daysOfWeek: chore.daysOfWeek || [],
+      estimatedMinutes: chore.estimatedMinutes?.toString() || ''
     })
     setDialogOpen(true)
   }
 
-  const activeChores = chores.filter((c) => !c.completed)
-  const completedChores = chores.filter((c) => c.completed)
+  const filteredAndSortedChores = useMemo(() => {
+    let filtered = chores.filter(chore => {
+      if (filterRoom !== 'all' && chore.room !== filterRoom) return false
+      if (filterAssignee !== 'all' && chore.assignedTo !== filterAssignee) return false
+      if (filterPriority !== 'all' && chore.priority !== filterPriority) return false
+      return true
+    })
+
+    return filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'priority': {
+          const priorityOrder = { high: 0, medium: 1, low: 2 }
+          const aPriority = a.priority || 'medium'
+          const bPriority = b.priority || 'medium'
+          return priorityOrder[aPriority] - priorityOrder[bPriority]
+        }
+        case 'dueDate': {
+          if (!a.dueDate && !b.dueDate) return 0
+          if (!a.dueDate) return 1
+          if (!b.dueDate) return -1
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+        }
+        case 'room':
+          return (a.room || '').localeCompare(b.room || '')
+        case 'created':
+        default:
+          return b.createdAt - a.createdAt
+      }
+    })
+  }, [chores, filterRoom, filterAssignee, filterPriority, sortBy])
+
+  const activeChores = filteredAndSortedChores.filter((c) => !c.completed)
+  const completedChores = filteredAndSortedChores.filter((c) => c.completed)
 
   const getFrequencyLabel = (frequency: string) => {
     const labels = {
@@ -144,16 +265,86 @@ export default function ChoresSection() {
     return labels[frequency as keyof typeof labels]
   }
 
+  const getPriorityColor = (priority?: string) => {
+    switch (priority) {
+      case 'high':
+        return 'bg-destructive text-destructive-foreground'
+      case 'low':
+        return 'bg-secondary text-secondary-foreground'
+      default:
+        return 'bg-primary text-primary-foreground'
+    }
+  }
+
+  const hasActiveFilters = filterRoom !== 'all' || filterAssignee !== 'all' || filterPriority !== 'all'
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-semibold">Chores</h2>
           <p className="text-sm text-muted-foreground">
             {activeChores.length} active, {completedChores.length} completed
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <Funnel />
+                Filter {hasActiveFilters && <Badge variant="secondary" className="ml-1 px-1.5 py-0">•</Badge>}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Filter By</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Room</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={filterRoom} onValueChange={setFilterRoom}>
+                <DropdownMenuRadioItem value="all">All Rooms</DropdownMenuRadioItem>
+                {ROOMS.map(room => (
+                  <DropdownMenuRadioItem key={room} value={room}>{room}</DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Assigned To</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={filterAssignee} onValueChange={setFilterAssignee}>
+                <DropdownMenuRadioItem value="all">Everyone</DropdownMenuRadioItem>
+                {members.map(member => (
+                  <DropdownMenuRadioItem key={member.id} value={member.name}>{member.name}</DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Priority</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={filterPriority} onValueChange={setFilterPriority}>
+                <DropdownMenuRadioItem value="all">All Priorities</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="high">High</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="medium">Medium</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="low">Low</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                Sort <CaretDown />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Sort By</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuRadioGroup value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
+                <DropdownMenuRadioItem value="created">Date Created</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dueDate">Due Date</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="priority">Priority</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="room">Room</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Dialog open={memberDialogOpen} onOpenChange={setMemberDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm">Add Member</Button>
@@ -196,7 +387,7 @@ export default function ChoresSection() {
             setDialogOpen(open)
             if (!open) {
               setEditingChore(null)
-              setChoreForm({ title: '', assignedTo: '', frequency: 'once' })
+              resetForm()
             }
           }}>
             <DialogTrigger asChild>
@@ -205,61 +396,156 @@ export default function ChoresSection() {
                 Add Chore
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingChore ? 'Edit Chore' : 'Add New Chore'}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Chore</Label>
-                  <Input
-                    id="title"
-                    value={choreForm.title}
-                    onChange={(e) => setChoreForm({ ...choreForm, title: e.target.value })}
-                    placeholder="e.g., Vacuum living room"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assigned">Assigned To</Label>
-                  {members.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Please add household members first
-                    </p>
-                  ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="title">Chore Title *</Label>
+                    <Input
+                      id="title"
+                      value={choreForm.title}
+                      onChange={(e) => setChoreForm({ ...choreForm, title: e.target.value })}
+                      placeholder="e.g., Vacuum living room"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="assigned">Assigned To *</Label>
+                    {members.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Please add household members first
+                      </p>
+                    ) : (
+                      <Select
+                        value={choreForm.assignedTo}
+                        onValueChange={(value) => setChoreForm({ ...choreForm, assignedTo: value })}
+                      >
+                        <SelectTrigger id="assigned">
+                          <SelectValue placeholder="Select person" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {members.map((member) => (
+                            <SelectItem key={member.id} value={member.name}>
+                              {member.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="room">Room</Label>
                     <Select
-                      value={choreForm.assignedTo}
-                      onValueChange={(value) => setChoreForm({ ...choreForm, assignedTo: value })}
+                      value={choreForm.room}
+                      onValueChange={(value) => setChoreForm({ ...choreForm, room: value })}
                     >
-                      <SelectTrigger id="assigned">
-                        <SelectValue placeholder="Select person" />
+                      <SelectTrigger id="room">
+                        <SelectValue placeholder="Select room" />
                       </SelectTrigger>
                       <SelectContent>
-                        {members.map((member) => (
-                          <SelectItem key={member.id} value={member.name}>
-                            {member.name}
+                        {ROOMS.map((room) => (
+                          <SelectItem key={room} value={room}>
+                            {room}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="frequency">Frequency</Label>
+                    <Select
+                      value={choreForm.frequency}
+                      onValueChange={(value) => setChoreForm({ ...choreForm, frequency: value as any })}
+                    >
+                      <SelectTrigger id="frequency">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="once">One-time</SelectItem>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="priority">Priority</Label>
+                    <Select
+                      value={choreForm.priority}
+                      onValueChange={(value) => setChoreForm({ ...choreForm, priority: value as any })}
+                    >
+                      <SelectTrigger id="priority">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {(choreForm.frequency === 'weekly' || choreForm.frequency === 'biweekly') && (
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Days of Week *</Label>
+                      <div className="flex gap-2 flex-wrap">
+                        {DAYS_OF_WEEK.map((day) => (
+                          <Button
+                            key={day.value}
+                            type="button"
+                            variant={choreForm.daysOfWeek.includes(day.value) ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => toggleDayOfWeek(day.value)}
+                            className="w-14"
+                          >
+                            {day.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
                   )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="frequency">Frequency</Label>
-                  <Select
-                    value={choreForm.frequency}
-                    onValueChange={(value) => setChoreForm({ ...choreForm, frequency: value as any })}
-                  >
-                    <SelectTrigger id="frequency">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="once">One-time</SelectItem>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="biweekly">Bi-weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                    </SelectContent>
-                  </Select>
+
+                  {choreForm.frequency === 'once' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="dueDate">Due Date</Label>
+                      <Input
+                        id="dueDate"
+                        type="date"
+                        value={choreForm.dueDate}
+                        onChange={(e) => setChoreForm({ ...choreForm, dueDate: e.target.value })}
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="estimatedMinutes">Estimated Time (minutes)</Label>
+                    <Input
+                      id="estimatedMinutes"
+                      type="number"
+                      min="1"
+                      value={choreForm.estimatedMinutes}
+                      onChange={(e) => setChoreForm({ ...choreForm, estimatedMinutes: e.target.value })}
+                      placeholder="e.g., 30"
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="notes">Notes</Label>
+                    <Textarea
+                      id="notes"
+                      value={choreForm.notes}
+                      onChange={(e) => setChoreForm({ ...choreForm, notes: e.target.value })}
+                      placeholder="Add any special instructions or notes..."
+                      rows={3}
+                    />
+                  </div>
                 </div>
                 <Button onClick={handleSaveChore} className="w-full" disabled={members.length === 0}>
                   {editingChore ? 'Update Chore' : 'Add Chore'}
@@ -270,12 +556,52 @@ export default function ChoresSection() {
         </div>
       </div>
 
+      {hasActiveFilters && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-muted-foreground">Active filters:</span>
+          {filterRoom !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              Room: {filterRoom}
+            </Badge>
+          )}
+          {filterAssignee !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              Assignee: {filterAssignee}
+            </Badge>
+          )}
+          {filterPriority !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              Priority: {filterPriority}
+            </Badge>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setFilterRoom('all')
+              setFilterAssignee('all')
+              setFilterPriority('all')
+            }}
+          >
+            Clear filters
+          </Button>
+        </div>
+      )}
+
       {chores.length === 0 ? (
         <Card className="p-12 text-center">
           <Broom size={48} className="mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-lg font-semibold mb-2">No chores yet</h3>
           <p className="text-sm text-muted-foreground mb-4">
             Start by adding household members, then create your first chore
+          </p>
+        </Card>
+      ) : activeChores.length === 0 && completedChores.length === 0 ? (
+        <Card className="p-12 text-center">
+          <Funnel size={48} className="mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-lg font-semibold mb-2">No chores match your filters</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Try adjusting your filters to see more chores
           </p>
         </Card>
       ) : (
@@ -299,12 +625,45 @@ export default function ChoresSection() {
                       >
                         {chore.title}
                       </label>
+                      {chore.notes && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {chore.notes}
+                        </p>
+                      )}
                       <div className="flex flex-wrap gap-2 mt-2">
                         <Badge variant="secondary">{chore.assignedTo}</Badge>
+                        {chore.priority && (
+                          <Badge className={getPriorityColor(chore.priority)}>
+                            <Flag size={14} className="mr-1" />
+                            {chore.priority}
+                          </Badge>
+                        )}
+                        {chore.room && (
+                          <Badge variant="outline" className="gap-1">
+                            <MapPin size={14} />
+                            {chore.room}
+                          </Badge>
+                        )}
+                        {chore.estimatedMinutes && (
+                          <Badge variant="outline" className="gap-1">
+                            <Clock size={14} />
+                            {chore.estimatedMinutes}m
+                          </Badge>
+                        )}
                         {chore.frequency !== 'once' && (
                           <Badge variant="outline" className="gap-1">
                             <Repeat size={14} />
                             {getFrequencyLabel(chore.frequency)}
+                          </Badge>
+                        )}
+                        {chore.daysOfWeek && chore.daysOfWeek.length > 0 && (
+                          <Badge variant="outline">
+                            {chore.daysOfWeek.map(d => DAYS_OF_WEEK[d].label).join(', ')}
+                          </Badge>
+                        )}
+                        {chore.dueDate && (
+                          <Badge variant="outline">
+                            Due: {new Date(chore.dueDate).toLocaleDateString()}
                           </Badge>
                         )}
                       </div>

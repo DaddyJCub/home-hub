@@ -13,18 +13,18 @@ This is a multi-feature application with distinct but related sections (chores, 
 ## Essential Features
 
 ### Chore Management
-- **Functionality**: Create, assign, and track household chores with optional recurring schedules
-- **Purpose**: Ensure fair distribution of household tasks and visibility into what needs to be done
+- **Functionality**: Create, assign, and track household chores with customizable recurring schedules, room assignments, priorities, estimated time, and notes
+- **Purpose**: Ensure fair distribution of household tasks with flexible scheduling, better organization by location, and clear prioritization
 - **Trigger**: User navigates to chores section
-- **Progression**: View chore list → Add/edit chore → Assign to person → Set frequency (one-time/recurring) → Mark complete → Chore updates or resets based on schedule
-- **Success criteria**: Chores can be created, assigned, completed, and recurring chores automatically reset
+- **Progression**: View chore list → Add/edit chore → Assign to person → Set room/location → Set priority level → Set frequency (one-time/recurring) → Select specific days of week for weekly/biweekly tasks → Add estimated time and notes → Mark complete → Chore updates or resets based on schedule → Filter and sort chores by room, assignee, or priority
+- **Success criteria**: Chores can be created with full customization options (room, priority, days of week, estimated time, notes), filtered by multiple criteria, sorted by various fields, and recurring chores automatically reset with proper day-of-week support
 
 ### Shopping List
-- **Functionality**: Collaborative list of items to purchase with categories and quantity
-- **Purpose**: Prevent duplicate purchases and ensure nothing is forgotten at the store
+- **Functionality**: Collaborative list of items to purchase with categories, quantity, priority levels, store assignments, and notes
+- **Purpose**: Prevent duplicate purchases, organize shopping by category and store, ensure nothing is forgotten, and prioritize urgent items
 - **Trigger**: User navigates to shopping section
-- **Progression**: View shopping list → Add item with category → Check off item when purchased → Item moves to purchased state → Clear purchased items
-- **Success criteria**: Items can be added, categorized, checked off, and cleared
+- **Progression**: View shopping list grouped by category → Add item with category, quantity, priority, and store → Check off item when purchased → Item moves to purchased state → Clear purchased items → Generate shopping list from weekly meal plan
+- **Success criteria**: Items can be added with full details (category, quantity, priority, store, notes), grouped by category, checked off, cleared, and auto-generated from meal plans
 
 ### Meal Planning
 - **Functionality**: Weekly calendar view of planned meals
