@@ -12,10 +12,12 @@ import AutoMealPlanner from '@/components/AutoMealPlanner'
 import type { Meal, Recipe } from '@/lib/types'
 import { toast } from 'sonner'
 import { format, startOfWeek, addDays } from 'date-fns'
+import { useAuth } from '@/lib/AuthContext'
 
 export default function MealsSection() {
   const [meals = [], setMeals] = useKV<Meal[]>('meals', [])
   const [recipes = []] = useKV<Recipe[]>('recipes', [])
+  const { currentHousehold } = useAuth()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [autoPlannerOpen, setAutoPlannerOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string>('')
@@ -41,6 +43,7 @@ export default function MealsSection() {
 
     const newMeal: Meal = {
       id: Date.now().toString(),
+      householdId: currentHousehold?.id || '',
       date: selectedDate,
       type: mealForm.type,
       name: mealForm.name.trim(),
