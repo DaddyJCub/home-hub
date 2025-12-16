@@ -22,8 +22,17 @@ export default function DashboardSection() {
   const [events = []] = useKV<CalendarEvent[]>('calendar-events', [])
   const [members = []] = useKV<HouseholdMember[]>('household-members', [])
   const [dashboardWidgets = []] = useKV<DashboardWidget[]>('dashboard-widgets', [])
+  const [selectedMember = 'all'] = useKV<string>('selected-member-filter', 'all')
 
-  const pendingChores = chores.filter((c) => !c.completed)
+  const filteredChores = selectedMember === 'all' 
+    ? chores 
+    : chores.filter(c => c.assignedTo === selectedMember)
+  
+  const filteredEvents = selectedMember === 'all'
+    ? events
+    : events.filter(e => e.bookedBy === selectedMember || e.attendees?.includes(selectedMember))
+
+  const pendingChores = filteredChores.filter((c) => !c.completed)
   const unpurchasedItems = shoppingItems.filter((i) => !i.purchased)
   
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 })
@@ -49,8 +58,8 @@ export default function DashboardSection() {
     return widget ? widget.enabled : true
   }
 
-  const todaysEvents = events.filter((evt) => evt.date === todayStr)
-  const upcomingEvents = events
+  const todaysEvents = filteredEvents.filter((evt) => evt.date === todayStr)
+  const upcomingEvents = filteredEvents
     .filter((evt) => {
       const eventDate = new Date(evt.date)
       const today = startOfDay(new Date())
@@ -102,7 +111,11 @@ export default function DashboardSection() {
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold">Dashboard</h2>
-        <p className="text-muted-foreground">Your household at a glance</p>
+        <p className="text-muted-foreground">
+          {selectedMember === 'all' 
+            ? 'Your household at a glance' 
+            : `${selectedMember}'s view`}
+        </p>
       </div>
 
       {isWidgetEnabled('stats') && (
@@ -178,7 +191,7 @@ export default function DashboardSection() {
       </div>
       )}
 
-      {members.length > 0 && (
+      {members.length > 0 && selectedMember === 'all' && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

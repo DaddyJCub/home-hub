@@ -16,6 +16,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMont
 export default function CalendarSection() {
   const [events = [], setEvents] = useKV<CalendarEvent[]>('calendar-events', [])
   const [members = []] = useKV<HouseholdMember[]>('household-members', [])
+  const [selectedMember = 'all'] = useKV<string>('selected-member-filter', 'all')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
@@ -151,7 +152,15 @@ export default function CalendarSection() {
 
   const getEventsForDay = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd')
-    return events.filter((evt) => evt.date === dateStr).sort((a, b) => {
+    let dayEvents = events.filter((evt) => evt.date === dateStr)
+    
+    if (selectedMember !== 'all') {
+      dayEvents = dayEvents.filter((evt) => {
+        return evt.bookedBy === selectedMember || evt.attendees?.includes(selectedMember)
+      })
+    }
+    
+    return dayEvents.sort((a, b) => {
       if (a.startTime && b.startTime) {
         return a.startTime.localeCompare(b.startTime)
       }
@@ -174,7 +183,9 @@ export default function CalendarSection() {
         <div>
           <h2 className="text-3xl font-bold">Calendar</h2>
           <p className="text-sm text-muted-foreground">
-            Shared household events and bookings
+            {selectedMember === 'all'
+              ? 'Shared household events and bookings'
+              : `${selectedMember}'s events and bookings`}
           </p>
         </div>
         <Button onClick={() => openAddEventDialog()} className="gap-2">

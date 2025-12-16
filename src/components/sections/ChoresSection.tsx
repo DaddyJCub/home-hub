@@ -42,6 +42,7 @@ const DAYS_OF_WEEK = [
 export default function ChoresSection() {
   const [chores = [], setChores] = useKV<Chore[]>('chores', [])
   const [members = [], setMembers] = useKV<HouseholdMember[]>('household-members', [])
+  const [selectedMember = 'all'] = useKV<string>('selected-member-filter', 'all')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [memberDialogOpen, setMemberDialogOpen] = useState(false)
   const [editingChore, setEditingChore] = useState<Chore | null>(null)
@@ -222,6 +223,7 @@ export default function ChoresSection() {
 
   const filteredAndSortedChores = useMemo(() => {
     let filtered = chores.filter(chore => {
+      if (selectedMember !== 'all' && chore.assignedTo !== selectedMember) return false
       if (filterRoom !== 'all' && chore.room !== filterRoom) return false
       if (filterAssignee !== 'all' && chore.assignedTo !== filterAssignee) return false
       if (filterPriority !== 'all' && chore.priority !== filterPriority) return false
@@ -249,7 +251,7 @@ export default function ChoresSection() {
           return b.createdAt - a.createdAt
       }
     })
-  }, [chores, filterRoom, filterAssignee, filterPriority, sortBy])
+  }, [chores, selectedMember, filterRoom, filterAssignee, filterPriority, sortBy])
 
   const activeChores = filteredAndSortedChores.filter((c) => !c.completed)
   const completedChores = filteredAndSortedChores.filter((c) => c.completed)
@@ -284,7 +286,9 @@ export default function ChoresSection() {
         <div>
           <h2 className="text-2xl font-semibold">Chores</h2>
           <p className="text-sm text-muted-foreground">
-            {activeChores.length} active, {completedChores.length} completed
+            {selectedMember === 'all' 
+              ? `${activeChores.length} active, ${completedChores.length} completed`
+              : `${selectedMember}: ${activeChores.length} active, ${completedChores.length} completed`}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">

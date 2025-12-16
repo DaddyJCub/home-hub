@@ -4,6 +4,7 @@ import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear } from '@ph
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useKV } from '@github/spark/hooks'
 import { getThemeById, applyTheme } from '@/lib/themes'
+import MemberFilter from '@/components/MemberFilter'
 import DashboardSection from '@/components/sections/DashboardSection'
 import ChoresSection from '@/components/sections/ChoresSection'
 import ShoppingSection from '@/components/sections/ShoppingSection'
@@ -28,8 +29,13 @@ function App() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
-          <h1 className="text-3xl font-bold text-primary">HomeHub</h1>
-          <p className="text-sm text-muted-foreground">Household harmony made simple</p>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h1 className="text-3xl font-bold text-primary">HomeHub</h1>
+              <p className="text-sm text-muted-foreground">Household harmony made simple</p>
+            </div>
+            <MemberFilter />
+          </div>
         </div>
       </header>
 

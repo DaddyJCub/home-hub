@@ -13,11 +13,11 @@ This is a multi-feature application with distinct but related sections (chores, 
 ## Essential Features
 
 ### Chore Management
-- **Functionality**: Create, assign, and track household chores with customizable recurring schedules, room assignments, priorities, estimated time, and notes
-- **Purpose**: Ensure fair distribution of household tasks with flexible scheduling, better organization by location, and clear prioritization
-- **Trigger**: User navigates to chores section
-- **Progression**: View chore list → Add/edit chore → Assign to person → Set room/location → Set priority level → Set frequency (one-time/recurring) → Select specific days of week for weekly/biweekly tasks → Add estimated time and notes → Mark complete → Chore updates or resets based on schedule → Filter and sort chores by room, assignee, or priority
-- **Success criteria**: Chores can be created with full customization options (room, priority, days of week, estimated time, notes), filtered by multiple criteria, sorted by various fields, and recurring chores automatically reset with proper day-of-week support
+- **Functionality**: Create, assign, and track household chores with customizable recurring schedules, room assignments, priorities, estimated time, notes, and member-specific filtering
+- **Purpose**: Ensure fair distribution of household tasks with flexible scheduling, better organization by location, clear prioritization, and ability to view individual workloads
+- **Trigger**: User navigates to chores section or selects member filter
+- **Progression**: View chore list → Add/edit chore → Assign to person → Set room/location → Set priority level → Set frequency (one-time/recurring) → Select specific days of week for weekly/biweekly tasks → Add estimated time and notes → Mark complete → Chore updates or resets based on schedule → Filter and sort chores by room, assignee, or priority → Use member filter to view only one person's chores
+- **Success criteria**: Chores can be created with full customization options (room, priority, days of week, estimated time, notes), filtered by multiple criteria including member-specific views, sorted by various fields, and recurring chores automatically reset with proper day-of-week support
 
 ### Shopping List
 - **Functionality**: Collaborative list of items to purchase with categories, quantity, priority levels, store assignments, and notes
@@ -34,11 +34,11 @@ This is a multi-feature application with distinct but related sections (chores, 
 - **Success criteria**: Meals can be planned for specific days/times, linked to recipes, and viewed in calendar format
 
 ### Calendar & Events
-- **Functionality**: Monthly calendar view with shared household events, appointments, and bookings including room reservations
-- **Purpose**: Centralize family scheduling, track appointments, manage room bookings, and coordinate household activities
-- **Trigger**: User navigates to calendar section
-- **Progression**: View monthly calendar → Click on day to add event → Enter event details (title, time, location, category, attendees, booked by) → Save event → View events on calendar and in upcoming list → Edit or delete events as needed
-- **Success criteria**: Events can be created with various categories (personal, work, appointment, booking, other), assigned to household members, and displayed on a monthly calendar view with upcoming events sidebar. Room booking information (who booked the room) can be tracked.
+- **Functionality**: Monthly calendar view with shared household events, appointments, and bookings including room reservations with member-specific filtering
+- **Purpose**: Centralize family scheduling, track appointments, manage room bookings, coordinate household activities, and view individual member schedules
+- **Trigger**: User navigates to calendar section or selects member filter
+- **Progression**: View monthly calendar → Click on day to add event → Enter event details (title, time, location, category, attendees, booked by) → Save event → View events on calendar and in upcoming list → Edit or delete events as needed → Use member filter to view only events where member is booked by or attending
+- **Success criteria**: Events can be created with various categories (personal, work, appointment, booking, other), assigned to household members, and displayed on a monthly calendar view with upcoming events sidebar. Room booking information (who booked the room) can be tracked. Member filtering shows only events relevant to selected person (bookedBy or in attendees list).
 
 ### Recipe Collection
 - **Functionality**: Store and organize favorite recipes with ingredients, instructions, tags, and labels; automatically parse recipes from website URLs
@@ -55,18 +55,18 @@ This is a multi-feature application with distinct but related sections (chores, 
 - **Success criteria**: System generates coherent weekly meal plans using available recipes and allows easy customization
 
 ### Dashboard Overview
-- **Functionality**: Unified view showing upcoming meals, pending chores, shopping list summary, calendar events, and quick stats
-- **Purpose**: Provide at-a-glance household status without navigating between sections
-- **Trigger**: User navigates to dashboard (new default/home section)
-- **Progression**: View dashboard → See today's meals and events → Check pending chores count → View shopping items needed → See upcoming calendar events → Access calendar of upcoming week → Quick-add items → Navigate to detailed sections
-- **Success criteria**: Dashboard displays real-time data from all sections including calendar events and enables quick actions
+- **Functionality**: Unified view showing upcoming meals, pending chores, shopping list summary, calendar events, and quick stats with member-specific filtering
+- **Purpose**: Provide at-a-glance household status without navigating between sections, with ability to focus on individual member responsibilities
+- **Trigger**: User navigates to dashboard (new default/home section) or selects member filter
+- **Progression**: View dashboard → See today's meals and events → Check pending chores count → View shopping items needed → See upcoming calendar events → Access calendar of upcoming week → Quick-add items → Navigate to detailed sections → Select member filter to view single person's data
+- **Success criteria**: Dashboard displays real-time data from all sections including calendar events, enables quick actions, and filters all data when a specific member is selected
 
 ### User Profiles
-- **Functionality**: Simple identification for each household member with visual contribution tracking
-- **Purpose**: Enable task assignment, contribution tracking, and workload visibility
-- **Trigger**: Settings section or inline during chore creation
-- **Progression**: Access settings → Add household members (names only) → Assign chores to members → View member stats on dashboard → Filter chores by assignee → Track completion rates and estimated time
-- **Success criteria**: Multiple household members can be added, assigned to tasks, and their contributions are visualized with completion rates, pending tasks, event attendance, and estimated time remaining
+- **Functionality**: Simple identification for each household member with visual contribution tracking and member-specific filtered views
+- **Purpose**: Enable task assignment, contribution tracking, workload visibility, and personalized views for each household member
+- **Trigger**: Settings section, inline during chore creation, or member filter in header
+- **Progression**: Access settings → Add household members (names only) → Assign chores to members → View member stats on dashboard → Filter chores by assignee → Track completion rates and estimated time → Use header member filter to view all sections filtered by a specific member → Toggle between individual member views and "Everyone" view
+- **Success criteria**: Multiple household members can be added, assigned to tasks, their contributions are visualized with completion rates, pending tasks, event attendance, and estimated time remaining. Member-specific filtering works across all sections (Dashboard, Chores, Calendar) showing only data relevant to the selected person.
 
 ### Theme Customization
 - **Functionality**: Choose from multiple pre-designed color themes
@@ -88,6 +88,13 @@ This is a multi-feature application with distinct but related sections (chores, 
 - **Trigger**: User accesses admin section in settings
 - **Progression**: View settings → Export data as JSON backup or Delete specific data categories → Confirm destructive actions → System updates
 - **Success criteria**: Users can export all data and selectively delete data categories safely
+
+### Member-Specific Views
+- **Functionality**: Global filter in header that shows only data relevant to a selected household member across all sections
+- **Purpose**: Allow individual household members to focus on their own responsibilities and schedule without being overwhelmed by shared household data
+- **Trigger**: User selects a member from the dropdown filter in the header
+- **Progression**: Select member from header dropdown → All sections automatically filter to show only that member's data → Dashboard shows member's chores, events, and stats → Chores section shows only assigned chores → Calendar shows only events where member is booked by or attending → Toggle back to "Everyone" to see all household data
+- **Success criteria**: Member filter persists across page refreshes, updates all sections simultaneously, clearly indicates when a member view is active, and seamlessly switches between individual and household-wide views
 
 ## Edge Case Handling
 
@@ -168,6 +175,7 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - Dashboard with stat cards and preview widgets
   - AI-powered recipe URL parser
   - AI-powered automated meal planner with preferences
+  - Global member filter in header with persistent state
 
 - **States**:
   - Buttons: Solid primary for main actions, ghost for secondary, with pressed state that feels substantial
@@ -184,7 +192,7 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - Plus for add actions
   - Check/CheckCircle for completion
   - Trash for deletion
-  - Users for assignment
+  - Users/User for assignment and member selection
   - Sparkle for AI-powered features
   - LinkIcon for recipe URLs
   - Tag for recipe tags/categories
