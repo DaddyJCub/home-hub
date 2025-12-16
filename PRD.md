@@ -33,6 +33,13 @@ This is a multi-feature application with distinct but related sections (chores, 
 - **Progression**: View weekly calendar → Select day → Add meal (breakfast/lunch/dinner) → Link to recipe (optional) → View week at a glance
 - **Success criteria**: Meals can be planned for specific days/times, linked to recipes, and viewed in calendar format
 
+### Calendar & Events
+- **Functionality**: Monthly calendar view with shared household events, appointments, and bookings including room reservations
+- **Purpose**: Centralize family scheduling, track appointments, manage room bookings, and coordinate household activities
+- **Trigger**: User navigates to calendar section
+- **Progression**: View monthly calendar → Click on day to add event → Enter event details (title, time, location, category, attendees, booked by) → Save event → View events on calendar and in upcoming list → Edit or delete events as needed
+- **Success criteria**: Events can be created with various categories (personal, work, appointment, booking, other), assigned to household members, and displayed on a monthly calendar view with upcoming events sidebar. Room booking information (who booked the room) can be tracked.
+
 ### Recipe Collection
 - **Functionality**: Store and organize favorite recipes with ingredients, instructions, tags, and labels; automatically parse recipes from website URLs
 - **Purpose**: Keep household recipes in one accessible place, enable better organization and discovery, and integrate with meal planning
@@ -48,11 +55,11 @@ This is a multi-feature application with distinct but related sections (chores, 
 - **Success criteria**: System generates coherent weekly meal plans using available recipes and allows easy customization
 
 ### Dashboard Overview
-- **Functionality**: Unified view showing upcoming meals, pending chores, shopping list summary, and quick stats
+- **Functionality**: Unified view showing upcoming meals, pending chores, shopping list summary, calendar events, and quick stats
 - **Purpose**: Provide at-a-glance household status without navigating between sections
 - **Trigger**: User navigates to dashboard (new default/home section)
-- **Progression**: View dashboard → See today's meals → Check pending chores count → View shopping items needed → Access calendar of upcoming week → Quick-add items → Navigate to detailed sections
-- **Success criteria**: Dashboard displays real-time data from all sections and enables quick actions
+- **Progression**: View dashboard → See today's meals and events → Check pending chores count → View shopping items needed → See upcoming calendar events → Access calendar of upcoming week → Quick-add items → Navigate to detailed sections
+- **Success criteria**: Dashboard displays real-time data from all sections including calendar events and enables quick actions
 
 ### User Profiles
 - **Functionality**: Simple identification for each household member
@@ -177,18 +184,20 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - Plus for add actions
   - Check/CheckCircle for completion
   - Trash for deletion
-  - User/Users for assignment
+  - Users for assignment
   - Sparkle for AI-powered features
   - LinkIcon for recipe URLs
   - Tag for recipe tags/categories
   - MagnifyingGlass for search
   - Clock for time indicators
+  - MapPin for location information (calendar events)
   - Pencil for editing
   - Gear for settings
   - Palette for theme selection
   - SquaresFour for dashboard organization
   - ShieldCheck for admin functions
   - FloppyDisk for export/save
+  - CaretLeft/CaretRight for calendar navigation
   - X for remove/close
 
 - **Spacing**:
@@ -199,13 +208,15 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - Button padding: px-6 py-3
 
 - **Mobile**:
-  - Tabs convert to bottom navigation bar on mobile with 6 sections (Dashboard, Chores, Shopping, Meals, Recipes, Settings)
+  - Tabs convert to bottom navigation bar on mobile with 7 sections (Dashboard, Chores, Shopping, Calendar, Meals, Recipes, Settings)
   - Cards stack vertically with full width
   - Dialogs slide up from bottom on mobile vs centered on desktop
   - Meal planning calendar shows fewer days at a time with better stacking on mobile
+  - Monthly calendar adapts to smaller grid on mobile with reduced event details
   - Dashboard widgets stack vertically with responsive grid
   - Touch targets minimum 44px height
   - Reduced padding throughout (p-4 becomes p-3)
   - Recipe tag filters scroll horizontally on mobile
   - Theme selector grid adapts to single column on mobile
   - Settings cards stack with full width on mobile
+  - Calendar event details display in compact format on mobile

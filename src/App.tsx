@@ -9,6 +9,7 @@ import ChoresSection from '@/components/sections/ChoresSection'
 import ShoppingSection from '@/components/sections/ShoppingSection'
 import MealsSection from '@/components/sections/MealsSection'
 import RecipesSection from '@/components/sections/RecipesSection'
+import CalendarSection from '@/components/sections/CalendarSection'
 import SettingsSection from '@/components/sections/SettingsSection'
 
 function App() {
@@ -35,7 +36,7 @@ function App() {
       <main className="container mx-auto px-4 py-6 pb-24 md:pb-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {!isMobile && (
-            <TabsList className="grid w-full grid-cols-6 mb-6">
+            <TabsList className="grid w-full grid-cols-7 mb-6">
               <TabsTrigger value="dashboard" className="gap-2">
                 <House />
                 <span>Dashboard</span>
@@ -48,8 +49,12 @@ function App() {
                 <ShoppingCart />
                 <span>Shopping</span>
               </TabsTrigger>
-              <TabsTrigger value="meals" className="gap-2">
+              <TabsTrigger value="calendar" className="gap-2">
                 <CalendarBlank />
+                <span>Calendar</span>
+              </TabsTrigger>
+              <TabsTrigger value="meals" className="gap-2">
+                <CookingPot />
                 <span>Meals</span>
               </TabsTrigger>
               <TabsTrigger value="recipes" className="gap-2">
@@ -75,6 +80,10 @@ function App() {
             <ShoppingSection />
           </TabsContent>
 
+          <TabsContent value="calendar" className="mt-0">
+            <CalendarSection />
+          </TabsContent>
+
           <TabsContent value="meals" className="mt-0">
             <MealsSection />
           </TabsContent>
@@ -91,7 +100,7 @@ function App() {
 
       {isMobile && (
         <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-20">
-          <div className="grid grid-cols-6">
+          <div className="grid grid-cols-7">
             <button
               onClick={() => setActiveTab('dashboard')}
               className={`flex flex-col items-center gap-1 py-3 transition-colors ${
@@ -120,12 +129,21 @@ function App() {
               <span className="text-xs">Shopping</span>
             </button>
             <button
+              onClick={() => setActiveTab('calendar')}
+              className={`flex flex-col items-center gap-1 py-3 transition-colors ${
+                activeTab === 'calendar' ? 'text-primary' : 'text-muted-foreground'
+              }`}
+            >
+              <CalendarBlank size={24} />
+              <span className="text-xs">Calendar</span>
+            </button>
+            <button
               onClick={() => setActiveTab('meals')}
               className={`flex flex-col items-center gap-1 py-3 transition-colors ${
                 activeTab === 'meals' ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
-              <CalendarBlank size={24} />
+              <CookingPot size={24} />
               <span className="text-xs">Meals</span>
             </button>
             <button

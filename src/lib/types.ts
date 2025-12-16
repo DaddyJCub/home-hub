@@ -44,3 +44,18 @@ export interface Meal {
   name: string
   recipeId?: string
 }
+
+export interface CalendarEvent {
+  id: string
+  title: string
+  date: string
+  startTime?: string
+  endTime?: string
+  description?: string
+  location?: string
+  attendees?: string[]
+  category: 'personal' | 'work' | 'appointment' | 'booking' | 'other'
+  color?: string
+  bookedBy?: string
+  createdAt: number
+}

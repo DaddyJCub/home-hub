@@ -36,7 +36,7 @@ import {
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { themes, applyTheme, getThemeById, type Theme } from '@/lib/themes'
-import type { HouseholdMember, Chore, ShoppingItem, Meal, Recipe } from '@/lib/types'
+import type { HouseholdMember, Chore, ShoppingItem, Meal, Recipe, CalendarEvent } from '@/lib/types'
 
 interface DashboardWidget {
   id: string
@@ -56,16 +56,19 @@ export default function SettingsSection() {
   const [shoppingItems = []] = useKV<ShoppingItem[]>('shopping-items', [])
   const [meals = []] = useKV<Meal[]>('meals', [])
   const [recipes = []] = useKV<Recipe[]>('recipes', [])
+  const [events = []] = useKV<CalendarEvent[]>('calendar-events', [])
 
   const [newMemberName, setNewMemberName] = useState('')
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false)
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<'all' | 'chores' | 'shopping' | 'meals' | 'recipes' | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<'all' | 'chores' | 'shopping' | 'meals' | 'recipes' | 'events' | null>(null)
 
   const defaultWidgets: DashboardWidget[] = [
     { id: 'stats', label: 'Statistics Cards', enabled: true },
+    { id: 'todays-events', label: "Today's Events", enabled: true },
     { id: 'today-meals', label: "Today's Meals", enabled: true },
     { id: 'priorities', label: 'Top Priorities', enabled: true },
+    { id: 'upcoming-events', label: 'Upcoming Events', enabled: true },
     { id: 'weekly-calendar', label: 'Weekly Meal Calendar', enabled: true },
     { id: 'shopping-preview', label: 'Shopping List Preview', enabled: true },
   ]
@@ -119,6 +122,7 @@ export default function SettingsSection() {
         await window.spark.kv.delete('shopping-items')
         await window.spark.kv.delete('meals')
         await window.spark.kv.delete('recipes')
+        await window.spark.kv.delete('calendar-events')
         toast.success('All data deleted')
         break
       case 'chores':
@@ -137,6 +141,10 @@ export default function SettingsSection() {
         await window.spark.kv.delete('recipes')
         toast.success('All recipes deleted')
         break
+      case 'events':
+        await window.spark.kv.delete('calendar-events')
+        toast.success('All calendar events deleted')
+        break
     }
     setIsConfirmDeleteOpen(false)
     setDeleteTarget(null)
@@ -151,6 +159,7 @@ export default function SettingsSection() {
       shoppingItems,
       meals,
       recipes,
+      events,
       members,
       theme: currentThemeId,
       dashboardWidgets: widgetSettings,
@@ -341,7 +350,7 @@ export default function SettingsSection() {
               <h4 className="font-semibold text-sm">Current Storage</h4>
               <p className="text-xs text-muted-foreground mb-2">
                 {chores.length} chores, {shoppingItems.length} items, {meals.length} meals, {recipes.length}{' '}
-                recipes
+                recipes, {events.length} events
               </p>
             </div>
           </div>
@@ -402,6 +411,18 @@ export default function SettingsSection() {
               >
                 <Trash />
                 Delete All Recipes
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDeleteTarget('events')
+                  setIsConfirmDeleteOpen(true)
+                }}
+                className="gap-2 border-destructive/50 hover:bg-destructive/10"
+              >
+                <Trash />
+                Delete All Events
               </Button>
             </div>
 
