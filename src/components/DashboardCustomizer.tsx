@@ -19,8 +19,7 @@ import {
   MapPin,
   DotsSixVertical,
   Sparkle,
-  Layout,
-  Icon
+  Layout
 } from '@phosphor-icons/react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import {
@@ -59,7 +58,7 @@ interface DashboardPreset {
   widgets: string[]
 }
 
-const iconMap: Record<string, Icon> = {
+const iconMap: Record<string, React.ElementType> = {
   House,
   Clock,
   CheckCircle,
