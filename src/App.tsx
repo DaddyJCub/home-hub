@@ -73,10 +73,21 @@ function AppContent() {
   const isMobile = useIsMobile()
   const [currentThemeId = 'warm-home'] = useKV<string>('theme-id', 'warm-home')
   const [isDarkMode = false] = useKV<boolean>('dark-mode', false)
-  const [navItems = DEFAULT_NAV_ITEMS] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
+  const [navItems = DEFAULT_NAV_ITEMS, setNavItems] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
   const [chores = []] = useKV<Chore[]>('chores', [])
   const [events = []] = useKV<CalendarEvent[]>('calendar-events', [])
   const { isAuthenticated, currentHousehold, logout } = useAuth()
+
+  useEffect(() => {
+    const choreItem = navItems.find(item => item.id === 'chores')
+    if (choreItem && choreItem.iconName !== 'Broom') {
+      setNavItems(currentItems =>
+        (currentItems || DEFAULT_NAV_ITEMS).map(item =>
+          item.id === 'chores' ? { ...item, iconName: 'Broom' } : item
+        )
+      )
+    }
+  }, [])
 
   useNotifications(chores, events)
 
