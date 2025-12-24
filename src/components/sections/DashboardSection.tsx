@@ -48,6 +48,72 @@ export default function DashboardSection() {
     return meals.filter((meal) => meal.date === dateStr)
   }
 
+  const getRoomChores = () => {
+    const roomMap: Record<string, Chore[]> = {}
+    pendingChores.forEach((chore) => {
+      const room = chore.room || 'Unassigned'
+      if (!roomMap[room]) {
+        roomMap[room] = []
+      }
+      roomMap[room].push(chore)
+    })
+    return roomMap
+  }
+
+  const roomChores = getRoomChores()
+  const totalEstimatedTime = pendingChores.reduce((acc, chore) => 
+    acc + (chore.estimatedMinutes || 0), 0
+  )
+
+  const todaysEvents = filteredEvents.filter((evt) => evt.date === todayStr)
+  const upcomingEvents = filteredEvents
+    .filter((evt) => {
+      const eventDate = new Date(evt.date)
+      const today = startOfDay(new Date())
+      return isAfter(eventDate, today) || isSameDay(eventDate, today)
+    })
+    .sort((a, b) => {
+      const dateCompare = a.date.localeCompare(b.date)
+      if (dateCompare !== 0) return dateCompare
+      if (a.startTime && b.startTime) {
+        return a.startTime.localeCompare(b.startTime)
+      }
+      return 0
+    })
+    .slice(0, 5)
+
+  const categoryColors: Record<string, string> = {
+    personal: 'bg-blue-500/20 text-blue-700 border-blue-300',
+    work: 'bg-purple-500/20 text-purple-700 border-purple-300',
+    appointment: 'bg-green-500/20 text-green-700 border-green-300',
+    booking: 'bg-orange-500/20 text-orange-700 border-orange-300',
+    other: 'bg-gray-500/20 text-gray-700 border-gray-300'
+  }
+
+  const getMemberStats = (memberName: string) => {
+    const memberChores = chores.filter(c => c.assignedTo === memberName)
+    const pendingChores = memberChores.filter(c => !c.completed)
+    const completedChores = memberChores.filter(c => c.completed)
+    const memberEvents = events.filter(e => 
+      e.attendees?.includes(memberName) || e.bookedBy === memberName
+    )
+    
+    const completionRate = memberChores.length > 0 
+      ? Math.round((completedChores.length / memberChores.length) * 100)
+      : 0
+
+    return {
+      totalChores: memberChores.length,
+      pendingChores: pendingChores.length,
+      completedChores: completedChores.length,
+      completionRate,
+      upcomingEvents: memberEvents.length,
+      estimatedTime: pendingChores.reduce((acc, chore) => 
+        acc + (chore.estimatedMinutes || 0), 0
+      )
+    }
+  }
+
   const isWidgetEnabled = (widgetId: string) => {
     if (!dashboardWidgets || dashboardWidgets.length === 0) return true
     const widget = dashboardWidgets.find((w) => w.id === widgetId)
@@ -363,72 +429,6 @@ export default function DashboardSection() {
 
       default:
         return null
-    }
-  }
-
-  const getRoomChores = () => {
-    const roomMap: Record<string, Chore[]> = {}
-    pendingChores.forEach((chore) => {
-      const room = chore.room || 'Unassigned'
-      if (!roomMap[room]) {
-        roomMap[room] = []
-      }
-      roomMap[room].push(chore)
-    })
-    return roomMap
-  }
-
-  const roomChores = getRoomChores()
-  const totalEstimatedTime = pendingChores.reduce((acc, chore) => 
-    acc + (chore.estimatedMinutes || 0), 0
-  )
-
-  const todaysEvents = filteredEvents.filter((evt) => evt.date === todayStr)
-  const upcomingEvents = filteredEvents
-    .filter((evt) => {
-      const eventDate = new Date(evt.date)
-      const today = startOfDay(new Date())
-      return isAfter(eventDate, today) || isSameDay(eventDate, today)
-    })
-    .sort((a, b) => {
-      const dateCompare = a.date.localeCompare(b.date)
-      if (dateCompare !== 0) return dateCompare
-      if (a.startTime && b.startTime) {
-        return a.startTime.localeCompare(b.startTime)
-      }
-      return 0
-    })
-    .slice(0, 5)
-
-  const categoryColors: Record<string, string> = {
-    personal: 'bg-blue-500/20 text-blue-700 border-blue-300',
-    work: 'bg-purple-500/20 text-purple-700 border-purple-300',
-    appointment: 'bg-green-500/20 text-green-700 border-green-300',
-    booking: 'bg-orange-500/20 text-orange-700 border-orange-300',
-    other: 'bg-gray-500/20 text-gray-700 border-gray-300'
-  }
-
-  const getMemberStats = (memberName: string) => {
-    const memberChores = chores.filter(c => c.assignedTo === memberName)
-    const pendingChores = memberChores.filter(c => !c.completed)
-    const completedChores = memberChores.filter(c => c.completed)
-    const memberEvents = events.filter(e => 
-      e.attendees?.includes(memberName) || e.bookedBy === memberName
-    )
-    
-    const completionRate = memberChores.length > 0 
-      ? Math.round((completedChores.length / memberChores.length) * 100)
-      : 0
-
-    return {
-      totalChores: memberChores.length,
-      pendingChores: pendingChores.length,
-      completedChores: completedChores.length,
-      completionRate,
-      upcomingEvents: memberEvents.length,
-      estimatedTime: pendingChores.reduce((acc, chore) => 
-        acc + (chore.estimatedMinutes || 0), 0
-      )
     }
   }
 
