@@ -48,16 +48,18 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', iconName: 'BookOpen', enabled: false }
 ]
 
-function getIconComponent(itemId: string) {
-  switch (itemId) {
-    case 'dashboard': return House
-    case 'chores': return Broom
-    case 'shopping': return ShoppingCart
-    case 'meals': return CookingPot
-    case 'calendar': return CalendarBlank
-    case 'recipes': return BookOpen
-    default: return House
-  }
+const ICON_MAP: Record<string, typeof House> = {
+  'House': House,
+  'Broom': Broom,
+  'ShoppingCart': ShoppingCart,
+  'CookingPot': CookingPot,
+  'CalendarBlank': CalendarBlank,
+  'BookOpen': BookOpen,
+  'Gear': Gear,
+}
+
+function getIconComponent(iconName: string) {
+  return ICON_MAP[iconName] || House
 }
 
 function AppContent() {
@@ -210,7 +212,7 @@ function AppContent() {
         <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-20 safe-area-inset-bottom">
           <div className="grid max-w-screen-sm mx-auto" style={{ gridTemplateColumns: `repeat(${Math.min(enabledNavItems.length + 1, 5)}, 1fr)` }}>
             {enabledNavItems.slice(0, 4).map((item) => {
-              const IconComponent = getIconComponent(item.id)
+              const IconComponent = getIconComponent(item.iconName)
               
               return (
                 <button
@@ -238,7 +240,7 @@ function AppContent() {
                 {navItems
                   .filter(item => item.id !== 'settings' && (!item.enabled || enabledNavItems.indexOf(item) >= 4))
                   .map((item) => {
-                    const IconComponent = getIconComponent(item.id)
+                    const IconComponent = getIconComponent(item.iconName)
                     
                     return (
                       <DropdownMenuItem
