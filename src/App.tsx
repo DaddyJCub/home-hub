@@ -128,7 +128,7 @@ function AppContent() {
                 <span>Meals</span>
               </TabsTrigger>
               <TabsTrigger value="recipes" className="gap-2">
-                <CookingPot />
+                <BookOpen />
                 <span>Recipes</span>
               </TabsTrigger>
               <TabsTrigger value="settings" className="gap-2">
