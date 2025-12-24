@@ -33,6 +33,8 @@ import {
   X,
   FloppyDisk,
   ArrowsClockwise,
+  Moon,
+  Sun,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { themes, applyTheme, getThemeById, type Theme } from '@/lib/themes'
@@ -46,6 +48,7 @@ interface DashboardWidget {
 
 export default function SettingsSection() {
   const [currentThemeId = 'warm-home', setCurrentThemeId] = useKV<string>('theme-id', 'warm-home')
+  const [isDarkMode = false, setIsDarkMode] = useKV<boolean>('dark-mode', false)
   const [members = [], setMembers] = useKV<HouseholdMember[]>('household-members', [])
   const [dashboardWidgets = [], setDashboardWidgets] = useKV<DashboardWidget[]>(
     'dashboard-widgets',
@@ -78,10 +81,19 @@ export default function SettingsSection() {
   const handleThemeChange = (themeId: string) => {
     const theme = getThemeById(themeId)
     if (theme) {
-      applyTheme(theme)
+      applyTheme(theme, isDarkMode)
       setCurrentThemeId(themeId)
       toast.success(`Theme changed to ${theme.name}`)
     }
+  }
+
+  const handleDarkModeToggle = (checked: boolean) => {
+    setIsDarkMode(checked)
+    const theme = getThemeById(currentThemeId)
+    if (theme) {
+      applyTheme(theme, checked)
+    }
+    toast.success(`${checked ? 'Dark' : 'Light'} mode enabled`)
   }
 
   const handleAddMember = () => {
@@ -162,6 +174,7 @@ export default function SettingsSection() {
       events,
       members,
       theme: currentThemeId,
+      darkMode: isDarkMode,
       dashboardWidgets: widgetSettings,
       exportedAt: new Date().toISOString(),
     }
@@ -183,6 +196,32 @@ export default function SettingsSection() {
         <h2 className="text-3xl font-bold">Settings</h2>
         <p className="text-muted-foreground">Customize your HomeHub experience</p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            {isDarkMode ? <Moon size={24} /> : <Sun size={24} />}
+            Dark Mode
+          </CardTitle>
+          <CardDescription>Toggle between light and dark appearance</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/30">
+            <div className="flex items-center gap-3">
+              <Sun className="text-muted-foreground" size={20} />
+              <Label htmlFor="dark-mode-toggle" className="cursor-pointer">
+                {isDarkMode ? 'Dark mode enabled' : 'Light mode enabled'}
+              </Label>
+              <Moon className="text-muted-foreground" size={20} />
+            </div>
+            <Switch
+              id="dark-mode-toggle"
+              checked={isDarkMode}
+              onCheckedChange={handleDarkModeToggle}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

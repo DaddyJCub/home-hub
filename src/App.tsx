@@ -19,14 +19,15 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const isMobile = useIsMobile()
   const [currentThemeId = 'warm-home'] = useKV<string>('theme-id', 'warm-home')
+  const [isDarkMode = false] = useKV<boolean>('dark-mode', false)
   const { isAuthenticated, currentHousehold, logout } = useAuth()
 
   useEffect(() => {
     const theme = getThemeById(currentThemeId)
     if (theme) {
-      applyTheme(theme)
+      applyTheme(theme, isDarkMode)
     }
-  }, [currentThemeId])
+  }, [currentThemeId, isDarkMode])
 
   if (!isAuthenticated) {
     return <AuthPage />
