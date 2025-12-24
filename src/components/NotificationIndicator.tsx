@@ -39,3 +39,5 @@ export function NotificationIndicator({ chores, events }: NotificationIndicatorP
     </Badge>
   )
 }
+
+export default NotificationIndicator

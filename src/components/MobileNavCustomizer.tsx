@@ -24,7 +24,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', icon: BookOpen, enabled: false }
 ]
 
-export function MobileNavCustomizer() {
+function MobileNavCustomizer() {
   const [navItems, setNavItems] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
   const [open, setOpen] = useState(false)
 
@@ -94,3 +94,6 @@ export function MobileNavCustomizer() {
     </Dialog>
   )
 }
+
+export { MobileNavCustomizer }
+export default MobileNavCustomizer
