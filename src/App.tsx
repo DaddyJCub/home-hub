@@ -31,36 +31,24 @@ import RecipesSection from '@/components/sections/RecipesSection'
 import CalendarSection from '@/components/sections/CalendarSection'
 import SettingsSection from '@/components/sections/SettingsSection'
 
-interface NavItem {
-  id: string
+type TabId = 'dashboard' | 'chores' | 'shopping' | 'meals' | 'calendar' | 'recipes'
+
+interface TabConfig {
+  id: TabId
   label: string
   shortLabel: string
-  iconName: string
+  icon: typeof House
   enabled: boolean
 }
 
-const DEFAULT_NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', iconName: 'House', enabled: true },
-  { id: 'chores', label: 'Chores', shortLabel: 'Chores', iconName: 'Broom', enabled: true },
-  { id: 'shopping', label: 'Shopping', shortLabel: 'Shop', iconName: 'ShoppingCart', enabled: true },
-  { id: 'meals', label: 'Meals', shortLabel: 'Meals', iconName: 'CookingPot', enabled: true },
-  { id: 'calendar', label: 'Calendar', shortLabel: 'Calendar', iconName: 'CalendarBlank', enabled: false },
-  { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', iconName: 'BookOpen', enabled: false }
+const TAB_CONFIGS: TabConfig[] = [
+  { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', icon: House, enabled: true },
+  { id: 'chores', label: 'Chores', shortLabel: 'Chores', icon: Broom, enabled: true },
+  { id: 'shopping', label: 'Shopping', shortLabel: 'Shop', icon: ShoppingCart, enabled: true },
+  { id: 'meals', label: 'Meals', shortLabel: 'Meals', icon: CookingPot, enabled: true },
+  { id: 'calendar', label: 'Calendar', shortLabel: 'Calendar', icon: CalendarBlank, enabled: false },
+  { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', icon: BookOpen, enabled: false }
 ]
-
-const ICON_MAP: Record<string, typeof House> = {
-  'House': House,
-  'Broom': Broom,
-  'ShoppingCart': ShoppingCart,
-  'CookingPot': CookingPot,
-  'CalendarBlank': CalendarBlank,
-  'BookOpen': BookOpen,
-  'Gear': Gear,
-}
-
-function getIconComponent(iconName: string) {
-  return ICON_MAP[iconName] || House
-}
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState(() => {
@@ -73,21 +61,10 @@ function AppContent() {
   const isMobile = useIsMobile()
   const [currentThemeId = 'warm-home'] = useKV<string>('theme-id', 'warm-home')
   const [isDarkMode = false] = useKV<boolean>('dark-mode', false)
-  const [navItems = DEFAULT_NAV_ITEMS, setNavItems] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
+  const [enabledTabs = TAB_CONFIGS.filter(t => t.enabled).map(t => t.id)] = useKV<TabId[]>('enabled-tabs', TAB_CONFIGS.filter(t => t.enabled).map(t => t.id))
   const [chores = []] = useKV<Chore[]>('chores', [])
   const [events = []] = useKV<CalendarEvent[]>('calendar-events', [])
   const { isAuthenticated, currentHousehold, logout } = useAuth()
-
-  useEffect(() => {
-    const choreItem = navItems.find(item => item.id === 'chores')
-    if (choreItem && choreItem.iconName !== 'Broom') {
-      setNavItems(currentItems =>
-        (currentItems || DEFAULT_NAV_ITEMS).map(item =>
-          item.id === 'chores' ? { ...item, iconName: 'Broom' } : item
-        )
-      )
-    }
-  }, [])
 
   useNotifications(chores, events)
 
@@ -100,11 +77,11 @@ function AppContent() {
     enabled: isMobile,
   })
 
-  const enabledNavItems = navItems.filter(item => item.enabled)
-  const tabOrder = enabledNavItems.map(item => item.id)
+  const visibleTabs = TAB_CONFIGS.filter(tab => enabledTabs.includes(tab.id))
+  const tabOrder = visibleTabs.map(tab => tab.id)
 
   const navigateToTab = (direction: 'left' | 'right') => {
-    const currentIndex = tabOrder.indexOf(activeTab)
+    const currentIndex = tabOrder.indexOf(activeTab as TabId)
     if (currentIndex === -1) return
 
     let newIndex
@@ -221,20 +198,20 @@ function AppContent() {
 
       {isMobile && (
         <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-20 safe-area-inset-bottom">
-          <div className="grid max-w-screen-sm mx-auto" style={{ gridTemplateColumns: `repeat(${Math.min(enabledNavItems.length + 1, 5)}, 1fr)` }}>
-            {enabledNavItems.slice(0, 4).map((item) => {
-              const IconComponent = getIconComponent(item.iconName)
+          <div className="grid max-w-screen-sm mx-auto" style={{ gridTemplateColumns: `repeat(${Math.min(visibleTabs.length + 1, 5)}, 1fr)` }}>
+            {visibleTabs.slice(0, 4).map((tab) => {
+              const IconComponent = tab.icon
               
               return (
                 <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
-                    activeTab === item.id ? 'text-primary' : 'text-muted-foreground'
+                    activeTab === tab.id ? 'text-primary' : 'text-muted-foreground'
                   }`}
                 >
-                  <IconComponent size={22} weight={activeTab === item.id ? 'fill' : 'regular'} />
-                  <span className="text-[10px] font-medium">{item.shortLabel}</span>
+                  <IconComponent size={22} weight={activeTab === tab.id ? 'fill' : 'regular'} />
+                  <span className="text-[10px] font-medium">{tab.shortLabel}</span>
                 </button>
               )
             })}
@@ -248,25 +225,21 @@ function AppContent() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 mb-2">
-                {navItems
-                  .filter(item => item.id !== 'settings' && (!item.enabled || enabledNavItems.indexOf(item) >= 4))
-                  .map((item) => {
-                    const IconComponent = getIconComponent(item.iconName)
-                    
-                    return (
-                      <DropdownMenuItem
-                        key={item.id}
-                        onClick={() => setActiveTab(item.id)}
-                        className="gap-2"
-                      >
-                        <IconComponent size={18} />
-                        {item.label}
-                      </DropdownMenuItem>
-                    )
-                  })}
-                {navItems.filter(item => item.id !== 'settings' && (!item.enabled || enabledNavItems.indexOf(item) >= 4)).length > 0 && (
-                  <DropdownMenuSeparator />
-                )}
+                {visibleTabs.slice(4).map((tab) => {
+                  const IconComponent = tab.icon
+                  
+                  return (
+                    <DropdownMenuItem
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className="gap-2"
+                    >
+                      <IconComponent size={18} />
+                      {tab.label}
+                    </DropdownMenuItem>
+                  )
+                })}
+                {visibleTabs.length > 4 && <DropdownMenuSeparator />}
                 <DropdownMenuItem onClick={() => setActiveTab('settings')} className="gap-2">
                   <Gear size={18} />
                   Settings
