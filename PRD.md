@@ -42,11 +42,11 @@ This is a multi-feature application with user authentication, household manageme
 - **Success criteria**: Each household has a unique, persistent invite code. Codes can be copied easily. Invalid codes show error message. Users cannot join the same household twice.
 
 ### Chore Management
-- **Functionality**: Create, assign, and track household chores with customizable recurring schedules, room assignments, priorities, estimated time, notes, and member-specific filtering
-- **Purpose**: Ensure fair distribution of household tasks with flexible scheduling, better organization by location, clear prioritization, and ability to view individual workloads
-- **Trigger**: User navigates to chores section or selects member filter
-- **Progression**: View chore list → Add/edit chore → Assign to person → Set room/location → Set priority level → Set frequency (one-time/recurring) → Select specific days of week for weekly/biweekly tasks → Add estimated time and notes → Mark complete → Chore updates or resets based on schedule → Filter and sort chores by room, assignee, or priority → Use member filter to view only one person's chores
-- **Success criteria**: Chores can be created with full customization options (room, priority, days of week, estimated time, notes), filtered by multiple criteria including member-specific views, sorted by various fields, and recurring chores automatically reset with proper day-of-week support
+- **Functionality**: Create, assign, and track household chores with customizable recurring schedules, room assignments, priorities, estimated time, notes, member-specific filtering, and a compact weekly schedule view for at-a-glance planning
+- **Purpose**: Ensure fair distribution of household tasks with flexible scheduling, better organization by location, clear prioritization, ability to view individual workloads, and quick visual overview of the week's chores
+- **Trigger**: User navigates to chores section, selects member filter, or views weekly chore schedule widget on dashboard
+- **Progression**: View chore list → Add/edit chore → Assign to person → Set room/location → Set priority level → Set frequency (one-time/recurring) → Select specific days of week for weekly/biweekly tasks → Add estimated time and notes → Mark complete → Chore updates or resets based on schedule → Filter and sort chores by room, assignee, or priority → Use member filter to view only one person's chores → View weekly chore schedule widget showing all chores organized by day with quick-complete functionality
+- **Success criteria**: Chores can be created with full customization options (room, priority, days of week, estimated time, notes), filtered by multiple criteria including member-specific views, sorted by various fields, and recurring chores automatically reset with proper day-of-week support. Weekly chore schedule widget displays chores organized by day of the week, shows estimated time per day, color-codes by priority, allows quick completion with click, and respects member filtering.
 
 ### Shopping List
 - **Functionality**: Collaborative list of items to purchase with categories, quantity, priority levels, store assignments, and notes
@@ -105,11 +105,11 @@ This is a multi-feature application with user authentication, household manageme
 - **Success criteria**: Users can switch between themes and preference persists across sessions
 
 ### Dashboard Customization
-- **Functionality**: Toggle visibility of dashboard widgets and organize display preferences
-- **Purpose**: Allow users to customize which information appears on their dashboard for a personalized view
+- **Functionality**: Drag-and-drop widget reordering, toggle visibility, apply layout presets, and organize dashboard layout
+- **Purpose**: Allow users to fully personalize their dashboard with custom widget ordering and quick preset layouts for different use cases
 - **Trigger**: User clicks "Customize Dashboard" button on the dashboard
-- **Progression**: View dashboard → Click customize button → Dialog shows all available widgets with toggle switches → Enable/disable widgets → Changes apply immediately → Preferences persist across sessions
-- **Success criteria**: Users can show/hide widgets (stats cards, member statistics, room chore tracking, time estimates, today's events, today's meals, priorities, upcoming events, weekly calendar, shopping preview), see how many widgets are enabled, and preferences persist across sessions and household switches
+- **Progression**: View dashboard → Click customize button → Dialog with two tabs (Widgets and Presets) → Widgets tab: drag widgets by handle to reorder, toggle visibility switches → Presets tab: choose from pre-configured layouts (Full View, Minimal, Chores Focus, Events & Planning, Household View) → Changes apply immediately → Preferences persist across sessions
+- **Success criteria**: Users can drag-and-drop to reorder widgets, show/hide widgets (stats cards, time estimates, weekly chore schedule, room chore tracking, member statistics, today's events, today's meals, priorities, upcoming events, weekly meal calendar, shopping preview), apply preset layouts with one click, see how many widgets are enabled, and preferences persist across sessions and household switches. Widget order is maintained and respected in the dashboard render.
 
 ### Admin Functions
 - **Functionality**: Data management including export backup and selective/full data deletion

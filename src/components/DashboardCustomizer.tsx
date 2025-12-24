@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Badge } from '@/components/ui/badge'
 import { 
   Gear, 
   Eye, 
@@ -14,16 +16,51 @@ import {
   CheckCircle,
   User,
   Clock,
-  MapPin
+  MapPin,
+  DotsSixVertical,
+  Sparkle,
+  Layout
 } from '@phosphor-icons/react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { toast } from 'sonner'
 
-interface DashboardWidget {
+export interface DashboardWidget {
   id: string
   label: string
   icon: React.ReactNode
   description: string
   enabled: boolean
+  order?: number
+}
+
+interface DashboardPreset {
+  id: string
+  name: string
+  description: string
+  icon: React.ReactNode
+  widgets: string[]
+}
+
+interface SortableWidgetProps {
+  widget: DashboardWidget
+  onToggle: (id: string) => void
 }
 
 const defaultWidgets: DashboardWidget[] = [
@@ -33,62 +70,7 @@ const defaultWidgets: DashboardWidget[] = [
     icon: <House size={20} />,
     description: 'Quick overview stats at the top',
     enabled: true,
-  },
-  {
-    id: 'member-stats',
-    label: 'Member Statistics',
-    icon: <User size={20} />,
-    description: 'Detailed breakdown per household member',
-    enabled: true,
-  },
-  {
-    id: 'room-chores',
-    label: 'Room Chore Tracking',
-    icon: <MapPin size={20} />,
-    description: 'Chores organized by room',
-    enabled: true,
-  },
-  {
-    id: 'todays-events',
-    label: "Today's Events",
-    icon: <CalendarBlank size={20} />,
-    description: "Events scheduled for today",
-    enabled: true,
-  },
-  {
-    id: 'today-meals',
-    label: "Today's Meals",
-    icon: <CookingPot size={20} />,
-    description: 'Breakfast, lunch, and dinner plan',
-    enabled: true,
-  },
-  {
-    id: 'priorities',
-    label: 'Top Priorities',
-    icon: <CheckCircle size={20} />,
-    description: 'Most important pending chores',
-    enabled: true,
-  },
-  {
-    id: 'upcoming-events',
-    label: 'Upcoming Events',
-    icon: <CalendarBlank size={20} />,
-    description: 'Next few events on the calendar',
-    enabled: true,
-  },
-  {
-    id: 'weekly-calendar',
-    label: 'Weekly Meal Calendar',
-    icon: <CookingPot size={20} />,
-    description: '7-day meal plan overview',
-    enabled: true,
-  },
-  {
-    id: 'shopping-preview',
-    label: 'Shopping List Preview',
-    icon: <ShoppingCart size={20} />,
-    description: 'Quick view of shopping items',
-    enabled: true,
+    order: 0,
   },
   {
     id: 'time-estimate',
@@ -96,11 +78,185 @@ const defaultWidgets: DashboardWidget[] = [
     icon: <Clock size={20} />,
     description: 'Total estimated time for pending chores',
     enabled: true,
+    order: 1,
+  },
+  {
+    id: 'weekly-chore-schedule',
+    label: 'Weekly Chore Schedule',
+    icon: <CheckCircle size={20} />,
+    description: 'Compact 7-day chore calendar with quick complete',
+    enabled: true,
+    order: 2,
+  },
+  {
+    id: 'room-chores',
+    label: 'Room Chore Tracking',
+    icon: <MapPin size={20} />,
+    description: 'Chores organized by room',
+    enabled: true,
+    order: 3,
+  },
+  {
+    id: 'member-stats',
+    label: 'Member Statistics',
+    icon: <User size={20} />,
+    description: 'Detailed breakdown per household member',
+    enabled: true,
+    order: 4,
+  },
+  {
+    id: 'todays-events',
+    label: "Today's Events",
+    icon: <CalendarBlank size={20} />,
+    description: "Events scheduled for today",
+    enabled: true,
+    order: 5,
+  },
+  {
+    id: 'today-meals',
+    label: "Today's Meals",
+    icon: <CookingPot size={20} />,
+    description: 'Breakfast, lunch, and dinner plan',
+    enabled: true,
+    order: 6,
+  },
+  {
+    id: 'priorities',
+    label: 'Top Priorities',
+    icon: <CheckCircle size={20} />,
+    description: 'Most important pending chores',
+    enabled: true,
+    order: 7,
+  },
+  {
+    id: 'upcoming-events',
+    label: 'Upcoming Events',
+    icon: <CalendarBlank size={20} />,
+    description: 'Next few events on the calendar',
+    enabled: true,
+    order: 8,
+  },
+  {
+    id: 'weekly-calendar',
+    label: 'Weekly Meal Calendar',
+    icon: <CookingPot size={20} />,
+    description: '7-day meal plan overview',
+    enabled: true,
+    order: 9,
+  },
+  {
+    id: 'shopping-preview',
+    label: 'Shopping List Preview',
+    icon: <ShoppingCart size={20} />,
+    description: 'Quick view of shopping items',
+    enabled: true,
+    order: 10,
   },
 ]
 
+const presets: DashboardPreset[] = [
+  {
+    id: 'full',
+    name: 'Full View',
+    description: 'All widgets enabled for complete overview',
+    icon: <Layout size={20} />,
+    widgets: ['stats', 'time-estimate', 'weekly-chore-schedule', 'room-chores', 'member-stats', 'todays-events', 'today-meals', 'priorities', 'upcoming-events', 'weekly-calendar', 'shopping-preview'],
+  },
+  {
+    id: 'minimal',
+    name: 'Minimal',
+    description: 'Essential widgets only',
+    icon: <House size={20} />,
+    widgets: ['stats', 'weekly-chore-schedule', 'today-meals', 'priorities'],
+  },
+  {
+    id: 'chores-focus',
+    name: 'Chores Focus',
+    description: 'Chore management emphasis',
+    icon: <CheckCircle size={20} />,
+    widgets: ['stats', 'time-estimate', 'weekly-chore-schedule', 'room-chores', 'priorities'],
+  },
+  {
+    id: 'events-focus',
+    name: 'Events & Planning',
+    description: 'Calendar and meal planning emphasis',
+    icon: <CalendarBlank size={20} />,
+    widgets: ['stats', 'todays-events', 'today-meals', 'upcoming-events', 'weekly-calendar'],
+  },
+  {
+    id: 'household',
+    name: 'Household View',
+    description: 'Member tracking and collaboration',
+    icon: <User size={20} />,
+    widgets: ['stats', 'member-stats', 'room-chores', 'todays-events', 'shopping-preview'],
+  },
+]
+
+function SortableWidget({ widget, onToggle }: SortableWidgetProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: widget.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card className={widget.enabled ? 'border-primary/50' : ''}>
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <button
+                className="mt-1 text-muted-foreground cursor-grab active:cursor-grabbing hover:text-primary transition-colors"
+                {...attributes}
+                {...listeners}
+              >
+                <DotsSixVertical size={20} weight="bold" />
+              </button>
+              <div className="mt-1 text-muted-foreground">{widget.icon}</div>
+              <div className="flex-1">
+                <Label htmlFor={`widget-${widget.id}`} className="text-base font-semibold cursor-pointer">
+                  {widget.label}
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">{widget.description}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id={`widget-${widget.id}`}
+                checked={widget.enabled}
+                onCheckedChange={() => onToggle(widget.id)}
+              />
+              {widget.enabled ? (
+                <Eye className="text-primary" size={18} />
+              ) : (
+                <EyeSlash className="text-muted-foreground" size={18} />
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 export default function DashboardCustomizer() {
   const [widgets, setWidgets] = useKV<DashboardWidget[]>('dashboard-widgets', defaultWidgets)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   const toggleWidget = (widgetId: string) => {
     setWidgets((currentWidgets) => {
@@ -111,7 +267,38 @@ export default function DashboardCustomizer() {
     })
   }
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setWidgets((currentWidgets) => {
+        const current = (currentWidgets && currentWidgets.length > 0) ? currentWidgets : defaultWidgets
+        const oldIndex = current.findIndex((w) => w.id === active.id)
+        const newIndex = current.findIndex((w) => w.id === over.id)
+        
+        const reordered = arrayMove(current, oldIndex, newIndex)
+        return reordered.map((w, i) => ({ ...w, order: i }))
+      })
+      toast.success('Widget order updated')
+    }
+  }
+
+  const applyPreset = (presetId: string) => {
+    const preset = presets.find((p) => p.id === presetId)
+    if (!preset) return
+
+    setWidgets((currentWidgets) => {
+      const current = (currentWidgets && currentWidgets.length > 0) ? currentWidgets : defaultWidgets
+      return current.map((w) => ({
+        ...w,
+        enabled: preset.widgets.includes(w.id),
+      }))
+    })
+    toast.success(`Applied "${preset.name}" preset`)
+  }
+
   const currentWidgets = (widgets && widgets.length > 0) ? widgets : defaultWidgets
+  const sortedWidgets = [...currentWidgets].sort((a, b) => (a.order || 0) - (b.order || 0))
   const enabledCount = currentWidgets.filter((w) => w.enabled).length
 
   return (
@@ -122,44 +309,95 @@ export default function DashboardCustomizer() {
           Customize Dashboard
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle className="text-2xl">Customize Your Dashboard</DialogTitle>
+          <DialogTitle className="text-2xl flex items-center gap-2">
+            <Sparkle className="text-primary" />
+            Customize Your Dashboard
+          </DialogTitle>
           <DialogDescription>
-            Toggle widgets on or off to personalize your dashboard view. {enabledCount} of {currentWidgets.length} widgets enabled.
+            Drag widgets to reorder, toggle visibility, or choose a preset. {enabledCount} of {currentWidgets.length} widgets enabled.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3 mt-4">
-          {currentWidgets.map((widget) => (
-            <Card key={widget.id} className={widget.enabled ? 'border-primary/50' : ''}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3 flex-1">
-                    <div className="mt-1 text-muted-foreground">{widget.icon}</div>
-                    <div className="flex-1">
-                      <Label htmlFor={`widget-${widget.id}`} className="text-base font-semibold cursor-pointer">
-                        {widget.label}
-                      </Label>
-                      <p className="text-sm text-muted-foreground mt-1">{widget.description}</p>
+
+        <Tabs defaultValue="widgets" className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="widgets" className="gap-2">
+              <Layout size={16} />
+              Widgets
+            </TabsTrigger>
+            <TabsTrigger value="presets" className="gap-2">
+              <Sparkle size={16} />
+              Presets
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="widgets" className="flex-1 overflow-y-auto mt-4 space-y-3">
+            <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 rounded-lg border">
+              <strong>Tip:</strong> Drag the <DotsSixVertical size={14} className="inline" weight="bold" /> handle to reorder widgets
+            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={sortedWidgets.map(w => w.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {sortedWidgets.map((widget) => (
+                  <SortableWidget
+                    key={widget.id}
+                    widget={widget}
+                    onToggle={toggleWidget}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
+          </TabsContent>
+
+          <TabsContent value="presets" className="flex-1 overflow-y-auto mt-4">
+            <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 rounded-lg border">
+              Quick layouts for different use cases
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {presets.map((preset) => (
+                <Card key={preset.id} className="hover:border-primary/50 transition-colors cursor-pointer" onClick={() => applyPreset(preset.id)}>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      {preset.icon}
+                      {preset.name}
+                    </CardTitle>
+                    <CardDescription className="text-sm">{preset.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-1.5">
+                      {preset.widgets.map((widgetId) => {
+                        const widget = defaultWidgets.find((w) => w.id === widgetId)
+                        return widget ? (
+                          <Badge key={widgetId} variant="secondary" className="text-xs">
+                            {widget.label}
+                          </Badge>
+                        ) : null
+                      })}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id={`widget-${widget.id}`}
-                      checked={widget.enabled}
-                      onCheckedChange={() => toggleWidget(widget.id)}
-                    />
-                    {widget.enabled ? (
-                      <Eye className="text-primary" size={18} />
-                    ) : (
-                      <EyeSlash className="text-muted-foreground" size={18} />
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full mt-3"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        applyPreset(preset.id)
+                      }}
+                    >
+                      Apply Preset
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   )
