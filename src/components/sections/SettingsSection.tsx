@@ -106,21 +106,11 @@ export default function SettingsSection() {
       return
     }
 
-    const newMember: HouseholdMember = {
-      id: `member-${Date.now()}`,
-      name: newMemberName.trim(),
-    }
-
-    setMembers((current = []) => [...current, newMember])
-    setNewMemberName('')
-    setIsAddMemberOpen(false)
-    toast.success(`Added ${newMember.name}`)
+    toast.info('Member management has been moved to household settings')
   }
 
   const handleRemoveMember = (memberId: string) => {
-    const member = members.find((m) => m.id === memberId)
-    setMembers((current = []) => current.filter((m) => m.id !== memberId))
-    toast.success(`Removed ${member?.name}`)
+    toast.info('Member management has been moved to household settings')
   }
 
   const handleToggleWidget = (widgetId: string) => {
@@ -330,7 +320,7 @@ export default function SettingsSection() {
           <div className="flex flex-wrap gap-2">
             {members.map((member) => (
               <Badge key={member.id} variant="secondary" className="text-sm pl-3 pr-2 py-2">
-                {member.name}
+                {member.displayName}
                 <button
                   onClick={() => handleRemoveMember(member.id)}
                   className="ml-2 hover:text-destructive transition-colors"

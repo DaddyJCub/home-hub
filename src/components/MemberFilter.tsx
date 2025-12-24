@@ -27,10 +27,10 @@ export default function MemberFilter() {
             </div>
           </SelectItem>
           {members.map((member) => (
-            <SelectItem key={member.id} value={member.name}>
+            <SelectItem key={member.id} value={member.displayName}>
               <div className="flex items-center gap-2">
                 <User size={16} />
-                {member.name}
+                {member.displayName}
               </div>
             </SelectItem>
           ))}

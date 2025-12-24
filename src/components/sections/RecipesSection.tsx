@@ -12,8 +12,10 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Recipe } from '@/lib/types'
 import { toast } from 'sonner'
+import { useAuth } from '@/lib/AuthContext'
 
 export default function RecipesSection() {
+  const { currentHousehold } = useAuth()
   const [recipes = [], setRecipes] = useKV<Recipe[]>('recipes', [])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
@@ -124,8 +126,14 @@ export default function RecipesSection() {
       )
       toast.success('Recipe updated')
     } else {
+      if (!currentHousehold) {
+        toast.error('No household selected')
+        return
+      }
+      
       const newRecipe: Recipe = {
         id: Date.now().toString(),
+        householdId: currentHousehold.id,
         name: recipeForm.name.trim(),
         ingredients: recipeForm.ingredients.split('\n').filter((i) => i.trim()),
         instructions: recipeForm.instructions.trim(),

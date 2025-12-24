@@ -14,12 +14,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSepar
 import type { ShoppingItem, Meal, Recipe } from '@/lib/types'
 import { toast } from 'sonner'
 import { startOfWeek, addDays, format } from 'date-fns'
+import { useAuth } from '@/lib/AuthContext'
 
 const CATEGORIES = ['Produce', 'Dairy', 'Meat', 'Pantry', 'Frozen', 'Bakery', 'Beverages', 'Household', 'Other']
 
 const STORES = ['Grocery Store', 'Farmers Market', 'Warehouse Club', 'Specialty Store', 'Convenience Store', 'Online', 'Other']
 
 export default function ShoppingSection() {
+  const { currentHousehold } = useAuth()
   const [items = [], setItems] = useKV<ShoppingItem[]>('shopping-items', [])
   const [meals = []] = useKV<Meal[]>('meals', [])
   const [recipes = []] = useKV<Recipe[]>('recipes', [])
@@ -77,8 +79,14 @@ export default function ShoppingSection() {
       )
       toast.success('Item updated')
     } else {
+      if (!currentHousehold) {
+        toast.error('No household selected')
+        return
+      }
+      
       const newItem: ShoppingItem = {
         id: Date.now().toString(),
+        householdId: currentHousehold.id,
         ...itemData,
         purchased: false,
         createdAt: Date.now()
@@ -158,8 +166,14 @@ export default function ShoppingSection() {
       return
     }
 
+    if (!currentHousehold) {
+      toast.error('No household selected')
+      return
+    }
+
     const newItems: ShoppingItem[] = allIngredients.map((ingredient) => ({
       id: `${Date.now()}-${Math.random()}`,
+      householdId: currentHousehold.id,
       name: ingredient,
       category: 'Other',
       quantity: '',

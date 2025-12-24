@@ -12,8 +12,10 @@ import { Badge } from '@/components/ui/badge'
 import type { CalendarEvent, HouseholdMember } from '@/lib/types'
 import { toast } from 'sonner'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isToday, isSameMonth, startOfWeek, endOfWeek } from 'date-fns'
+import { useAuth } from '@/lib/AuthContext'
 
 export default function CalendarSection() {
+  const { currentHousehold } = useAuth()
   const [events = [], setEvents] = useKV<CalendarEvent[]>('calendar-events', [])
   const [members = []] = useKV<HouseholdMember[]>('household-members', [])
   const [selectedMember = 'all'] = useKV<string>('selected-member-filter', 'all')
@@ -124,8 +126,14 @@ export default function CalendarSection() {
       )
       toast.success('Event updated')
     } else {
+      if (!currentHousehold) {
+        toast.error('No household selected')
+        return
+      }
+      
       const newEvent: CalendarEvent = {
         id: Date.now().toString(),
+        householdId: currentHousehold.id,
         title: eventForm.title.trim(),
         date: eventForm.date,
         startTime: eventForm.startTime || undefined,
@@ -481,7 +489,7 @@ export default function CalendarSection() {
                       className="cursor-pointer"
                       onClick={() => toggleAttendee(member.id)}
                     >
-                      {member.name}
+                      {member.displayName}
                     </Badge>
                   ))}
                 </div>

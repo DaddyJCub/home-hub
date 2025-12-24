@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { Chore, HouseholdMember } from '@/lib/types'
 import { toast } from 'sonner'
+import { useAuth } from '@/lib/AuthContext'
 
 const ROOMS = [
   'Kitchen',
@@ -40,11 +41,11 @@ const DAYS_OF_WEEK = [
 ]
 
 export default function ChoresSection() {
+  const { currentHousehold } = useAuth()
   const [chores = [], setChores] = useKV<Chore[]>('chores', [])
   const [members = [], setMembers] = useKV<HouseholdMember[]>('household-members', [])
   const [selectedMember = 'all'] = useKV<string>('selected-member-filter', 'all')
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [memberDialogOpen, setMemberDialogOpen] = useState(false)
   const [editingChore, setEditingChore] = useState<Chore | null>(null)
   
   const [filterRoom, setFilterRoom] = useState<string>('all')
@@ -76,20 +77,6 @@ export default function ChoresSection() {
   
   const [memberName, setMemberName] = useState('')
 
-  const handleAddMember = () => {
-    if (!memberName.trim()) return
-    
-    const newMember: HouseholdMember = {
-      id: Date.now().toString(),
-      name: memberName.trim()
-    }
-    
-    setMembers((current = []) => [...current, newMember])
-    setMemberName('')
-    setMemberDialogOpen(false)
-    toast.success(`${newMember.name} added to household`)
-  }
-
   const toggleDayOfWeek = (day: number) => {
     setChoreForm(prev => ({
       ...prev,
@@ -102,6 +89,11 @@ export default function ChoresSection() {
   const handleSaveChore = () => {
     if (!choreForm.title.trim() || !choreForm.assignedTo) {
       toast.error('Please fill in required fields')
+      return
+    }
+
+    if (!currentHousehold) {
+      toast.error('No household selected')
       return
     }
 
@@ -134,6 +126,7 @@ export default function ChoresSection() {
     } else {
       const newChore: Chore = {
         id: Date.now().toString(),
+        householdId: currentHousehold.id,
         ...choreData,
         completed: false,
         createdAt: Date.now()
@@ -317,7 +310,7 @@ export default function ChoresSection() {
               <DropdownMenuRadioGroup value={filterAssignee} onValueChange={setFilterAssignee}>
                 <DropdownMenuRadioItem value="all">Everyone</DropdownMenuRadioItem>
                 {members.map(member => (
-                  <DropdownMenuRadioItem key={member.id} value={member.name}>{member.name}</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem key={member.id} value={member.displayName}>{member.displayName}</DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
               
@@ -350,44 +343,6 @@ export default function ChoresSection() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Dialog open={memberDialogOpen} onOpenChange={setMemberDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 md:h-9 text-xs md:text-sm hidden md:flex">Add Member</Button>
-            </DialogTrigger>
-            <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
-              <DialogHeader>
-                <DialogTitle>Add Household Member</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="member-name">Name</Label>
-                  <Input
-                    id="member-name"
-                    value={memberName}
-                    onChange={(e) => setMemberName(e.target.value)}
-                    placeholder="Enter name"
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddMember()}
-                  />
-                </div>
-                {members.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>Current Members</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {members.map((member) => (
-                        <Badge key={member.id} variant="secondary">
-                          {member.name}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <Button onClick={handleAddMember} className="w-full">
-                  Add Member
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-          
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open)
             if (!open) {
@@ -434,8 +389,8 @@ export default function ChoresSection() {
                         </SelectTrigger>
                         <SelectContent>
                           {members.map((member) => (
-                            <SelectItem key={member.id} value={member.name}>
-                              {member.name}
+                            <SelectItem key={member.id} value={member.displayName}>
+                              {member.displayName}
                             </SelectItem>
                           ))}
                         </SelectContent>
