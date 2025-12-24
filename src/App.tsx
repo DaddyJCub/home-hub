@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear, BookOpen, DotsThree, Icon } from '@phosphor-icons/react'
+import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear, BookOpen, DotsThree } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -37,21 +37,6 @@ interface NavItem {
   shortLabel: string
   iconName: string
   enabled: boolean
-}
-
-const ICON_MAP: Record<string, Icon> = {
-  House,
-  Broom,
-  ShoppingCart,
-  CookingPot,
-  CalendarBlank,
-  BookOpen,
-  Gear,
-  DotsThree
-}
-
-const getIcon = (iconName: string): Icon => {
-  return ICON_MAP[iconName] || House
 }
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
@@ -213,7 +198,15 @@ function AppContent() {
         <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-20 safe-area-inset-bottom">
           <div className="grid max-w-screen-sm mx-auto" style={{ gridTemplateColumns: `repeat(${Math.min(enabledNavItems.length + 1, 5)}, 1fr)` }}>
             {enabledNavItems.slice(0, 4).map((item) => {
-              const Icon = getIcon(item.iconName)
+              let IconComponent = House
+              
+              if (item.id === 'dashboard') IconComponent = House
+              else if (item.id === 'chores') IconComponent = Broom
+              else if (item.id === 'shopping') IconComponent = ShoppingCart
+              else if (item.id === 'meals') IconComponent = CookingPot
+              else if (item.id === 'calendar') IconComponent = CalendarBlank
+              else if (item.id === 'recipes') IconComponent = BookOpen
+              
               return (
                 <button
                   key={item.id}
@@ -222,7 +215,7 @@ function AppContent() {
                     activeTab === item.id ? 'text-primary' : 'text-muted-foreground'
                   }`}
                 >
-                  <Icon size={22} weight={activeTab === item.id ? 'fill' : 'regular'} />
+                  <IconComponent size={22} weight={activeTab === item.id ? 'fill' : 'regular'} />
                   <span className="text-[10px] font-medium">{item.shortLabel}</span>
                 </button>
               )
@@ -240,14 +233,22 @@ function AppContent() {
                 {navItems
                   .filter(item => item.id !== 'settings' && (!item.enabled || enabledNavItems.indexOf(item) >= 4))
                   .map((item) => {
-                    const Icon = getIcon(item.iconName)
+                    let IconComponent = House
+                    
+                    if (item.id === 'dashboard') IconComponent = House
+                    else if (item.id === 'chores') IconComponent = Broom
+                    else if (item.id === 'shopping') IconComponent = ShoppingCart
+                    else if (item.id === 'meals') IconComponent = CookingPot
+                    else if (item.id === 'calendar') IconComponent = CalendarBlank
+                    else if (item.id === 'recipes') IconComponent = BookOpen
+                    
                     return (
                       <DropdownMenuItem
                         key={item.id}
                         onClick={() => setActiveTab(item.id)}
                         className="gap-2"
                       >
-                        <Icon size={18} />
+                        <IconComponent size={18} />
                         {item.label}
                       </DropdownMenuItem>
                     )
