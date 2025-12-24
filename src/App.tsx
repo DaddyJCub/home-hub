@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear, BookOpen } from '@phosphor-icons/react'
+import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear, BookOpen, DotsThree } from '@phosphor-icons/react'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useKV } from '@github/spark/hooks'
 import { useSwipeGesture } from '@/hooks/use-swipe-gesture'
@@ -9,7 +17,6 @@ import { getThemeById, applyTheme } from '@/lib/themes'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import AuthPage from '@/components/AuthPage'
 import HouseholdSwitcher from '@/components/HouseholdSwitcher'
-import MobileSettingsMenu from '@/components/MobileSettingsMenu'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { NotificationIndicator } from '@/components/NotificationIndicator'
 import type { NavItem } from '@/components/MobileNavCustomizer'
@@ -27,7 +34,6 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { id: 'chores', label: 'Chores', shortLabel: 'Chores', icon: Broom, enabled: true },
   { id: 'shopping', label: 'Shopping', shortLabel: 'Shop', icon: ShoppingCart, enabled: true },
   { id: 'meals', label: 'Meals', shortLabel: 'Meals', icon: CookingPot, enabled: true },
-  { id: 'settings', label: 'Settings', shortLabel: 'More', icon: Gear, enabled: true },
   { id: 'calendar', label: 'Calendar', shortLabel: 'Calendar', icon: CalendarBlank, enabled: false },
   { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', icon: BookOpen, enabled: false }
 ]
@@ -163,21 +169,15 @@ function AppContent() {
           </TabsContent>
 
           <TabsContent value="settings" className="mt-0">
-            {isMobile ? (
-              <MobileSettingsMenu onNavigate={setActiveTab}>
-                <SettingsSection />
-              </MobileSettingsMenu>
-            ) : (
-              <SettingsSection />
-            )}
+            <SettingsSection />
           </TabsContent>
         </Tabs>
       </main>
 
       {isMobile && (
         <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-20 safe-area-inset-bottom">
-          <div className={`grid max-w-screen-sm mx-auto`} style={{ gridTemplateColumns: `repeat(${enabledNavItems.length}, 1fr)` }}>
-            {enabledNavItems.map((item) => {
+          <div className="grid max-w-screen-sm mx-auto" style={{ gridTemplateColumns: `repeat(${Math.min(enabledNavItems.length + 1, 5)}, 1fr)` }}>
+            {enabledNavItems.slice(0, 4).map((item) => {
               const Icon = item.icon
               return (
                 <button
@@ -192,6 +192,36 @@ function AppContent() {
                 </button>
               )
             })}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex flex-col items-center gap-0.5 py-2 transition-colors text-muted-foreground"
+                >
+                  <DotsThree size={22} weight="bold" />
+                  <span className="text-[10px] font-medium">More</span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 mb-2">
+                {navItems.filter(item => !item.enabled || enabledNavItems.indexOf(item) >= 4).map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <DropdownMenuItem
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id)}
+                      className="gap-2"
+                    >
+                      <Icon size={18} />
+                      {item.label}
+                    </DropdownMenuItem>
+                  )
+                })}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setActiveTab('settings')} className="gap-2">
+                  <Gear size={18} />
+                  Settings
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </nav>
       )}
