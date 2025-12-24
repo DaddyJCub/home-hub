@@ -3,25 +3,39 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Faders, House, Broom, ShoppingCart, CalendarBlank, CookingPot, BookOpen, Gear } from '@phosphor-icons/react'
+import { Faders, House, Broom, ShoppingCart, CalendarBlank, CookingPot, BookOpen, Gear, Icon } from '@phosphor-icons/react'
 import { useKV } from '@github/spark/hooks'
 
 export interface NavItem {
   id: string
   label: string
   shortLabel: string
-  icon: typeof House
+  iconName: string
   enabled: boolean
 }
 
+const ICON_MAP: Record<string, Icon> = {
+  House,
+  Broom,
+  ShoppingCart,
+  CookingPot,
+  CalendarBlank,
+  BookOpen,
+  Gear
+}
+
+const getIcon = (iconName: string): Icon => {
+  return ICON_MAP[iconName] || House
+}
+
 const DEFAULT_NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', icon: House, enabled: true },
-  { id: 'chores', label: 'Chores', shortLabel: 'Chores', icon: Broom, enabled: true },
-  { id: 'shopping', label: 'Shopping', shortLabel: 'Shop', icon: ShoppingCart, enabled: true },
-  { id: 'meals', label: 'Meals', shortLabel: 'Meals', icon: CookingPot, enabled: true },
-  { id: 'settings', label: 'Settings', shortLabel: 'More', icon: Gear, enabled: true },
-  { id: 'calendar', label: 'Calendar', shortLabel: 'Calendar', icon: CalendarBlank, enabled: false },
-  { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', icon: BookOpen, enabled: false }
+  { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', iconName: 'House', enabled: true },
+  { id: 'chores', label: 'Chores', shortLabel: 'Chores', iconName: 'Broom', enabled: true },
+  { id: 'shopping', label: 'Shopping', shortLabel: 'Shop', iconName: 'ShoppingCart', enabled: true },
+  { id: 'meals', label: 'Meals', shortLabel: 'Meals', iconName: 'CookingPot', enabled: true },
+  { id: 'settings', label: 'Settings', shortLabel: 'More', iconName: 'Gear', enabled: true },
+  { id: 'calendar', label: 'Calendar', shortLabel: 'Calendar', iconName: 'CalendarBlank', enabled: false },
+  { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', iconName: 'BookOpen', enabled: false }
 ]
 
 function MobileNavCustomizer() {
@@ -67,21 +81,24 @@ function MobileNavCustomizer() {
             Choose 3-5 tabs to show in your bottom navigation bar.
           </p>
           <div className="space-y-3">
-            {navItems?.map((item) => (
-              <div key={item.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <item.icon size={20} />
-                  <Label htmlFor={item.id} className="cursor-pointer">
-                    {item.label}
-                  </Label>
+            {navItems?.map((item) => {
+              const ItemIcon = getIcon(item.iconName)
+              return (
+                <div key={item.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <ItemIcon size={20} />
+                    <Label htmlFor={item.id} className="cursor-pointer">
+                      {item.label}
+                    </Label>
+                  </div>
+                  <Switch
+                    id={item.id}
+                    checked={item.enabled}
+                    onCheckedChange={() => toggleItem(item.id)}
+                  />
                 </div>
-                <Switch
-                  id={item.id}
-                  checked={item.enabled}
-                  onCheckedChange={() => toggleItem(item.id)}
-                />
-              </div>
-            ))}
+              )
+            })}
           </div>
           <div className="text-xs text-muted-foreground text-center">
             {enabledCount} of 5 tabs selected

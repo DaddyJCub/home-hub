@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear, BookOpen, DotsThree } from '@phosphor-icons/react'
+import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear, BookOpen, DotsThree, Icon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -19,7 +19,6 @@ import AuthPage from '@/components/AuthPage'
 import HouseholdSwitcher from '@/components/HouseholdSwitcher'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { NotificationIndicator } from '@/components/NotificationIndicator'
-import type { NavItem } from '@/components/MobileNavCustomizer'
 import type { Chore, CalendarEvent } from '@/lib/types'
 import DashboardSection from '@/components/sections/DashboardSection'
 import ChoresSection from '@/components/sections/ChoresSection'
@@ -29,13 +28,36 @@ import RecipesSection from '@/components/sections/RecipesSection'
 import CalendarSection from '@/components/sections/CalendarSection'
 import SettingsSection from '@/components/sections/SettingsSection'
 
+interface NavItem {
+  id: string
+  label: string
+  shortLabel: string
+  iconName: string
+  enabled: boolean
+}
+
+const ICON_MAP: Record<string, Icon> = {
+  House,
+  Broom,
+  ShoppingCart,
+  CookingPot,
+  CalendarBlank,
+  BookOpen,
+  Gear,
+  DotsThree
+}
+
+const getIcon = (iconName: string): Icon => {
+  return ICON_MAP[iconName] || House
+}
+
 const DEFAULT_NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', icon: House, enabled: true },
-  { id: 'chores', label: 'Chores', shortLabel: 'Chores', icon: Broom, enabled: true },
-  { id: 'shopping', label: 'Shopping', shortLabel: 'Shop', icon: ShoppingCart, enabled: true },
-  { id: 'meals', label: 'Meals', shortLabel: 'Meals', icon: CookingPot, enabled: true },
-  { id: 'calendar', label: 'Calendar', shortLabel: 'Calendar', icon: CalendarBlank, enabled: false },
-  { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', icon: BookOpen, enabled: false }
+  { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', iconName: 'House', enabled: true },
+  { id: 'chores', label: 'Chores', shortLabel: 'Chores', iconName: 'Broom', enabled: true },
+  { id: 'shopping', label: 'Shopping', shortLabel: 'Shop', iconName: 'ShoppingCart', enabled: true },
+  { id: 'meals', label: 'Meals', shortLabel: 'Meals', iconName: 'CookingPot', enabled: true },
+  { id: 'calendar', label: 'Calendar', shortLabel: 'Calendar', iconName: 'CalendarBlank', enabled: false },
+  { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', iconName: 'BookOpen', enabled: false }
 ]
 
 function AppContent() {
@@ -178,7 +200,7 @@ function AppContent() {
         <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-20 safe-area-inset-bottom">
           <div className="grid max-w-screen-sm mx-auto" style={{ gridTemplateColumns: `repeat(${Math.min(enabledNavItems.length + 1, 5)}, 1fr)` }}>
             {enabledNavItems.slice(0, 4).map((item) => {
-              const Icon = item.icon
+              const Icon = getIcon(item.iconName)
               return (
                 <button
                   key={item.id}
@@ -203,7 +225,7 @@ function AppContent() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 mb-2">
                 {navItems.filter(item => !item.enabled || enabledNavItems.indexOf(item) >= 4).map((item) => {
-                  const Icon = item.icon
+                  const Icon = getIcon(item.iconName)
                   return (
                     <DropdownMenuItem
                       key={item.id}
