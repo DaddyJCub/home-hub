@@ -237,20 +237,24 @@ function AppContent() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 mb-2">
-                {navItems.filter(item => !item.enabled || enabledNavItems.indexOf(item) >= 4).map((item) => {
-                  const Icon = getIcon(item.iconName)
-                  return (
-                    <DropdownMenuItem
-                      key={item.id}
-                      onClick={() => setActiveTab(item.id)}
-                      className="gap-2"
-                    >
-                      <Icon size={18} />
-                      {item.label}
-                    </DropdownMenuItem>
-                  )
-                })}
-                <DropdownMenuSeparator />
+                {navItems
+                  .filter(item => item.id !== 'settings' && (!item.enabled || enabledNavItems.indexOf(item) >= 4))
+                  .map((item) => {
+                    const Icon = getIcon(item.iconName)
+                    return (
+                      <DropdownMenuItem
+                        key={item.id}
+                        onClick={() => setActiveTab(item.id)}
+                        className="gap-2"
+                      >
+                        <Icon size={18} />
+                        {item.label}
+                      </DropdownMenuItem>
+                    )
+                  })}
+                {navItems.filter(item => item.id !== 'settings' && (!item.enabled || enabledNavItems.indexOf(item) >= 4)).length > 0 && (
+                  <DropdownMenuSeparator />
+                )}
                 <DropdownMenuItem onClick={() => setActiveTab('settings')} className="gap-2">
                   <Gear size={18} />
                   Settings
