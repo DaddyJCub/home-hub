@@ -105,11 +105,11 @@ This is a multi-feature application with user authentication, household manageme
 - **Success criteria**: Users can switch between themes and preference persists across sessions
 
 ### Dashboard Customization
-- **Functionality**: Toggle visibility of dashboard widgets
-- **Purpose**: Allow users to customize which information appears on their dashboard
-- **Trigger**: User navigates to settings section
-- **Progression**: View settings → Toggle widget switches → Dashboard updates → Layout preference saved
-- **Success criteria**: Users can show/hide widgets and preferences persist
+- **Functionality**: Toggle visibility of dashboard widgets and organize display preferences
+- **Purpose**: Allow users to customize which information appears on their dashboard for a personalized view
+- **Trigger**: User clicks "Customize Dashboard" button on the dashboard
+- **Progression**: View dashboard → Click customize button → Dialog shows all available widgets with toggle switches → Enable/disable widgets → Changes apply immediately → Preferences persist across sessions
+- **Success criteria**: Users can show/hide widgets (stats cards, member statistics, room chore tracking, time estimates, today's events, today's meals, priorities, upcoming events, weekly calendar, shopping preview), see how many widgets are enabled, and preferences persist across sessions and household switches
 
 ### Admin Functions
 - **Functionality**: Data management including export backup and selective/full data deletion
@@ -142,12 +142,14 @@ The design should evoke a warm, welcoming feeling that makes household managemen
 A warm, earthy palette that feels grounded and homey with touches of natural green for freshness (default theme). Multiple theme options available for customization.
 
 **Available Themes:**
-1. **Warm Home (Default)** - Cozy terracotta and sage
-2. **Ocean Breeze** - Cool blues and aqua tones
-3. **Forest Calm** - Deep greens and earth tones
-4. **Sunset Glow** - Warm oranges and purples
-5. **Monochrome** - Clean black and white
-6. **Lavender Dream** - Soft purples and pinks
+1. **Warm Home (Default)** - Cozy terracotta and sage with dark mode support
+2. **Ocean Breeze** - Cool blues and aqua tones with dark mode support
+3. **Forest Calm** - Deep greens and earth tones with dark mode support
+4. **Sunset Glow** - Warm oranges and purples with dark mode support
+5. **Monochrome** - Clean black and white with enhanced dark mode featuring subtle green/yellow highlights for better contrast and visual hierarchy
+6. **Lavender Dream** - Soft purples and pinks with dark mode support
+
+Each theme includes carefully tuned dark mode variants with appropriate contrast ratios. The Monochrome theme's dark mode specifically adds subtle color highlights (green-yellow tones) to primary and accent elements to improve visual hierarchy and make important elements stand out against the dark background.
 
 **Default Theme (Warm Home):**
 - **Primary Color**: Warm terracotta (oklch(0.62 0.15 35)) - Conveys warmth, home, and approachability

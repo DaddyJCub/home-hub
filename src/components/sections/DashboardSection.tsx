@@ -7,10 +7,13 @@ import { Progress } from '@/components/ui/progress'
 import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent, HouseholdMember } from '@/lib/types'
 import { format, startOfWeek, addDays, isToday, isAfter, isSameDay, startOfDay } from 'date-fns'
 import { useState } from 'react'
+import DashboardCustomizer from '@/components/DashboardCustomizer'
 
 interface DashboardWidget {
   id: string
   label: string
+  icon: React.ReactNode
+  description: string
   enabled: boolean
 }
 
@@ -53,10 +56,27 @@ export default function DashboardSection() {
   }
 
   const isWidgetEnabled = (widgetId: string) => {
-    if (dashboardWidgets.length === 0) return true
+    if (!dashboardWidgets || dashboardWidgets.length === 0) return true
     const widget = dashboardWidgets.find((w) => w.id === widgetId)
     return widget ? widget.enabled : true
   }
+
+  const getRoomChores = () => {
+    const roomMap: Record<string, Chore[]> = {}
+    pendingChores.forEach((chore) => {
+      const room = chore.room || 'Unassigned'
+      if (!roomMap[room]) {
+        roomMap[room] = []
+      }
+      roomMap[room].push(chore)
+    })
+    return roomMap
+  }
+
+  const roomChores = getRoomChores()
+  const totalEstimatedTime = pendingChores.reduce((acc, chore) => 
+    acc + (chore.estimatedMinutes || 0), 0
+  )
 
   const todaysEvents = filteredEvents.filter((evt) => evt.date === todayStr)
   const upcomingEvents = filteredEvents
@@ -109,13 +129,16 @@ export default function DashboardSection() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold">Dashboard</h2>
-        <p className="text-muted-foreground">
-          {selectedMember === 'all' 
-            ? 'Your household at a glance' 
-            : `${selectedMember}'s view`}
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-3xl font-bold">Dashboard</h2>
+          <p className="text-muted-foreground">
+            {selectedMember === 'all' 
+              ? 'Your household at a glance' 
+              : `${selectedMember}'s view`}
+          </p>
+        </div>
+        <DashboardCustomizer />
       </div>
 
       {isWidgetEnabled('stats') && (
@@ -191,41 +214,143 @@ export default function DashboardSection() {
       </div>
       )}
 
-      {members.length > 0 && selectedMember === 'all' && (
+      {isWidgetEnabled('time-estimate') && totalEstimatedTime > 0 && (
+        <Card className="bg-accent/10 border-accent">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center">
+                <Clock size={28} className="text-accent" />
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-medium text-muted-foreground">Estimated Time for Pending Chores</div>
+                <div className="text-3xl font-bold text-accent mt-1">
+                  {Math.floor(totalEstimatedTime / 60)}h {totalEstimatedTime % 60}m
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-muted-foreground">{pendingChores.length} tasks</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  ~{Math.round(totalEstimatedTime / pendingChores.length)} min avg
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isWidgetEnabled('room-chores') && Object.keys(roomChores).length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <User size={24} />
+              <MapPin size={24} />
+              Chores by Room
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(roomChores)
+                .sort(([, a], [, b]) => b.length - a.length)
+                .map(([room, chores]) => {
+                  const totalTime = chores.reduce((acc, c) => acc + (c.estimatedMinutes || 0), 0)
+                  const priorityCount = {
+                    high: chores.filter(c => c.priority === 'high').length,
+                    medium: chores.filter(c => c.priority === 'medium').length,
+                    low: chores.filter(c => c.priority === 'low').length,
+                  }
+
+                  return (
+                    <Card key={room} className="border-2">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-lg flex items-center justify-between">
+                          <span className="flex items-center gap-2">
+                            <MapPin size={18} className="text-primary" />
+                            {room}
+                          </span>
+                          <Badge variant="secondary">{chores.length}</Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {totalTime > 0 && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Clock size={14} />
+                            ~{totalTime} min total
+                          </div>
+                        )}
+                        <div className="flex gap-2">
+                          {priorityCount.high > 0 && (
+                            <Badge variant="destructive" className="text-xs">
+                              {priorityCount.high} high
+                            </Badge>
+                          )}
+                          {priorityCount.medium > 0 && (
+                            <Badge variant="default" className="text-xs">
+                              {priorityCount.medium} med
+                            </Badge>
+                          )}
+                          {priorityCount.low > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              {priorityCount.low} low
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="space-y-2 pt-2 border-t">
+                          {chores.slice(0, 3).map((chore) => (
+                            <div key={chore.id} className="text-sm flex items-start gap-2">
+                              <CheckCircle size={14} className="text-muted-foreground flex-shrink-0 mt-0.5" />
+                              <span className="flex-1 leading-tight">{chore.title}</span>
+                            </div>
+                          ))}
+                          {chores.length > 3 && (
+                            <p className="text-xs text-muted-foreground italic">
+                              +{chores.length - 3} more...
+                            </p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+
+      {members.length > 0 && selectedMember === 'all' && isWidgetEnabled('member-stats') && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User size={24} className="text-primary" />
               Household Members
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {members.map((member) => {
-                const stats = getMemberStats(member.name)
+                const stats = getMemberStats(member.displayName)
                 return (
-                  <div key={member.id} className="p-4 rounded-lg border bg-card space-y-3">
+                  <div key={member.id} className="p-4 rounded-lg border-2 bg-gradient-to-br from-card to-secondary/20 space-y-3 hover:border-primary/50 transition-colors">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <User size={20} className="text-primary" />
+                        <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center ring-2 ring-primary/30">
+                          <User size={24} className="text-primary" />
                         </div>
                         <div>
-                          <div className="font-semibold text-lg">{member.name}</div>
+                          <div className="font-semibold text-lg">{member.displayName}</div>
                           <div className="text-sm text-muted-foreground">
                             {stats.pendingChores} pending tasks
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-2xl font-bold text-primary">{stats.completionRate}%</div>
+                        <div className="text-3xl font-bold text-primary">{stats.completionRate}%</div>
                         <div className="text-xs text-muted-foreground">completion</div>
                       </div>
                     </div>
                     
                     {stats.totalChores > 0 && (
                       <div className="space-y-2">
-                        <Progress value={stats.completionRate} className="h-2" />
+                        <Progress value={stats.completionRate} className="h-2.5" />
                         <div className="flex items-center justify-between text-sm text-muted-foreground">
                           <span>{stats.completedChores} of {stats.totalChores} chores done</span>
                           {stats.estimatedTime > 0 && (
@@ -239,16 +364,16 @@ export default function DashboardSection() {
                     )}
 
                     <div className="grid grid-cols-3 gap-2">
-                      <div className="text-center p-2 rounded-md bg-secondary/30">
-                        <div className="text-lg font-bold text-primary">{stats.totalChores}</div>
+                      <div className="text-center p-3 rounded-md bg-primary/10 border border-primary/20">
+                        <div className="text-xl font-bold text-primary">{stats.totalChores}</div>
                         <div className="text-xs text-muted-foreground">Total Chores</div>
                       </div>
-                      <div className="text-center p-2 rounded-md bg-secondary/30">
-                        <div className="text-lg font-bold text-primary">{stats.upcomingEvents}</div>
+                      <div className="text-center p-3 rounded-md bg-secondary/50 border border-secondary">
+                        <div className="text-xl font-bold text-foreground">{stats.upcomingEvents}</div>
                         <div className="text-xs text-muted-foreground">Events</div>
                       </div>
-                      <div className="text-center p-2 rounded-md bg-secondary/30">
-                        <div className="text-lg font-bold text-primary">{stats.pendingChores}</div>
+                      <div className="text-center p-3 rounded-md bg-accent/10 border border-accent/20">
+                        <div className="text-xl font-bold text-accent">{stats.pendingChores}</div>
                         <div className="text-xs text-muted-foreground">Pending</div>
                       </div>
                     </div>
