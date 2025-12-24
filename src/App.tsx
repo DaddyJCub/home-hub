@@ -12,6 +12,7 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useKV } from '@github/spark/hooks'
 import { useSwipeGesture } from '@/hooks/use-swipe-gesture'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { useNotifications } from '@/hooks/use-notifications'
 import { getThemeById, applyTheme } from '@/lib/themes'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
@@ -19,6 +20,8 @@ import AuthPage from '@/components/AuthPage'
 import HouseholdSwitcher from '@/components/HouseholdSwitcher'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { NotificationIndicator } from '@/components/NotificationIndicator'
+import { NotificationCenter } from '@/components/NotificationCenter'
+import { RefreshIndicator } from '@/components/RefreshIndicator'
 import type { Chore, CalendarEvent } from '@/lib/types'
 import DashboardSection from '@/components/sections/DashboardSection'
 import ChoresSection from '@/components/sections/ChoresSection'
@@ -78,6 +81,15 @@ function AppContent() {
 
   useNotifications(chores, events)
 
+  const handleRefresh = async () => {
+    await new Promise(resolve => setTimeout(resolve, 800))
+  }
+
+  const { isPulling, isRefreshing, progress } = usePullToRefresh({
+    onRefresh: handleRefresh,
+    enabled: isMobile,
+  })
+
   const enabledNavItems = navItems.filter(item => item.enabled)
   const tabOrder = enabledNavItems.map(item => item.id)
 
@@ -114,6 +126,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-background">
       <OfflineIndicator />
+      <RefreshIndicator isPulling={isPulling} isRefreshing={isRefreshing} progress={progress} />
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="container mx-auto px-3 py-3 md:px-4 md:py-4">
           <div className="flex items-center justify-between gap-2 md:gap-4">
@@ -124,7 +137,7 @@ function AppContent() {
               </p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <NotificationIndicator chores={chores} events={events} />
+              <NotificationCenter chores={chores} events={events} />
               <HouseholdSwitcher />
             </div>
           </div>

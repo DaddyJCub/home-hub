@@ -4,22 +4,44 @@ export interface NotificationPreferences {
   enabled: boolean
   choresEnabled: boolean
   eventsEnabled: boolean
+  shoppingEnabled: boolean
+  mealsEnabled: boolean
   choreReminderMinutes: number
   eventReminderMinutes: number
+  shoppingReminderMinutes: number
+  mealReminderMinutes: number
   quietHoursEnabled: boolean
   quietHoursStart: string
   quietHoursEnd: string
+  soundEnabled: boolean
+  vibrationEnabled: boolean
+  dailySummaryEnabled: boolean
+  dailySummaryTime: string
+  weeklyReviewEnabled: boolean
+  weeklyReviewDay: number
+  weeklyReviewTime: string
 }
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled: false,
   choresEnabled: true,
   eventsEnabled: true,
+  shoppingEnabled: false,
+  mealsEnabled: true,
   choreReminderMinutes: 60,
   eventReminderMinutes: 30,
+  shoppingReminderMinutes: 1440,
+  mealReminderMinutes: 120,
   quietHoursEnabled: false,
   quietHoursStart: '22:00',
   quietHoursEnd: '08:00',
+  soundEnabled: true,
+  vibrationEnabled: true,
+  dailySummaryEnabled: false,
+  dailySummaryTime: '08:00',
+  weeklyReviewEnabled: false,
+  weeklyReviewDay: 1,
+  weeklyReviewTime: '18:00',
 }
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -64,20 +86,24 @@ export function shouldSendNotification(preferences: NotificationPreferences, typ
   return true
 }
 
-export function showNotification(title: string, options?: NotificationOptions): void {
+export function showNotification(title: string, options?: NotificationOptions, preferences?: NotificationPreferences): void {
   if (Notification.permission === 'granted') {
+    const prefs = preferences || DEFAULT_NOTIFICATION_PREFERENCES
     const defaultOptions: NotificationOptions = {
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       requireInteraction: false,
+      silent: !prefs.soundEnabled,
       ...options,
     }
+
+    const vibrationPattern = prefs.vibrationEnabled ? [200, 100, 200] : undefined
 
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.ready.then(registration => {
         registration.showNotification(title, {
           ...defaultOptions,
-          vibrate: [200, 100, 200],
+          vibrate: vibrationPattern,
         } as any)
       })
     } else {
@@ -86,7 +112,7 @@ export function showNotification(title: string, options?: NotificationOptions): 
   }
 }
 
-export function scheduleChoreNotification(chore: Chore, reminderMinutes: number): void {
+export function scheduleChoreNotification(chore: Chore, reminderMinutes: number, preferences?: NotificationPreferences): void {
   if (!chore.nextDue) return
 
   const dueTime = new Date(chore.nextDue)
@@ -103,12 +129,12 @@ export function scheduleChoreNotification(chore: Chore, reminderMinutes: number)
         body: `Due ${formatRelativeTime(dueTime)}${chore.assignedTo ? ` • Assigned to ${chore.assignedTo}` : ''}`,
         tag: `chore-${chore.id}`,
         data: { type: 'chore', choreId: chore.id },
-      })
+      }, preferences)
     }, timeUntilNotification)
   }
 }
 
-export function scheduleEventNotification(event: CalendarEvent, reminderMinutes: number): void {
+export function scheduleEventNotification(event: CalendarEvent, reminderMinutes: number, preferences?: NotificationPreferences): void {
   const eventDateTime = parseEventDateTime(event)
   if (!eventDateTime) return
 
@@ -125,7 +151,7 @@ export function scheduleEventNotification(event: CalendarEvent, reminderMinutes:
         body: `${formatRelativeTime(eventDateTime)}${event.location ? ` • ${event.location}` : ''}`,
         tag: `event-${event.id}`,
         data: { type: 'event', eventId: event.id },
-      })
+      }, preferences)
     }, timeUntilNotification)
   }
 }
@@ -186,7 +212,7 @@ export function checkAndScheduleNotifications(
     const upcomingChores = getUpcomingChores(chores)
     upcomingChores.forEach(chore => {
       if (shouldSendNotification(preferences, 'chore')) {
-        scheduleChoreNotification(chore, preferences.choreReminderMinutes)
+        scheduleChoreNotification(chore, preferences.choreReminderMinutes, preferences)
       }
     })
   }
@@ -195,7 +221,7 @@ export function checkAndScheduleNotifications(
     const upcomingEvents = getUpcomingEvents(events)
     upcomingEvents.forEach(event => {
       if (shouldSendNotification(preferences, 'event')) {
-        scheduleEventNotification(event, preferences.eventReminderMinutes)
+        scheduleEventNotification(event, preferences.eventReminderMinutes, preferences)
       }
     })
   }

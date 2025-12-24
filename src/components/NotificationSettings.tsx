@@ -12,7 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Bell, BellSlash, Check, X } from '@phosphor-icons/react'
+import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
+import { Bell, BellSlash, Check, X, Broom, CalendarBlank, ShoppingCart, CookingPot, SpeakerHigh, Vibrate, Moon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import {
   type NotificationPreferences,
@@ -45,7 +47,7 @@ export function NotificationSettings() {
     showNotification('HomeHub Test Notification', {
       body: 'Notifications are working! You will receive reminders for chores and events.',
       tag: 'test-notification',
-    })
+    }, preferences)
     toast.success('Test notification sent')
   }
 
@@ -74,7 +76,7 @@ export function NotificationSettings() {
           Push Notifications
         </CardTitle>
         <CardDescription>
-          Get reminders for upcoming chores and events
+          Get reminders for upcoming chores, events, shopping, and meals
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -91,17 +93,17 @@ export function NotificationSettings() {
         )}
 
         {notificationsSupported && permissionStatus !== 'granted' && (
-          <Button onClick={handleEnableNotifications} className="w-full">
-            <Bell className="mr-2" />
+          <Button onClick={handleEnableNotifications} className="w-full gap-2">
+            <Bell />
             Enable Notifications
           </Button>
         )}
 
         {notificationsSupported && permissionStatus === 'granted' && (
           <>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/30">
               <div className="space-y-0.5">
-                <Label className="text-base">Master Switch</Label>
+                <Label className="text-base font-semibold">Master Switch</Label>
                 <p className="text-sm text-muted-foreground">Enable all notifications</p>
               </div>
               <Switch
@@ -113,21 +115,26 @@ export function NotificationSettings() {
             <Button
               variant="outline"
               onClick={handleTestNotification}
-              className="w-full"
+              className="w-full gap-2"
             >
-              <Bell className="mr-2" />
+              <Bell />
               Send Test Notification
             </Button>
 
             {preferences.enabled && (
               <>
-                <div className="space-y-4 pt-4 border-t">
+                <Separator />
+
+                <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label className="text-base">Chore Reminders</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Get notified before chores are due
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <Broom size={20} className="text-primary" />
+                      <div className="space-y-0.5">
+                        <Label className="text-base">Chore Reminders</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Get notified before chores are due
+                        </p>
+                      </div>
                     </div>
                     <Switch
                       checked={preferences.choresEnabled}
@@ -136,7 +143,7 @@ export function NotificationSettings() {
                   </div>
 
                   {preferences.choresEnabled && (
-                    <div className="ml-4 space-y-2">
+                    <div className="ml-7 space-y-2">
                       <Label className="text-sm">Remind me</Label>
                       <Select
                         value={String(preferences.choreReminderMinutes)}
@@ -158,13 +165,18 @@ export function NotificationSettings() {
                   )}
                 </div>
 
-                <div className="space-y-4 pt-4 border-t">
+                <Separator />
+
+                <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label className="text-base">Event Reminders</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Get notified before calendar events
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <CalendarBlank size={20} className="text-primary" />
+                      <div className="space-y-0.5">
+                        <Label className="text-base">Event Reminders</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Get notified before calendar events
+                        </p>
+                      </div>
                     </div>
                     <Switch
                       checked={preferences.eventsEnabled}
@@ -173,7 +185,7 @@ export function NotificationSettings() {
                   </div>
 
                   {preferences.eventsEnabled && (
-                    <div className="ml-4 space-y-2">
+                    <div className="ml-7 space-y-2">
                       <Label className="text-sm">Remind me</Label>
                       <Select
                         value={String(preferences.eventReminderMinutes)}
@@ -195,13 +207,134 @@ export function NotificationSettings() {
                   )}
                 </div>
 
-                <div className="space-y-4 pt-4 border-t">
+                <Separator />
+
+                <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label className="text-base">Quiet Hours</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Pause notifications during specific hours
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <CookingPot size={20} className="text-primary" />
+                      <div className="space-y-0.5">
+                        <Label className="text-base">Meal Reminders</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Remind about planned meals
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={preferences.mealsEnabled}
+                      onCheckedChange={value => handleToggle('mealsEnabled', value)}
+                    />
+                  </div>
+
+                  {preferences.mealsEnabled && (
+                    <div className="ml-7 space-y-2">
+                      <Label className="text-sm">Remind me</Label>
+                      <Select
+                        value={String(preferences.mealReminderMinutes)}
+                        onValueChange={value => handleMinutesChange('mealReminderMinutes', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="30">30 minutes before</SelectItem>
+                          <SelectItem value="60">1 hour before</SelectItem>
+                          <SelectItem value="120">2 hours before</SelectItem>
+                          <SelectItem value="180">3 hours before</SelectItem>
+                          <SelectItem value="240">4 hours before</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShoppingCart size={20} className="text-primary" />
+                      <div className="space-y-0.5">
+                        <Label className="text-base">Shopping Reminders</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Remind about shopping list items
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={preferences.shoppingEnabled}
+                      onCheckedChange={value => handleToggle('shoppingEnabled', value)}
+                    />
+                  </div>
+
+                  {preferences.shoppingEnabled && (
+                    <div className="ml-7 space-y-2">
+                      <Label className="text-sm">Remind me</Label>
+                      <Select
+                        value={String(preferences.shoppingReminderMinutes)}
+                        onValueChange={value => handleMinutesChange('shoppingReminderMinutes', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="60">1 hour</SelectItem>
+                          <SelectItem value="240">4 hours</SelectItem>
+                          <SelectItem value="720">12 hours</SelectItem>
+                          <SelectItem value="1440">1 day</SelectItem>
+                          <SelectItem value="2880">2 days</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-sm">Notification Preferences</h3>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <SpeakerHigh size={20} className="text-muted-foreground" />
+                      <div className="space-y-0.5">
+                        <Label>Sound</Label>
+                        <p className="text-xs text-muted-foreground">Play sound with notifications</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={preferences.soundEnabled}
+                      onCheckedChange={value => handleToggle('soundEnabled', value)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Vibrate size={20} className="text-muted-foreground" />
+                      <div className="space-y-0.5">
+                        <Label>Vibration</Label>
+                        <p className="text-xs text-muted-foreground">Vibrate on mobile devices</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={preferences.vibrationEnabled}
+                      onCheckedChange={value => handleToggle('vibrationEnabled', value)}
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Moon size={20} className="text-muted-foreground" />
+                      <div className="space-y-0.5">
+                        <Label className="text-base">Quiet Hours</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Pause notifications during specific hours
+                        </p>
+                      </div>
                     </div>
                     <Switch
                       checked={preferences.quietHoursEnabled}
@@ -210,7 +343,7 @@ export function NotificationSettings() {
                   </div>
 
                   {preferences.quietHoursEnabled && (
-                    <div className="ml-4 grid grid-cols-2 gap-4">
+                    <div className="ml-7 grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className="text-sm">Start time</Label>
                         <Input

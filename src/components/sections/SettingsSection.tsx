@@ -40,6 +40,7 @@ import {
 import { toast } from 'sonner'
 import { themes, applyTheme, getThemeById, type Theme } from '@/lib/themes'
 import { MobileNavCustomizer } from '@/components/MobileNavCustomizer'
+import { MobileEnhancements } from '@/components/MobileEnhancements'
 import { NotificationSettings } from '@/components/NotificationSettings'
 import { useIsMobile } from '@/hooks/use-mobile'
 import type { HouseholdMember, Chore, ShoppingItem, Meal, Recipe, CalendarEvent } from '@/lib/types'
@@ -219,18 +220,22 @@ export default function SettingsSection() {
       </Card>
 
       {isMobile && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DeviceMobile size={24} />
-              Mobile Navigation
-            </CardTitle>
-            <CardDescription>Customize your bottom navigation bar</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MobileNavCustomizer />
-          </CardContent>
-        </Card>
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <DeviceMobile size={24} />
+                Mobile Navigation
+              </CardTitle>
+              <CardDescription>Customize your bottom navigation bar</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MobileNavCustomizer />
+            </CardContent>
+          </Card>
+
+          <MobileEnhancements />
+        </>
       )}
 
       <NotificationSettings />

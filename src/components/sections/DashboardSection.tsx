@@ -9,6 +9,7 @@ import { format, startOfWeek, addDays, isToday, isAfter, isSameDay, startOfDay }
 import { useState } from 'react'
 import DashboardCustomizer, { type DashboardWidget } from '@/components/DashboardCustomizer'
 import WeeklyChoreSchedule from '@/components/WeeklyChoreSchedule'
+import { NotificationSummary } from '@/components/NotificationSummary'
 
 export default function DashboardSection() {
   const [chores = []] = useKV<Chore[]>('chores', [])
@@ -445,6 +446,8 @@ export default function DashboardSection() {
         </div>
         <DashboardCustomizer />
       </div>
+
+      <NotificationSummary />
 
       {sortedWidgets.length > 0 ? (
         sortedWidgets.map((widget) => renderWidget(widget.id))
