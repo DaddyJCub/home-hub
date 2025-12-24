@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear } from '@phosphor-icons/react'
+import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear, BookOpen } from '@phosphor-icons/react'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useKV } from '@github/spark/hooks'
+import { useSwipeGesture } from '@/hooks/use-swipe-gesture'
 import { getThemeById, applyTheme } from '@/lib/themes'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import AuthPage from '@/components/AuthPage'
 import HouseholdSwitcher from '@/components/HouseholdSwitcher'
 import MobileSettingsMenu from '@/components/MobileSettingsMenu'
+import { OfflineIndicator } from '@/components/OfflineIndicator'
+import type { NavItem } from '@/components/MobileNavCustomizer'
 import DashboardSection from '@/components/sections/DashboardSection'
 import ChoresSection from '@/components/sections/ChoresSection'
 import ShoppingSection from '@/components/sections/ShoppingSection'
@@ -16,12 +19,51 @@ import RecipesSection from '@/components/sections/RecipesSection'
 import CalendarSection from '@/components/sections/CalendarSection'
 import SettingsSection from '@/components/sections/SettingsSection'
 
+const DEFAULT_NAV_ITEMS: NavItem[] = [
+  { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', icon: House, enabled: true },
+  { id: 'chores', label: 'Chores', shortLabel: 'Chores', icon: Broom, enabled: true },
+  { id: 'shopping', label: 'Shopping', shortLabel: 'Shop', icon: ShoppingCart, enabled: true },
+  { id: 'meals', label: 'Meals', shortLabel: 'Meals', icon: CookingPot, enabled: true },
+  { id: 'settings', label: 'Settings', shortLabel: 'More', icon: Gear, enabled: true },
+  { id: 'calendar', label: 'Calendar', shortLabel: 'Calendar', icon: CalendarBlank, enabled: false },
+  { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', icon: BookOpen, enabled: false }
+]
+
 function AppContent() {
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    const tabParam = params.get('tab')
+    return tabParam && ['dashboard', 'chores', 'shopping', 'meals', 'recipes', 'calendar', 'settings'].includes(tabParam)
+      ? tabParam
+      : 'dashboard'
+  })
   const isMobile = useIsMobile()
   const [currentThemeId = 'warm-home'] = useKV<string>('theme-id', 'warm-home')
   const [isDarkMode = false] = useKV<boolean>('dark-mode', false)
+  const [navItems = DEFAULT_NAV_ITEMS] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
   const { isAuthenticated, currentHousehold, logout } = useAuth()
+
+  const enabledNavItems = navItems.filter(item => item.enabled)
+  const tabOrder = enabledNavItems.map(item => item.id)
+
+  const navigateToTab = (direction: 'left' | 'right') => {
+    const currentIndex = tabOrder.indexOf(activeTab)
+    if (currentIndex === -1) return
+
+    let newIndex
+    if (direction === 'left') {
+      newIndex = currentIndex === 0 ? tabOrder.length - 1 : currentIndex - 1
+    } else {
+      newIndex = currentIndex === tabOrder.length - 1 ? 0 : currentIndex + 1
+    }
+    setActiveTab(tabOrder[newIndex])
+  }
+
+  useSwipeGesture({
+    onSwipeLeft: () => isMobile && navigateToTab('right'),
+    onSwipeRight: () => isMobile && navigateToTab('left'),
+    threshold: 100
+  })
 
   useEffect(() => {
     const theme = getThemeById(currentThemeId)
@@ -36,6 +78,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-background">
+      <OfflineIndicator />
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="container mx-auto px-3 py-3 md:px-4 md:py-4">
           <div className="flex items-center justify-between gap-2 md:gap-4">
@@ -125,52 +168,22 @@ function AppContent() {
 
       {isMobile && (
         <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-20 safe-area-inset-bottom">
-          <div className="grid grid-cols-5 max-w-screen-sm mx-auto">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
-                activeTab === 'dashboard' ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              <House size={22} weight={activeTab === 'dashboard' ? 'fill' : 'regular'} />
-              <span className="text-[10px] font-medium">Home</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('chores')}
-              className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
-                activeTab === 'chores' ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              <Broom size={22} weight={activeTab === 'chores' ? 'fill' : 'regular'} />
-              <span className="text-[10px] font-medium">Chores</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('shopping')}
-              className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
-                activeTab === 'shopping' ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              <ShoppingCart size={22} weight={activeTab === 'shopping' ? 'fill' : 'regular'} />
-              <span className="text-[10px] font-medium">Shop</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('meals')}
-              className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
-                activeTab === 'meals' ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              <CookingPot size={22} weight={activeTab === 'meals' ? 'fill' : 'regular'} />
-              <span className="text-[10px] font-medium">Meals</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
-                activeTab === 'settings' ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              <Gear size={22} weight={activeTab === 'settings' ? 'fill' : 'regular'} />
-              <span className="text-[10px] font-medium">More</span>
-            </button>
+          <div className={`grid max-w-screen-sm mx-auto`} style={{ gridTemplateColumns: `repeat(${enabledNavItems.length}, 1fr)` }}>
+            {enabledNavItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
+                    activeTab === item.id ? 'text-primary' : 'text-muted-foreground'
+                  }`}
+                >
+                  <Icon size={22} weight={activeTab === item.id ? 'fill' : 'regular'} />
+                  <span className="text-[10px] font-medium">{item.shortLabel}</span>
+                </button>
+              )
+            })}
           </div>
         </nav>
       )}

@@ -118,6 +118,16 @@ This is a multi-feature application with user authentication, household manageme
 - **Progression**: View settings → Export data as JSON backup or Delete specific data categories → Confirm destructive actions → System updates
 - **Success criteria**: Users can export all data and selectively delete data categories safely
 
+### Mobile Optimization Features
+- **Functionality**: Customizable bottom navigation, swipe gestures, offline mode with service worker, visual feedback for connectivity
+- **Purpose**: Provide a native-app-like mobile experience with personalization, intuitive gesture navigation, and reliable offline functionality
+- **Trigger**: Mobile browser/PWA usage, network connectivity changes, service worker updates
+- **Progression**: 
+  - **Custom Navigation**: Settings → Mobile Navigation → Toggle tabs on/off (3-5 limit) → Changes apply immediately to bottom nav → Swipe left/right between enabled tabs
+  - **Offline Mode**: App loads → Service worker caches assets → Network goes offline → Banner appears at top → Changes queue for sync → Network returns → Changes sync automatically → Banner disappears
+  - **Updates**: New version deployed → Service worker detects update → Update banner appears at bottom → Click "Update" → App refreshes with new version
+- **Success criteria**: Users can customize which tabs appear in mobile nav (3-5 items), swipe between tabs with natural gestures, use app fully offline with visual feedback, receive non-intrusive update notifications, and maintain all functionality in PWA mode
+
 ### Member-Specific Views
 - **Functionality**: Global filter in header that shows only data relevant to a selected household member across all sections
 - **Purpose**: Allow individual household members to focus on their own responsibilities and schedule without being overwhelmed by shared household data
@@ -132,6 +142,9 @@ This is a multi-feature application with user authentication, household manageme
 - **Completed Items Overflow**: Provide clear/archive functionality to prevent clutter from completed items
 - **Missing Recipe Links**: Meal plans work independently of recipes; linking is optional enhancement
 - **Recurring Chore Logic**: Clearly indicate next due date and handle completion without losing schedule
+- **Offline Mode**: App functions fully offline with service worker caching; changes sync when connection returns
+- **PWA Install**: Manifest configured for native-like installation on mobile devices with proper icons and display mode
+- **Gesture Conflicts**: Swipe gestures only active on mobile with appropriate threshold to avoid accidental navigation
 
 ## Design Direction
 
@@ -247,7 +260,15 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - Button padding: px-6 py-3
 
 - **Mobile**:
-  - Tabs convert to bottom navigation bar on mobile with 7 sections (Dashboard, Chores, Shopping, Calendar, Meals, Recipes, Settings)
+  - Tabs convert to customizable bottom navigation bar (3-5 items) with dynamic layout based on enabled tabs
+  - Swipe left/right gestures to navigate between tabs
+  - Settings menu includes mobile-specific navigation customizer
+  - Compact layouts with larger touch targets (min 44x44px)
+  - Reduced header sizes and simplified member management
+  - Fixed bottom navigation with safe area insets for modern devices
+  - Gesture-based navigation for improved one-handed use
+  - Offline-first architecture with service worker caching
+  - Visual indicators for offline mode and available app updates
   - Cards stack vertically with full width
   - Dialogs slide up from bottom on mobile vs centered on desktop
   - Meal planning calendar shows fewer days at a time with better stacking on mobile

@@ -35,9 +35,12 @@ import {
   ArrowsClockwise,
   Moon,
   Sun,
+  DeviceMobile,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { themes, applyTheme, getThemeById, type Theme } from '@/lib/themes'
+import { MobileNavCustomizer } from '@/components/MobileNavCustomizer'
+import { useIsMobile } from '@/hooks/use-mobile'
 import type { HouseholdMember, Chore, ShoppingItem, Meal, Recipe, CalendarEvent } from '@/lib/types'
 
 interface DashboardWidget {
@@ -54,6 +57,7 @@ export default function SettingsSection() {
     'dashboard-widgets',
     []
   )
+  const isMobile = useIsMobile()
 
   const [chores = []] = useKV<Chore[]>('chores', [])
   const [shoppingItems = []] = useKV<ShoppingItem[]>('shopping-items', [])
@@ -222,6 +226,21 @@ export default function SettingsSection() {
           </div>
         </CardContent>
       </Card>
+
+      {isMobile && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DeviceMobile size={24} />
+              Mobile Navigation
+            </CardTitle>
+            <CardDescription>Customize your bottom navigation bar</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MobileNavCustomizer />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

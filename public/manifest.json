@@ -28,15 +28,21 @@
       "name": "Chores",
       "short_name": "Chores",
       "description": "View and manage household chores",
-      "url": "/?view=chores",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "url": "/?tab=chores"
     },
     {
       "name": "Shopping List",
       "short_name": "Shopping",
       "description": "View shopping list",
-      "url": "/?view=shopping",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "url": "/?tab=shopping"
+    },
+    {
+      "name": "Meals",
+      "short_name": "Meals",
+      "description": "View meal plans",
+      "url": "/?tab=meals"
     }
-  ]
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
 }
