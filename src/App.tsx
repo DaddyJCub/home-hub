@@ -212,7 +212,15 @@ function AppContent() {
         <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-20 safe-area-inset-bottom">
           <div className="grid max-w-screen-sm mx-auto" style={{ gridTemplateColumns: `repeat(${Math.min(enabledNavItems.length + 1, 5)}, 1fr)` }}>
             {enabledNavItems.slice(0, 4).map((item) => {
-              const IconComponent = getIconComponent(item.iconName)
+              let IconComponent = House
+              
+              if (item.id === 'dashboard') IconComponent = House
+              else if (item.id === 'chores') IconComponent = Broom
+              else if (item.id === 'shopping') IconComponent = ShoppingCart
+              else if (item.id === 'meals') IconComponent = CookingPot
+              else if (item.id === 'calendar') IconComponent = CalendarBlank
+              else if (item.id === 'recipes') IconComponent = BookOpen
+              else IconComponent = getIconComponent(item.iconName)
               
               return (
                 <button
@@ -240,7 +248,15 @@ function AppContent() {
                 {navItems
                   .filter(item => item.id !== 'settings' && (!item.enabled || enabledNavItems.indexOf(item) >= 4))
                   .map((item) => {
-                    const IconComponent = getIconComponent(item.iconName)
+                    let IconComponent = House
+                    
+                    if (item.id === 'dashboard') IconComponent = House
+                    else if (item.id === 'chores') IconComponent = Broom
+                    else if (item.id === 'shopping') IconComponent = ShoppingCart
+                    else if (item.id === 'meals') IconComponent = CookingPot
+                    else if (item.id === 'calendar') IconComponent = CalendarBlank
+                    else if (item.id === 'recipes') IconComponent = BookOpen
+                    else IconComponent = getIconComponent(item.iconName)
                     
                     return (
                       <DropdownMenuItem
