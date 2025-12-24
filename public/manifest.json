@@ -3,10 +3,12 @@
   "short_name": "HomeHub",
   "description": "Collaborative household management for chores, shopping, meals, and recipes",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f5f1eb",
   "theme_color": "#c17a5c",
   "orientation": "portrait-primary",
+  "categories": ["lifestyle", "productivity"],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -19,6 +21,22 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Chores",
+      "short_name": "Chores",
+      "description": "View and manage household chores",
+      "url": "/?view=chores",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Shopping List",
+      "short_name": "Shopping",
+      "description": "View shopping list",
+      "url": "/?view=shopping",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

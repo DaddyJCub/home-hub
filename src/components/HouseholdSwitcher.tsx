@@ -78,15 +78,15 @@ export default function HouseholdSwitcher() {
   const canInvite = currentUserRole === 'owner' || currentUserRole === 'admin'
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-2 bg-secondary/50 px-3 py-2 rounded-lg border">
-        <House size={18} className="text-primary" />
+    <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
+      <div className="flex items-center gap-1.5 md:gap-2 bg-secondary/50 px-2 md:px-3 py-1.5 md:py-2 rounded-lg border text-xs md:text-sm">
+        <House size={16} className="text-primary flex-shrink-0 hidden md:block" />
         {userHouseholds.length > 1 ? (
           <Select
             value={currentHousehold?.id || ''}
             onValueChange={switchHousehold}
           >
-            <SelectTrigger className="w-48 h-8 border-0 bg-background/80">
+            <SelectTrigger className="w-28 md:w-48 h-7 md:h-8 border-0 bg-background/80 text-xs md:text-sm">
               <SelectValue placeholder="Select household" />
             </SelectTrigger>
             <SelectContent>
@@ -98,18 +98,18 @@ export default function HouseholdSwitcher() {
             </SelectContent>
           </Select>
         ) : (
-          <span className="text-sm font-medium">{currentHousehold?.name}</span>
+          <span className="text-xs md:text-sm font-medium truncate max-w-[120px] md:max-w-none">{currentHousehold?.name}</span>
         )}
       </div>
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-2">
-            <Plus size={16} />
-            New
+          <Button variant="outline" size="sm" className="gap-1 md:gap-2 h-7 md:h-9 px-2 md:px-3 text-xs md:text-sm">
+            <Plus size={14} />
+            <span className="hidden sm:inline">New</span>
           </Button>
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
           <DialogHeader>
             <DialogTitle>Create New Household</DialogTitle>
           </DialogHeader>
@@ -133,12 +133,12 @@ export default function HouseholdSwitcher() {
 
       <Dialog open={joinDialogOpen} onOpenChange={setJoinDialogOpen}>
         <DialogTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-2">
-            <UserPlus size={16} />
-            Join
+          <Button variant="outline" size="sm" className="gap-1 md:gap-2 h-7 md:h-9 px-2 md:px-3 text-xs md:text-sm">
+            <UserPlus size={14} />
+            <span className="hidden sm:inline">Join</span>
           </Button>
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
           <DialogHeader>
             <DialogTitle>Join Household</DialogTitle>
           </DialogHeader>
@@ -168,12 +168,12 @@ export default function HouseholdSwitcher() {
       {canInvite && currentHousehold?.inviteCode && (
         <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
-              <UserPlus size={16} />
+            <Button variant="outline" size="sm" className="gap-1 md:gap-2 h-7 md:h-9 px-2 md:px-3 text-xs md:text-sm hidden sm:flex">
+              <UserPlus size={14} />
               Invite
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
             <DialogHeader>
               <DialogTitle>Invite Members</DialogTitle>
             </DialogHeader>
@@ -181,7 +181,7 @@ export default function HouseholdSwitcher() {
               <div className="space-y-2">
                 <Label>Invite Code</Label>
                 <div className="flex items-center gap-2">
-                  <Badge className="text-2xl font-mono px-4 py-2">
+                  <Badge className="text-xl md:text-2xl font-mono px-3 md:px-4 py-2">
                     {currentHousehold.inviteCode}
                   </Badge>
                   <Button
@@ -204,9 +204,9 @@ export default function HouseholdSwitcher() {
         </Dialog>
       )}
 
-      <Button variant="ghost" size="sm" onClick={logout} className="gap-2">
-        <SignOut size={16} />
-        Sign Out
+      <Button variant="ghost" size="sm" onClick={logout} className="gap-1 md:gap-2 h-7 md:h-9 px-2 md:px-3 text-xs md:text-sm">
+        <SignOut size={14} />
+        <span className="hidden md:inline">Sign Out</span>
       </Button>
     </div>
   )

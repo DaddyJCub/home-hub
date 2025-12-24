@@ -7,6 +7,7 @@ import { getThemeById, applyTheme } from '@/lib/themes'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import AuthPage from '@/components/AuthPage'
 import HouseholdSwitcher from '@/components/HouseholdSwitcher'
+import MobileSettingsMenu from '@/components/MobileSettingsMenu'
 import DashboardSection from '@/components/sections/DashboardSection'
 import ChoresSection from '@/components/sections/ChoresSection'
 import ShoppingSection from '@/components/sections/ShoppingSection'
@@ -36,22 +37,22 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <h1 className="text-3xl font-bold text-primary">HomeHub</h1>
-              <p className="text-sm text-muted-foreground">
+        <div className="container mx-auto px-3 py-3 md:px-4 md:py-4">
+          <div className="flex items-center justify-between gap-2 md:gap-4">
+            <div className="min-w-0 flex-shrink">
+              <h1 className="text-xl md:text-3xl font-bold text-primary truncate">HomeHub</h1>
+              <p className="text-xs md:text-sm text-muted-foreground truncate">
                 {currentHousehold?.name || 'Household harmony made simple'}
               </p>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex-shrink-0">
               <HouseholdSwitcher />
             </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 pb-24 md:pb-6">
+      <main className="container mx-auto px-3 md:px-4 py-4 md:py-6 pb-20 md:pb-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {!isMobile && (
             <TabsList className="grid w-full grid-cols-7 mb-6">
@@ -111,76 +112,64 @@ function AppContent() {
           </TabsContent>
 
           <TabsContent value="settings" className="mt-0">
-            <SettingsSection />
+            {isMobile ? (
+              <MobileSettingsMenu onNavigate={setActiveTab}>
+                <SettingsSection />
+              </MobileSettingsMenu>
+            ) : (
+              <SettingsSection />
+            )}
           </TabsContent>
         </Tabs>
       </main>
 
       {isMobile && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-20">
-          <div className="grid grid-cols-7">
+        <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-20 safe-area-inset-bottom">
+          <div className="grid grid-cols-5 max-w-screen-sm mx-auto">
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`flex flex-col items-center gap-1 py-3 transition-colors ${
+              className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
                 activeTab === 'dashboard' ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
-              <House size={24} />
-              <span className="text-xs">Home</span>
+              <House size={22} weight={activeTab === 'dashboard' ? 'fill' : 'regular'} />
+              <span className="text-[10px] font-medium">Home</span>
             </button>
             <button
               onClick={() => setActiveTab('chores')}
-              className={`flex flex-col items-center gap-1 py-3 transition-colors ${
+              className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
                 activeTab === 'chores' ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
-              <Broom size={24} />
-              <span className="text-xs">Chores</span>
+              <Broom size={22} weight={activeTab === 'chores' ? 'fill' : 'regular'} />
+              <span className="text-[10px] font-medium">Chores</span>
             </button>
             <button
               onClick={() => setActiveTab('shopping')}
-              className={`flex flex-col items-center gap-1 py-3 transition-colors ${
+              className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
                 activeTab === 'shopping' ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
-              <ShoppingCart size={24} />
-              <span className="text-xs">Shopping</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('calendar')}
-              className={`flex flex-col items-center gap-1 py-3 transition-colors ${
-                activeTab === 'calendar' ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              <CalendarBlank size={24} />
-              <span className="text-xs">Calendar</span>
+              <ShoppingCart size={22} weight={activeTab === 'shopping' ? 'fill' : 'regular'} />
+              <span className="text-[10px] font-medium">Shop</span>
             </button>
             <button
               onClick={() => setActiveTab('meals')}
-              className={`flex flex-col items-center gap-1 py-3 transition-colors ${
+              className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
                 activeTab === 'meals' ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
-              <CookingPot size={24} />
-              <span className="text-xs">Meals</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('recipes')}
-              className={`flex flex-col items-center gap-1 py-3 transition-colors ${
-                activeTab === 'recipes' ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              <CookingPot size={24} />
-              <span className="text-xs">Recipes</span>
+              <CookingPot size={22} weight={activeTab === 'meals' ? 'fill' : 'regular'} />
+              <span className="text-[10px] font-medium">Meals</span>
             </button>
             <button
               onClick={() => setActiveTab('settings')}
-              className={`flex flex-col items-center gap-1 py-3 transition-colors ${
+              className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
                 activeTab === 'settings' ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
-              <Gear size={24} />
-              <span className="text-xs">Settings</span>
+              <Gear size={22} weight={activeTab === 'settings' ? 'fill' : 'regular'} />
+              <span className="text-[10px] font-medium">More</span>
             </button>
           </div>
         </nav>

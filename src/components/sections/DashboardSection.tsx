@@ -433,11 +433,11 @@ export default function DashboardSection() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-3xl font-bold">Dashboard</h2>
-          <p className="text-muted-foreground">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex items-start justify-between gap-2 md:gap-4 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-2xl md:text-3xl font-bold truncate">Dashboard</h2>
+          <p className="text-sm text-muted-foreground">
             {selectedMember === 'all' 
               ? 'Your household at a glance' 
               : `${selectedMember}'s view`}

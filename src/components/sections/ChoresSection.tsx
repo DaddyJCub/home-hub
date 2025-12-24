@@ -281,22 +281,23 @@ export default function ChoresSection() {
   const hasActiveFilters = filterRoom !== 'all' || filterAssignee !== 'all' || filterPriority !== 'all'
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-2 md:gap-3">
         <div>
-          <h2 className="text-2xl font-semibold">Chores</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-xl md:text-2xl font-semibold">Chores</h2>
+          <p className="text-xs md:text-sm text-muted-foreground">
             {selectedMember === 'all' 
               ? `${activeChores.length} active, ${completedChores.length} completed`
               : `${selectedMember}: ${activeChores.length} active, ${completedChores.length} completed`}
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-1.5 md:gap-2 flex-wrap">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Funnel />
-                Filter {hasActiveFilters && <Badge variant="secondary" className="ml-1 px-1.5 py-0">•</Badge>}
+              <Button variant="outline" size="sm" className="gap-1 md:gap-2 h-8 md:h-9 text-xs md:text-sm">
+                <Funnel size={16} />
+                <span className="hidden sm:inline">Filter</span>
+                {hasActiveFilters && <Badge variant="secondary" className="ml-1 px-1.5 py-0">•</Badge>}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
@@ -333,8 +334,8 @@ export default function ChoresSection() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                Sort <CaretDown />
+              <Button variant="outline" size="sm" className="gap-1 md:gap-2 h-8 md:h-9 text-xs md:text-sm hidden sm:flex">
+                Sort <CaretDown size={14} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -351,9 +352,9 @@ export default function ChoresSection() {
 
           <Dialog open={memberDialogOpen} onOpenChange={setMemberDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm">Add Member</Button>
+              <Button variant="outline" size="sm" className="h-8 md:h-9 text-xs md:text-sm hidden md:flex">Add Member</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
               <DialogHeader>
                 <DialogTitle>Add Household Member</DialogTitle>
               </DialogHeader>
@@ -395,12 +396,13 @@ export default function ChoresSection() {
             }
           }}>
             <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus />
-                Add Chore
+              <Button className="gap-1 md:gap-2 h-8 md:h-9 text-xs md:text-sm">
+                <Plus size={16} />
+                <span className="hidden sm:inline">Add Chore</span>
+                <span className="sm:hidden">Add</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingChore ? 'Edit Chore' : 'Add New Chore'}</DialogTitle>
               </DialogHeader>
@@ -611,81 +613,85 @@ export default function ChoresSection() {
       ) : (
         <>
           {activeChores.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="font-semibold text-lg">To Do</h3>
+            <div className="space-y-2 md:space-y-3">
+              <h3 className="font-semibold text-base md:text-lg">To Do</h3>
               {activeChores.map((chore) => (
-                <Card key={chore.id} className="p-4">
-                  <div className="flex items-start gap-3">
+                <Card key={chore.id} className="p-3 md:p-4">
+                  <div className="flex items-start gap-2 md:gap-3">
                     <Checkbox
                       id={`chore-${chore.id}`}
                       checked={chore.completed}
                       onCheckedChange={() => handleToggleChore(chore.id)}
-                      className="mt-1"
+                      className="mt-1 flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <label
                         htmlFor={`chore-${chore.id}`}
-                        className="font-medium cursor-pointer block"
+                        className="font-medium cursor-pointer block text-sm md:text-base"
                       >
                         {chore.title}
                       </label>
                       {chore.notes && (
-                        <p className="text-sm text-muted-foreground mt-1">
+                        <p className="text-xs md:text-sm text-muted-foreground mt-1 line-clamp-2">
                           {chore.notes}
                         </p>
                       )}
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <Badge variant="secondary">{chore.assignedTo}</Badge>
+                      <div className="flex flex-wrap gap-1.5 md:gap-2 mt-2">
+                        <Badge variant="secondary" className="text-xs">{chore.assignedTo}</Badge>
                         {chore.priority && (
-                          <Badge className={getPriorityColor(chore.priority)}>
-                            <Flag size={14} className="mr-1" />
+                          <Badge className={`${getPriorityColor(chore.priority)} text-xs`}>
+                            <Flag size={12} className="mr-1" />
                             {chore.priority}
                           </Badge>
                         )}
                         {chore.room && (
-                          <Badge variant="outline" className="gap-1">
-                            <MapPin size={14} />
-                            {chore.room}
+                          <Badge variant="outline" className="gap-1 text-xs">
+                            <MapPin size={12} />
+                            <span className="hidden sm:inline">{chore.room}</span>
+                            <span className="sm:hidden">{chore.room.slice(0, 4)}</span>
                           </Badge>
                         )}
                         {chore.estimatedMinutes && (
-                          <Badge variant="outline" className="gap-1">
-                            <Clock size={14} />
+                          <Badge variant="outline" className="gap-1 text-xs">
+                            <Clock size={12} />
                             {chore.estimatedMinutes}m
                           </Badge>
                         )}
                         {chore.frequency !== 'once' && (
-                          <Badge variant="outline" className="gap-1">
-                            <Repeat size={14} />
+                          <Badge variant="outline" className="gap-1 text-xs hidden md:flex">
+                            <Repeat size={12} />
                             {getFrequencyLabel(chore.frequency)}
                           </Badge>
                         )}
                         {chore.daysOfWeek && chore.daysOfWeek.length > 0 && (
-                          <Badge variant="outline">
+                          <Badge variant="outline" className="text-xs hidden lg:flex">
                             {chore.daysOfWeek.map(d => DAYS_OF_WEEK[d].label).join(', ')}
                           </Badge>
                         )}
                         {chore.dueDate && (
-                          <Badge variant="outline">
-                            Due: {new Date(chore.dueDate).toLocaleDateString()}
+                          <Badge variant="outline" className="text-xs">
+                            Due: {new Date(chore.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                           </Badge>
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-0.5 md:gap-1 flex-shrink-0">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => openEditDialog(chore)}
+                        className="h-8 px-2 md:px-3 text-xs"
                       >
-                        Edit
+                        <span className="hidden sm:inline">Edit</span>
+                        <span className="sm:hidden">✏️</span>
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDeleteChore(chore.id)}
+                        className="h-8 px-2"
                       >
-                        <Trash />
+                        <Trash size={16} />
                       </Button>
                     </div>
                   </div>
@@ -695,37 +701,38 @@ export default function ChoresSection() {
           )}
 
           {completedChores.length > 0 && (
-            <div className="space-y-3">
+            <div className="space-y-2 md:space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">Completed</h3>
+                <h3 className="font-semibold text-base md:text-lg">Completed</h3>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setChores((current = []) => current.filter((c) => !c.completed))}
+                  className="text-xs h-8"
                 >
                   Clear All
                 </Button>
               </div>
               {completedChores.map((chore) => (
-                <Card key={chore.id} className="p-4 opacity-60">
-                  <div className="flex items-start gap-3">
+                <Card key={chore.id} className="p-3 md:p-4 opacity-60">
+                  <div className="flex items-start gap-2 md:gap-3">
                     <Checkbox
                       id={`chore-${chore.id}`}
                       checked={chore.completed}
                       onCheckedChange={() => handleToggleChore(chore.id)}
-                      className="mt-1"
+                      className="mt-1 flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <label
                         htmlFor={`chore-${chore.id}`}
-                        className="font-medium cursor-pointer block line-through"
+                        className="font-medium cursor-pointer block line-through text-sm md:text-base"
                       >
                         {chore.title}
                       </label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <Badge variant="secondary">{chore.assignedTo}</Badge>
-                        <Badge variant="outline" className="gap-1">
-                          <Check size={14} />
+                      <div className="flex flex-wrap gap-1.5 md:gap-2 mt-2">
+                        <Badge variant="secondary" className="text-xs">{chore.assignedTo}</Badge>
+                        <Badge variant="outline" className="gap-1 text-xs">
+                          <Check size={12} />
                           Done
                         </Badge>
                       </div>
@@ -734,8 +741,9 @@ export default function ChoresSection() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDeleteChore(chore.id)}
+                      className="h-8 px-2 flex-shrink-0"
                     >
-                      <Trash />
+                      <Trash size={16} />
                     </Button>
                   </div>
                 </Card>
