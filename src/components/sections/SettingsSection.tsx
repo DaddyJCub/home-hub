@@ -40,6 +40,7 @@ import {
 import { toast } from 'sonner'
 import { themes, applyTheme, getThemeById, type Theme } from '@/lib/themes'
 import { MobileNavCustomizer } from '@/components/MobileNavCustomizer'
+import { NotificationSettings } from '@/components/NotificationSettings'
 import { useIsMobile } from '@/hooks/use-mobile'
 import type { HouseholdMember, Chore, ShoppingItem, Meal, Recipe, CalendarEvent } from '@/lib/types'
 
@@ -231,6 +232,8 @@ export default function SettingsSection() {
           </CardContent>
         </Card>
       )}
+
+      <NotificationSettings />
 
       <Card>
         <CardHeader>

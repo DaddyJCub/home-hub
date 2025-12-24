@@ -4,13 +4,16 @@ import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear, BookOpen }
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useKV } from '@github/spark/hooks'
 import { useSwipeGesture } from '@/hooks/use-swipe-gesture'
+import { useNotifications } from '@/hooks/use-notifications'
 import { getThemeById, applyTheme } from '@/lib/themes'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import AuthPage from '@/components/AuthPage'
 import HouseholdSwitcher from '@/components/HouseholdSwitcher'
 import MobileSettingsMenu from '@/components/MobileSettingsMenu'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
+import { NotificationIndicator } from '@/components/NotificationIndicator'
 import type { NavItem } from '@/components/MobileNavCustomizer'
+import type { Chore, CalendarEvent } from '@/lib/types'
 import DashboardSection from '@/components/sections/DashboardSection'
 import ChoresSection from '@/components/sections/ChoresSection'
 import ShoppingSection from '@/components/sections/ShoppingSection'
@@ -41,7 +44,11 @@ function AppContent() {
   const [currentThemeId = 'warm-home'] = useKV<string>('theme-id', 'warm-home')
   const [isDarkMode = false] = useKV<boolean>('dark-mode', false)
   const [navItems = DEFAULT_NAV_ITEMS] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
+  const [chores = []] = useKV<Chore[]>('chores', [])
+  const [events = []] = useKV<CalendarEvent[]>('calendar-events', [])
   const { isAuthenticated, currentHousehold, logout } = useAuth()
+
+  useNotifications(chores, events)
 
   const enabledNavItems = navItems.filter(item => item.enabled)
   const tabOrder = enabledNavItems.map(item => item.id)
@@ -88,7 +95,8 @@ function AppContent() {
                 {currentHousehold?.name || 'Household harmony made simple'}
               </p>
             </div>
-            <div className="flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <NotificationIndicator chores={chores} events={events} />
               <HouseholdSwitcher />
             </div>
           </div>
