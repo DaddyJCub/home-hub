@@ -162,7 +162,7 @@ function AppContent() {
       <OfflineIndicator />
       <RefreshIndicator isPulling={isPulling} isRefreshing={isRefreshing} progress={progress} />
       <header className="border-b border-border/60 bg-card/80 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md sticky top-0 z-10">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-3 md:py-4">
+        <div className="app-shell py-3 md:py-4">
           <div className="flex items-center justify-between gap-2 md:gap-4">
             <div className="min-w-0 flex-shrink">
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary truncate">HomeHub</h1>
@@ -178,7 +178,7 @@ function AppContent() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-6 md:py-8 pb-24 md:pb-10 lg:pb-10 space-y-6 md:space-y-8">
+      <main className="app-shell space-y-6 md:space-y-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {!isMobile && !isTablet && (
             <TabsList className="grid w-full grid-cols-7 mb-6 bg-card/70 backdrop-blur-sm p-1 rounded-2xl border border-border/60 shadow-md">
@@ -281,7 +281,7 @@ function AppContent() {
       </main>
 
       {isMobile && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-20 safe-area-inset-bottom">
+        <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border shadow-2xl z-20 safe-area-inset-bottom">
           <div className="grid max-w-screen-sm mx-auto" style={{ gridTemplateColumns: `repeat(${Math.min(visibleNavItems.length + 1, 5)}, 1fr)` }}>
             {visibleNavItems.map((item) => {
               const IconComponent = getIcon(item.iconName)

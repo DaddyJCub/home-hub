@@ -111,3 +111,28 @@
   --radius-2xl: calc(var(--radius) * 3);
   --radius-full: 9999px;
 }
+
+.app-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 1.5rem) clamp(1rem, 4vw, 2rem) clamp(4rem, 6vw, 5rem);
+}
+
+@media (min-width: 1280px) {
+  .app-shell {
+    max-width: 1300px;
+    padding-left: clamp(1.25rem, 3vw, 2.5rem);
+    padding-right: clamp(1.25rem, 3vw, 2.5rem);
+  }
+}
+
+.section-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .section-stack {
+    gap: 1.5rem;
+  }
+}

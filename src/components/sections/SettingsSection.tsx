@@ -44,6 +44,7 @@ import { MobileEnhancements } from '@/components/MobileEnhancements'
 import { NotificationSettings } from '@/components/NotificationSettings'
 import { useIsMobile } from '@/hooks/use-mobile'
 import type { HouseholdMember, Chore, ShoppingItem, Meal, Recipe, CalendarEvent } from '@/lib/types'
+import { PWADiagnostics } from '@/components/PWADiagnostics'
 
 interface DashboardWidget {
   id: string
@@ -239,6 +240,8 @@ export default function SettingsSection() {
       )}
 
       <NotificationSettings />
+
+      <PWADiagnostics />
 
       <Card>
         <CardHeader>

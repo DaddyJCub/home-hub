@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>HomeHub – Offline</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --fg: #e2e8f0;
+        --muted: #94a3b8;
+        --card: #1e293b;
+        --accent: #22d3ee;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: radial-gradient(circle at 20% 20%, rgba(34, 211, 238, 0.08), transparent 30%), radial-gradient(circle at 80% 0%, rgba(168, 85, 247, 0.08), transparent 26%), var(--bg);
+        color: var(--fg);
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      main {
+        max-width: 520px;
+        width: min(520px, 100%);
+        background: rgba(30, 41, 59, 0.75);
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 20px;
+        backdrop-filter: blur(12px);
+        padding: 28px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      }
+      h1 { margin: 0 0 8px; font-size: 28px; }
+      p { margin: 0 0 18px; color: var(--muted); line-height: 1.5; }
+      ul { margin: 0 0 18px 18px; color: var(--muted); }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(34, 211, 238, 0.12);
+        color: var(--fg);
+        border: 1px solid rgba(34, 211, 238, 0.4);
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+      .btn {
+        display: inline-block;
+        margin-top: 6px;
+        background: var(--accent);
+        color: #0b0f1a;
+        padding: 10px 14px;
+        border-radius: 12px;
+        text-decoration: none;
+        font-weight: 700;
+        box-shadow: 0 10px 30px rgba(34, 211, 238, 0.25);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="pill">Offline</div>
+      <h1>HomeHub is offline</h1>
+      <p>You’re not connected to the internet. We couldn’t reach the latest data.</p>
+      <ul>
+        <li>Check your connection and refresh.</li>
+        <li>From the PWA, tap “Reload” after reconnecting.</li>
+      </ul>
+      <a class="btn" href="/">Try Again</a>
+    </main>
+  </body>
+</html>
