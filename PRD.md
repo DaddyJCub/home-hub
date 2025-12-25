@@ -280,3 +280,11 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - Theme selector grid adapts to single column on mobile
   - Settings cards stack with full width on mobile
   - Calendar event details display in compact format on mobile
+- **Tablet** (768px - 1024px):
+  - Horizontal scrollable tab navigation with rounded pill-style tabs
+  - Optimized two-column grid layouts for dashboard widgets and chore cards
+  - Swipe gestures enabled for natural navigation between sections
+  - Pull-to-refresh functionality for content updates
+  - Badge text remains visible without truncation on wider viewports
+  - Responsive padding and spacing that bridges mobile and desktop experiences
+  - Touch-friendly targets while utilizing available screen space efficiently

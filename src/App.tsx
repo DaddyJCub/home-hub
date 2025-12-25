@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useIsTablet } from '@/hooks/use-tablet'
 import { useKV } from '@github/spark/hooks'
 import { useSwipeGesture } from '@/hooks/use-swipe-gesture'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
@@ -84,6 +85,7 @@ function AppContent() {
       : 'dashboard'
   })
   const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
   const [currentThemeId = 'warm-home'] = useKV<string>('theme-id', 'warm-home')
   const [isDarkMode = false] = useKV<boolean>('dark-mode', false)
   const [enabledTabs = TAB_CONFIGS.filter(t => t.enabled).map(t => t.id)] = useKV<TabId[]>('enabled-tabs', TAB_CONFIGS.filter(t => t.enabled).map(t => t.id))
@@ -100,7 +102,7 @@ function AppContent() {
 
   const { isPulling, isRefreshing, progress } = usePullToRefresh({
     onRefresh: handleRefresh,
-    enabled: isMobile,
+    enabled: isMobile || isTablet,
   })
 
   const visibleTabs = TAB_CONFIGS.filter(tab => enabledTabs.includes(tab.id))
@@ -124,8 +126,8 @@ function AppContent() {
   }
 
   useSwipeGesture({
-    onSwipeLeft: () => isMobile && navigateToTab('right'),
-    onSwipeRight: () => isMobile && navigateToTab('left'),
+    onSwipeLeft: () => (isMobile || isTablet) && navigateToTab('right'),
+    onSwipeRight: () => (isMobile || isTablet) && navigateToTab('left'),
     threshold: 100
   })
 
@@ -145,11 +147,11 @@ function AppContent() {
       <OfflineIndicator />
       <RefreshIndicator isPulling={isPulling} isRefreshing={isRefreshing} progress={progress} />
       <header className="border-b border-border bg-card sticky top-0 z-10">
-        <div className="container mx-auto px-3 py-3 md:px-4 md:py-4">
+        <div className="container mx-auto px-3 py-3 sm:px-4 md:px-6 md:py-4">
           <div className="flex items-center justify-between gap-2 md:gap-4">
             <div className="min-w-0 flex-shrink">
-              <h1 className="text-xl md:text-3xl font-bold text-primary truncate">HomeHub</h1>
-              <p className="text-xs md:text-sm text-muted-foreground truncate">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary truncate">HomeHub</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground truncate">
                 {currentHousehold?.name || 'Household harmony made simple'}
               </p>
             </div>
@@ -161,9 +163,9 @@ function AppContent() {
         </div>
       </header>
 
-      <main className="container mx-auto px-3 md:px-4 py-4 md:py-6 pb-20 md:pb-6">
+      <main className="container mx-auto px-3 sm:px-4 md:px-6 py-4 md:py-6 pb-20 md:pb-6 lg:pb-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          {!isMobile && (
+          {!isMobile && !isTablet && (
             <TabsList className="grid w-full grid-cols-7 mb-6">
               <TabsTrigger value="dashboard" className="gap-2">
                 <House />
@@ -194,6 +196,43 @@ function AppContent() {
                 <span>Settings</span>
               </TabsTrigger>
             </TabsList>
+          )}
+
+          {isTablet && (
+            <div className="mb-6 border-b border-border">
+              <div className="flex items-center overflow-x-auto scrollbar-hide">
+                <TabsList className="inline-flex w-auto h-12 bg-transparent p-0 gap-1">
+                  <TabsTrigger value="dashboard" className="gap-2 px-4 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg">
+                    <House size={20} />
+                    <span className="text-sm">Dashboard</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="chores" className="gap-2 px-4 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg">
+                    <Broom size={20} />
+                    <span className="text-sm">Chores</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="shopping" className="gap-2 px-4 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg">
+                    <ShoppingCart size={20} />
+                    <span className="text-sm">Shopping</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="calendar" className="gap-2 px-4 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg">
+                    <CalendarBlank size={20} />
+                    <span className="text-sm">Calendar</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="meals" className="gap-2 px-4 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg">
+                    <CookingPot size={20} />
+                    <span className="text-sm">Meals</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="recipes" className="gap-2 px-4 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg">
+                    <BookOpen size={20} />
+                    <span className="text-sm">Recipes</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="settings" className="gap-2 px-4 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg">
+                    <Gear size={20} />
+                    <span className="text-sm">Settings</span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+            </div>
           )}
 
           <TabsContent value="dashboard" className="mt-0">
