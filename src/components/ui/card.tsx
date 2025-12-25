@@ -2,38 +2,38 @@ import { ComponentProps } from "react"
 
 import { cn } from "@/lib/utils"
 
-function Card({ className, ...props }: ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card"
+      className={cn(
+        cl
+      {.
+  )
       className={cn(
         "bg-card text-card-foreground rounded-xl border shadow-sm",
         className
       )}
       {...props}
-    />
+
+  )
+ 
+
+  )
+
+  return
+      data-slot="card-descrip
+      {...props}
+  )
+
   )
 }
 
-function CardHeader({ className, ...props }: ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-header"
-      className={cn("flex flex-col space-y-1.5 p-6", className)}
-      {...props}
-    />
   )
-}
 
-function CardTitle({ className, ...props }: ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-title"
-      className={cn("text-lg font-semibold leading-none tracking-tight", className)}
+  return
+      data-slot="card-conten
       {...props}
-    />
   )
-}
+
+  r
+ 
 
 function CardDescription({ className, ...props }: ComponentProps<"div">) {
   return (
@@ -42,7 +42,7 @@ function CardDescription({ className, ...props }: ComponentProps<"div">) {
       className={cn("text-muted-foreground text-sm", className)}
       {...props}
     />
-  )
+
 }
 
 function CardAction({ className, ...props }: ComponentProps<"div">) {
