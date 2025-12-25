@@ -86,8 +86,8 @@ function AppContent() {
   })
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
-  const [currentThemeId = 'warm-home'] = useKV<string>('theme-id', 'warm-home')
-  const [isDarkMode = false] = useKV<boolean>('dark-mode', false)
+  const [currentThemeId = 'warm-home', setCurrentThemeId] = useKV<string>('theme-id', 'warm-home')
+  const [isDarkMode = false, setIsDarkMode] = useKV<boolean>('dark-mode', false)
   const [enabledTabs = TAB_CONFIGS.filter(t => t.enabled).map(t => t.id)] = useKV<TabId[]>('enabled-tabs', TAB_CONFIGS.filter(t => t.enabled).map(t => t.id))
   const [navItems = DEFAULT_NAV_ITEMS] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
   const [chores = []] = useKV<Chore[]>('chores', [])
@@ -130,6 +130,21 @@ function AppContent() {
     onSwipeRight: () => (isMobile || isTablet) && navigateToTab('left'),
     threshold: 100
   })
+
+  useEffect(() => {
+    const initTheme = async () => {
+      const storedDarkMode = await window.spark.kv.get<boolean>('dark-mode')
+      if (storedDarkMode === true) {
+        await window.spark.kv.set('dark-mode', false)
+        setIsDarkMode(false)
+      }
+      const theme = getThemeById(currentThemeId)
+      if (theme) {
+        applyTheme(theme, false)
+      }
+    }
+    initTheme()
+  }, [])
 
   useEffect(() => {
     const theme = getThemeById(currentThemeId)
