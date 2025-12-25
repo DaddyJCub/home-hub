@@ -26,13 +26,16 @@ ENV NODE_ENV=production
 ENV PORT=4173
 ENV HOST=0.0.0.0
 
-# Copy package files and install production dependencies only
+# Copy package files and install only express and better-sqlite3
 COPY package*.json ./
-RUN npm install --omit=dev express better-sqlite3
+RUN npm install --omit=dev
 
 # Copy built app and server
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server.js ./server.js
+
+# Clean up build dependencies to reduce image size (keep sqlite libs)
+RUN apk del python3 make g++
 
 USER node
 EXPOSE 4173
