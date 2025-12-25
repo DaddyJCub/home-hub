@@ -103,7 +103,8 @@ app.put('/_spark/kv/:key', (req, res) => {
       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = strftime('%s', 'now')
     `).run(key, value);
     log('DEBUG', `PUT /_spark/kv/${key} saved successfully`);
-    res.json({ success: true });
+    // Return the saved value - Spark uses this to update its state
+    res.json(req.body);
   } catch (err) {
     log('ERROR', `PUT /_spark/kv/${key} failed`, { error: err.message });
     res.status(500).json({ error: 'Failed to save' });
@@ -121,7 +122,8 @@ app.post('/_spark/kv/:key', (req, res) => {
       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = strftime('%s', 'now')
     `).run(key, value);
     log('DEBUG', `POST /_spark/kv/${key} saved successfully`);
-    res.json({ success: true });
+    // Return the saved value - Spark uses this to update its state
+    res.json(req.body);
   } catch (err) {
     log('ERROR', `POST /_spark/kv/${key} failed`, { error: err.message });
     res.status(500).json({ error: 'Failed to save' });
