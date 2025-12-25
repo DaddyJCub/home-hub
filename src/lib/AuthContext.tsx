@@ -18,11 +18,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [users, setUsers] = useKV<User[]>('users', [])
-  const [currentUserId, setCurrentUserId] = useKV<string | null>('current-user-id', null)
-  const [households, setHouseholds] = useKV<Household[]>('households', [])
-  const [householdMembers, setHouseholdMembers] = useKV<HouseholdMember[]>('household-members-v2', [])
-  const [currentHouseholdId, setCurrentHouseholdId] = useKV<string | null>('current-household-id', null)
+  const [users = [], setUsers] = useKV<User[]>('users', [])
+  const [currentUserId = null, setCurrentUserId] = useKV<string | null>('current-user-id', null)
+  const [households = [], setHouseholds] = useKV<Household[]>('households', [])
+  const [householdMembers = [], setHouseholdMembers] = useKV<HouseholdMember[]>('household-members-v2', [])
+  const [currentHouseholdId = null, setCurrentHouseholdId] = useKV<string | null>('current-household-id', null)
   
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [currentHousehold, setCurrentHousehold] = useState<Household | null>(null)
@@ -30,11 +30,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentHouseholdMembers, setCurrentHouseholdMembers] = useState<HouseholdMember[]>([])
 
   useEffect(() => {
-    if (currentUserId && users) {
+    if (currentUserId && Array.isArray(users)) {
       const user = users.find(u => u.id === currentUserId)
       setCurrentUser(user || null)
       
-      if (householdMembers && households) {
+      if (Array.isArray(householdMembers) && Array.isArray(households)) {
         const userMemberships = householdMembers.filter(m => m.userId === currentUserId)
         const userHouseholdIds = userMemberships.map(m => m.householdId)
         const userHouseholdsList = households.filter(h => userHouseholdIds.includes(h.id))
@@ -48,10 +48,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCurrentUser(null)
       setUserHouseholds([])
     }
-  }, [currentUserId, users, households, householdMembers])
+  }, [currentUserId, users, households, householdMembers, currentHouseholdId, setCurrentHouseholdId])
 
   useEffect(() => {
-    if (currentHouseholdId && households && householdMembers) {
+    if (currentHouseholdId && Array.isArray(households) && Array.isArray(householdMembers)) {
       const household = households.find(h => h.id === currentHouseholdId)
       setCurrentHousehold(household || null)
       
