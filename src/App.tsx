@@ -180,14 +180,22 @@ function AppContent() {
     <div className="min-h-screen bg-background">
       <OfflineIndicator />
       <RefreshIndicator isPulling={isPulling} isRefreshing={isRefreshing} progress={progress} />
-      <header className="border-b border-border/60 bg-card/80 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md sticky top-0 z-10">
-        <div className="app-shell py-3 md:py-4" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}>
+      <header className="border-b border-border/60 bg-card/90 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md sticky top-0 z-10">
+        <div
+          className="app-shell py-3 md:py-4"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+        >
           <div className="flex items-center justify-between gap-2 md:gap-4">
-            <div className="min-w-0 flex-shrink">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary truncate">HomeHub</h1>
-              <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                {currentHousehold?.name || 'Household harmony made simple'}
-              </p>
+            <div className="min-w-0 flex-shrink flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-black text-lg">
+                HH
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary truncate">HomeHub</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                  {currentHousehold?.name || 'Household harmony made simple'}
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <NotificationCenter chores={chores} events={events} />
