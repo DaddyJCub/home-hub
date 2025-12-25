@@ -14,7 +14,7 @@ export function useNotifications(chores: Chore[], events: CalendarEvent[]) {
   )
 
   const scheduleNotifications = useCallback(() => {
-    if (preferences.enabled && Notification.permission === 'granted') {
+    if (preferences.enabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       checkAndScheduleNotifications(chores, events, preferences)
     }
   }, [chores, events, preferences])

@@ -128,8 +128,11 @@ export default function ShoppingSection() {
   }
 
   const clearPurchased = () => {
-    setItems((current = []) => current.filter((item) => !item.purchased))
-    toast.success('Purchased items cleared')
+    const confirmed = window.confirm('Clear all purchased items? This cannot be undone.')
+    if (confirmed) {
+      setItems((current = []) => current.filter((item) => !item.purchased))
+      toast.success('Purchased items cleared')
+    }
   }
 
   const generateWeeklyShoppingList = () => {

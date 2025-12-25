@@ -662,7 +662,12 @@ export default function ChoresSection() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setChores((current = []) => current.filter((c) => !c.completed))}
+                  onClick={() => {
+                    const confirmed = window.confirm('Clear all completed chores? This cannot be undone.')
+                    if (confirmed) {
+                      setChores((current = []) => current.filter((c) => !c.completed))
+                    }
+                  }}
                   className="text-xs h-8"
                 >
                   Clear All
