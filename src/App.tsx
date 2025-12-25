@@ -53,17 +53,24 @@ const TAB_CONFIGS: TabConfig[] = [
 ]
 
 const ICON_MAP: Record<string, Icon> = {
-  House,
-  Broom,
-  ShoppingCart,
-  CookingPot,
-  CalendarBlank,
-  BookOpen,
-  Gear
+  house: House,
+  home: House,
+  broom: Broom,
+  shoppingcart: ShoppingCart,
+  shopping: ShoppingCart,
+  cookingpot: CookingPot,
+  meals: CookingPot,
+  calendarblank: CalendarBlank,
+  calendar: CalendarBlank,
+  bookopen: BookOpen,
+  recipes: BookOpen,
+  gear: Gear,
+  settings: Gear,
 }
 
 const getIcon = (iconName: string): Icon => {
-  return ICON_MAP[iconName] || House
+  const key = iconName?.toLowerCase().replace(/[^a-z]/g, "")
+  return ICON_MAP[key] || House
 }
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
