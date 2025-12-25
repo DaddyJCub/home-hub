@@ -68,9 +68,21 @@ const ICON_MAP: Record<string, Icon> = {
   settings: Gear,
 }
 
-const getIcon = (iconName: string): Icon => {
+const ID_ICON_MAP: Record<string, Icon> = {
+  dashboard: House,
+  chores: Broom,
+  shopping: ShoppingCart,
+  meals: CookingPot,
+  calendar: CalendarBlank,
+  recipes: BookOpen,
+  settings: Gear,
+}
+
+const getIcon = (iconName: string, fallbackId?: string): Icon => {
   const key = iconName?.toLowerCase().replace(/[^a-z]/g, "")
-  return ICON_MAP[key] || House
+  if (key && ICON_MAP[key]) return ICON_MAP[key]
+  if (fallbackId && ID_ICON_MAP[fallbackId]) return ID_ICON_MAP[fallbackId]
+  return House
 }
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
@@ -169,7 +181,7 @@ function AppContent() {
       <OfflineIndicator />
       <RefreshIndicator isPulling={isPulling} isRefreshing={isRefreshing} progress={progress} />
       <header className="border-b border-border/60 bg-card/80 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md sticky top-0 z-10">
-        <div className="app-shell py-3 md:py-4">
+        <div className="app-shell py-3 md:py-4" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}>
           <div className="flex items-center justify-between gap-2 md:gap-4">
             <div className="min-w-0 flex-shrink">
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary truncate">HomeHub</h1>
@@ -291,7 +303,7 @@ function AppContent() {
         <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border shadow-2xl z-20 safe-area-inset-bottom">
           <div className="grid max-w-screen-sm mx-auto" style={{ gridTemplateColumns: `repeat(${Math.min(visibleNavItems.length + 1, 5)}, 1fr)` }}>
             {visibleNavItems.map((item) => {
-              const IconComponent = getIcon(item.iconName)
+              const IconComponent = getIcon(item.iconName, item.id)
               
               return (
                 <button

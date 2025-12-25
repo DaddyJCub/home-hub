@@ -32,17 +32,30 @@ export interface NavItem {
 }
 
 const ICON_MAP: Record<string, Icon> = {
-  House,
-  Broom,
-  ShoppingCart,
-  CookingPot,
-  CalendarBlank,
-  BookOpen,
-  Gear
+  house: House,
+  broom: Broom,
+  shoppingcart: ShoppingCart,
+  cookingpot: CookingPot,
+  calendarblank: CalendarBlank,
+  bookopen: BookOpen,
+  gear: Gear,
 }
 
-const getIcon = (iconName: string): Icon => {
-  return ICON_MAP[iconName] || House
+const ID_ICON_MAP: Record<string, Icon> = {
+  dashboard: House,
+  chores: Broom,
+  shopping: ShoppingCart,
+  meals: CookingPot,
+  calendar: CalendarBlank,
+  recipes: BookOpen,
+  settings: Gear,
+}
+
+const getIcon = (iconName: string, fallbackId?: string): Icon => {
+  const key = iconName?.toLowerCase().replace(/[^a-z]/g, '')
+  if (key && ICON_MAP[key]) return ICON_MAP[key]
+  if (fallbackId && ID_ICON_MAP[fallbackId]) return ID_ICON_MAP[fallbackId]
+  return House
 }
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
