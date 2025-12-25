@@ -2,10 +2,10 @@ import { ComponentProps } from "react"
 
 import { cn } from "@/lib/utils"
 
-      className={cn(
-        cl
-      {.
-  )
+function Card({ className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card"
       className={cn(
         "bg-card text-card-foreground rounded-xl border shadow-sm",
         className
@@ -16,17 +16,14 @@ import { cn } from "@/lib/utils"
 }
 
 function CardHeader({ className, ...props }: ComponentProps<"div">) {
-  )
+  return (
     <div
       data-slot="card-header"
-      className={cn(
-        "flex flex-col space-y-1.5 p-6",
-        className
-      )}
+      className={cn("flex flex-col space-y-1.5 p-6", className)}
+      {...props}
+    />
   )
-
-  )
- 
+}
 
 function CardTitle({ className, ...props }: ComponentProps<"div">) {
   return (
@@ -34,31 +31,28 @@ function CardTitle({ className, ...props }: ComponentProps<"div">) {
       data-slot="card-title"
       className={cn("text-lg font-semibold leading-none tracking-tight", className)}
       {...props}
-      
+    />
   )
- 
+}
 
 function CardDescription({ className, ...props }: ComponentProps<"div">) {
   return (
-function
+    <div
       data-slot="card-description"
       className={cn("text-muted-foreground text-sm", className)}
       {...props}
     />
   )
-
+}
 
 function CardAction({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="card-action"
-      className={cn(
-        "flex items-center",
-        className
-      )}
+      className={cn("flex items-center", className)}
       {...props}
     />
-  C
+  )
 }
 
 function CardContent({ className, ...props }: ComponentProps<"div">) {
@@ -66,27 +60,19 @@ function CardContent({ className, ...props }: ComponentProps<"div">) {
     <div
       data-slot="card-content"
       className={cn("p-6 pt-0", className)}
-
+      {...props}
     />
-
+  )
 }
 
+function CardFooter({ className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-footer"
+      className={cn("flex items-center p-6 pt-0", className)}
+      {...props}
+    />
+  )
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent, CardAction }
