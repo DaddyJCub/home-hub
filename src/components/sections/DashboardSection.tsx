@@ -543,7 +543,7 @@ export default function DashboardSection() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <CheckCircle size={48} className="mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">All chores completed! 🎉</p>
+                  <p className="text-sm">All chores completed!</p>
                 </div>
               )}
             </div>
@@ -572,7 +572,7 @@ export default function DashboardSection() {
                           <div className="font-medium text-sm">{event.title}</div>
                           <div className="text-xs text-muted-foreground">
                             {format(new Date(event.date), 'MMM d')}
-                            {event.startTime && ` • ${event.startTime}`}
+                            {event.startTime && ` at ${event.startTime}`}
                           </div>
                         </div>
                         <Badge className={`text-xs ${categoryColors[event.category]}`}>

@@ -290,7 +290,7 @@ export default function ChoresSection() {
               <Button variant="outline" size="sm" className="gap-1 md:gap-2 h-8 md:h-9 text-xs md:text-sm">
                 <Funnel size={16} />
                 <span className="hidden sm:inline">Filter</span>
-                {hasActiveFilters && <Badge variant="secondary" className="ml-1 px-1.5 py-0">•</Badge>}
+                {hasActiveFilters && <Badge variant="secondary" className="ml-1 px-1.5 py-0">On</Badge>}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
@@ -638,7 +638,7 @@ export default function ChoresSection() {
                         className="h-8 px-2 md:px-3 text-xs"
                       >
                         <span className="hidden sm:inline">Edit</span>
-                        <span className="sm:hidden">✏️</span>
+                        <span className="sm:hidden">Edit</span>
                       </Button>
                       <Button
                         variant="ghost"
@@ -710,3 +710,4 @@ export default function ChoresSection() {
     </div>
   )
 }
+
