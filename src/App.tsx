@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear, BookOpen, DotsThree } from '@phosphor-icons/react'
+import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear, BookOpen, DotsThree, Icon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -23,6 +23,7 @@ import { NotificationIndicator } from '@/components/NotificationIndicator'
 import { NotificationCenter } from '@/components/NotificationCenter'
 import { RefreshIndicator } from '@/components/RefreshIndicator'
 import type { Chore, CalendarEvent } from '@/lib/types'
+import type { NavItem } from '@/components/MobileNavCustomizer'
 import DashboardSection from '@/components/sections/DashboardSection'
 import ChoresSection from '@/components/sections/ChoresSection'
 import ShoppingSection from '@/components/sections/ShoppingSection'
@@ -50,6 +51,30 @@ const TAB_CONFIGS: TabConfig[] = [
   { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', icon: BookOpen, enabled: false }
 ]
 
+const ICON_MAP: Record<string, Icon> = {
+  House,
+  Broom,
+  ShoppingCart,
+  CookingPot,
+  CalendarBlank,
+  BookOpen,
+  Gear
+}
+
+const getIcon = (iconName: string): Icon => {
+  return ICON_MAP[iconName] || House
+}
+
+const DEFAULT_NAV_ITEMS: NavItem[] = [
+  { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', iconName: 'House', enabled: true },
+  { id: 'chores', label: 'Chores', shortLabel: 'Chores', iconName: 'Broom', enabled: true },
+  { id: 'shopping', label: 'Shopping', shortLabel: 'Shop', iconName: 'ShoppingCart', enabled: true },
+  { id: 'meals', label: 'Meals', shortLabel: 'Meals', iconName: 'CookingPot', enabled: true },
+  { id: 'settings', label: 'Settings', shortLabel: 'More', iconName: 'Gear', enabled: true },
+  { id: 'calendar', label: 'Calendar', shortLabel: 'Calendar', iconName: 'CalendarBlank', enabled: false },
+  { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', iconName: 'BookOpen', enabled: false }
+]
+
 function AppContent() {
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search)
@@ -62,6 +87,7 @@ function AppContent() {
   const [currentThemeId = 'warm-home'] = useKV<string>('theme-id', 'warm-home')
   const [isDarkMode = false] = useKV<boolean>('dark-mode', false)
   const [enabledTabs = TAB_CONFIGS.filter(t => t.enabled).map(t => t.id)] = useKV<TabId[]>('enabled-tabs', TAB_CONFIGS.filter(t => t.enabled).map(t => t.id))
+  const [navItems = DEFAULT_NAV_ITEMS] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
   const [chores = []] = useKV<Chore[]>('chores', [])
   const [events = []] = useKV<CalendarEvent[]>('calendar-events', [])
   const { isAuthenticated, currentHousehold, logout } = useAuth()
@@ -79,6 +105,10 @@ function AppContent() {
 
   const visibleTabs = TAB_CONFIGS.filter(tab => enabledTabs.includes(tab.id))
   const tabOrder = visibleTabs.map(tab => tab.id)
+  
+  const enabledNavItems = navItems.filter(item => item.enabled && item.id !== 'settings')
+  const visibleNavItems = enabledNavItems.slice(0, 4)
+  const overflowNavItems = enabledNavItems.slice(4)
 
   const navigateToTab = (direction: 'left' | 'right') => {
     const currentIndex = tabOrder.indexOf(activeTab as TabId)
@@ -198,20 +228,20 @@ function AppContent() {
 
       {isMobile && (
         <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-20 safe-area-inset-bottom">
-          <div className="grid max-w-screen-sm mx-auto" style={{ gridTemplateColumns: `repeat(${Math.min(visibleTabs.length + 1, 5)}, 1fr)` }}>
-            {visibleTabs.slice(0, 4).map((tab) => {
-              const IconComponent = tab.icon
+          <div className="grid max-w-screen-sm mx-auto" style={{ gridTemplateColumns: `repeat(${Math.min(visibleNavItems.length + 1, 5)}, 1fr)` }}>
+            {visibleNavItems.map((item) => {
+              const IconComponent = getIcon(item.iconName)
               
               return (
                 <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
                   className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
-                    activeTab === tab.id ? 'text-primary' : 'text-muted-foreground'
+                    activeTab === item.id ? 'text-primary' : 'text-muted-foreground'
                   }`}
                 >
-                  <IconComponent size={22} weight={activeTab === tab.id ? 'fill' : 'regular'} />
-                  <span className="text-[10px] font-medium">{tab.shortLabel}</span>
+                  <IconComponent size={22} weight={activeTab === item.id ? 'fill' : 'regular'} />
+                  <span className="text-[10px] font-medium">{item.shortLabel}</span>
                 </button>
               )
             })}
@@ -225,21 +255,21 @@ function AppContent() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 mb-2">
-                {visibleTabs.slice(4).map((tab) => {
-                  const IconComponent = tab.icon
+                {overflowNavItems.map((item) => {
+                  const IconComponent = getIcon(item.iconName)
                   
                   return (
                     <DropdownMenuItem
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id)}
                       className="gap-2"
                     >
                       <IconComponent size={18} />
-                      {tab.label}
+                      {item.label}
                     </DropdownMenuItem>
                   )
                 })}
-                {visibleTabs.length > 4 && <DropdownMenuSeparator />}
+                {overflowNavItems.length > 0 && <DropdownMenuSeparator />}
                 <DropdownMenuItem onClick={() => setActiveTab('settings')} className="gap-2">
                   <Gear size={18} />
                   Settings

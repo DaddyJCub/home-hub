@@ -3,8 +3,25 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Faders, House, Broom, ShoppingCart, CalendarBlank, CookingPot, BookOpen, Gear, Icon } from '@phosphor-icons/react'
+import { Faders, House, Broom, ShoppingCart, CalendarBlank, CookingPot, BookOpen, Gear, Icon, DotsSixVertical } from '@phosphor-icons/react'
 import { useKV } from '@github/spark/hooks'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 export interface NavItem {
   id: string
@@ -38,9 +55,68 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', iconName: 'BookOpen', enabled: false }
 ]
 
+interface SortableNavItemProps {
+  item: NavItem
+  onToggle: (itemId: string) => void
+}
+
+function SortableNavItem({ item, onToggle }: SortableNavItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  const ItemIcon = getIcon(item.iconName)
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center justify-between p-3 bg-muted/50 rounded-lg ${
+        isDragging ? 'opacity-50 ring-2 ring-primary' : ''
+      }`}
+    >
+      <div className="flex items-center gap-3 flex-1">
+        <button
+          className="cursor-grab active:cursor-grabbing touch-none text-muted-foreground hover:text-foreground transition-colors"
+          {...attributes}
+          {...listeners}
+        >
+          <DotsSixVertical size={20} />
+        </button>
+        <ItemIcon size={20} />
+        <Label htmlFor={item.id} className="cursor-pointer flex-1">
+          {item.label}
+        </Label>
+      </div>
+      <Switch
+        id={item.id}
+        checked={item.enabled}
+        onCheckedChange={() => onToggle(item.id)}
+      />
+    </div>
+  )
+}
+
 function MobileNavCustomizer() {
   const [navItems, setNavItems] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
   const [open, setOpen] = useState(false)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   const toggleItem = (itemId: string) => {
     setNavItems((current) => {
@@ -56,6 +132,21 @@ function MobileNavCustomizer() {
       
       return updated
     })
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setNavItems((items) => {
+        if (!items) return DEFAULT_NAV_ITEMS
+        
+        const oldIndex = items.findIndex((item) => item.id === active.id)
+        const newIndex = items.findIndex((item) => item.id === over.id)
+
+        return arrayMove(items, oldIndex, newIndex)
+      })
+    }
   }
 
   const resetToDefault = () => {
@@ -78,28 +169,28 @@ function MobileNavCustomizer() {
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Choose 3-5 tabs to show in your bottom navigation bar.
+            Drag to reorder, toggle to show/hide. Choose 3-5 tabs for your bottom navigation.
           </p>
-          <div className="space-y-3">
-            {navItems?.map((item) => {
-              const ItemIcon = getIcon(item.iconName)
-              return (
-                <div key={item.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <ItemIcon size={20} />
-                    <Label htmlFor={item.id} className="cursor-pointer">
-                      {item.label}
-                    </Label>
-                  </div>
-                  <Switch
-                    id={item.id}
-                    checked={item.enabled}
-                    onCheckedChange={() => toggleItem(item.id)}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={navItems?.map(item => item.id) || []}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-3">
+                {navItems?.map((item) => (
+                  <SortableNavItem
+                    key={item.id}
+                    item={item}
+                    onToggle={toggleItem}
                   />
-                </div>
-              )
-            })}
-          </div>
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
           <div className="text-xs text-muted-foreground text-center">
             {enabledCount} of 5 tabs selected
           </div>
