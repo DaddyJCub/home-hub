@@ -161,8 +161,8 @@ function AppContent() {
     <div className="min-h-screen bg-background">
       <OfflineIndicator />
       <RefreshIndicator isPulling={isPulling} isRefreshing={isRefreshing} progress={progress} />
-      <header className="border-b border-border bg-card sticky top-0 z-10">
-        <div className="container mx-auto px-3 py-3 sm:px-4 md:px-6 md:py-4">
+      <header className="border-b border-border/60 bg-card/80 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md sticky top-0 z-10">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-3 md:py-4">
           <div className="flex items-center justify-between gap-2 md:gap-4">
             <div className="min-w-0 flex-shrink">
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary truncate">HomeHub</h1>
@@ -178,10 +178,10 @@ function AppContent() {
         </div>
       </header>
 
-      <main className="container mx-auto px-3 sm:px-4 md:px-6 py-4 md:py-6 pb-20 md:pb-6 lg:pb-6">
+      <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-6 md:py-8 pb-24 md:pb-10 lg:pb-10 space-y-6 md:space-y-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {!isMobile && !isTablet && (
-            <TabsList className="grid w-full grid-cols-7 mb-6">
+            <TabsList className="grid w-full grid-cols-7 mb-6 bg-card/70 backdrop-blur-sm p-1 rounded-2xl border border-border/60 shadow-md">
               <TabsTrigger value="dashboard" className="gap-2">
                 <House />
                 <span>Dashboard</span>
@@ -214,9 +214,9 @@ function AppContent() {
           )}
 
           {isTablet && (
-            <div className="mb-6 border-b border-border">
+            <div className="mb-6 border-b border-border/60 pb-3">
               <div className="flex items-center overflow-x-auto scrollbar-hide">
-                <TabsList className="inline-flex w-auto h-12 bg-transparent p-0 gap-1">
+                <TabsList className="inline-flex w-auto h-12 bg-card/70 backdrop-blur-sm p-1 rounded-2xl gap-1 border border-border/60 shadow-sm">
                   <TabsTrigger value="dashboard" className="gap-2 px-4 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg">
                     <House size={20} />
                     <span className="text-sm">Dashboard</span>
