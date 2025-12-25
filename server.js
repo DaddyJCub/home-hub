@@ -42,6 +42,7 @@ app.get('/healthz.txt', (req, res) => {
 });
 
 // KV Store API - GET
+// Return 404 for non-existent keys so Spark uses the default value
 app.get('/_spark/kv/:key', (req, res) => {
   const { key } = req.params;
   try {
@@ -49,11 +50,12 @@ app.get('/_spark/kv/:key', (req, res) => {
     if (row) {
       res.json(JSON.parse(row.value));
     } else {
-      res.json(null);
+      // Return 404 so the Spark hook uses its default value
+      res.status(404).send('');
     }
   } catch (err) {
     console.error(`Error getting key ${key}:`, err);
-    res.json(null);
+    res.status(500).json({ error: 'Failed to read' });
   }
 });
 
