@@ -42,6 +42,53 @@ db.exec(`
 `);
 log('INFO', 'Database initialized');
 
+// Auto-cleanup corrupted data from old bug where we returned {success: true} instead of the actual value
+// This detects entries that are objects with just "success" key and removes them
+function cleanupCorruptedData() {
+  try {
+    const rows = db.prepare('SELECT key, value FROM kv_store').all();
+    let cleaned = 0;
+    
+    for (const row of rows) {
+      try {
+        const parsed = JSON.parse(row.value);
+        // Detect corrupted data patterns:
+        // 1. {success: true} - from old PUT/POST response bug
+        // 2. Objects where we expected arrays (users, households, chores, etc.)
+        const isCorruptedSuccessObject = (
+          typeof parsed === 'object' && 
+          parsed !== null && 
+          !Array.isArray(parsed) &&
+          Object.keys(parsed).length === 1 && 
+          parsed.success === true
+        );
+        
+        if (isCorruptedSuccessObject) {
+          db.prepare('DELETE FROM kv_store WHERE key = ?').run(row.key);
+          log('INFO', `Cleaned corrupted data for key: ${row.key}`);
+          cleaned++;
+        }
+      } catch (e) {
+        // Invalid JSON, delete it
+        db.prepare('DELETE FROM kv_store WHERE key = ?').run(row.key);
+        log('INFO', `Cleaned invalid JSON for key: ${row.key}`);
+        cleaned++;
+      }
+    }
+    
+    if (cleaned > 0) {
+      log('INFO', `Cleanup complete: removed ${cleaned} corrupted entries`);
+    } else {
+      log('INFO', 'No corrupted data found');
+    }
+  } catch (err) {
+    log('ERROR', 'Cleanup failed', { error: err.message });
+  }
+}
+
+// Run cleanup on startup
+cleanupCorruptedData();
+
 // Middleware
 app.use(express.json());
 
@@ -71,7 +118,7 @@ app.get('/healthz.txt', (req, res) => {
 });
 
 // KV Store API - GET
-// Return 404 for non-existent keys so Spark uses the default value
+// For missing keys, return null - Spark will use its default value
 app.get('/_spark/kv/:key', (req, res) => {
   const { key } = req.params;
   try {
@@ -81,9 +128,9 @@ app.get('/_spark/kv/:key', (req, res) => {
       log('DEBUG', `GET /_spark/kv/${key}`, { found: true, valueType: typeof parsed, isArray: Array.isArray(parsed) });
       res.json(parsed);
     } else {
-      log('DEBUG', `GET /_spark/kv/${key}`, { found: false });
-      // Return 404 so the Spark hook uses its default value
-      res.status(404).send('');
+      log('DEBUG', `GET /_spark/kv/${key}`, { found: false, returning: 'null' });
+      // Return null for missing keys - Spark should use default value
+      res.json(null);
     }
   } catch (err) {
     log('ERROR', `GET /_spark/kv/${key} failed`, { error: err.message });
