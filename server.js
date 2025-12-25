@@ -86,9 +86,33 @@ app.post('/_spark/kv/:key', (req, res) => {
   }
 });
 
+// KV Store API - DELETE (for clearing data in settings)
+app.delete('/_spark/kv/:key', (req, res) => {
+  const { key } = req.params;
+  try {
+    db.prepare('DELETE FROM kv_store WHERE key = ?').run(key);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(`Error deleting key ${key}:`, err);
+    res.status(500).json({ error: 'Failed to delete' });
+  }
+});
+
 // Spark loaded endpoint (required by the app)
 app.post('/_spark/loaded', (req, res) => {
   res.json({ success: true });
+});
+
+// Spark LLM endpoint - stub that returns an error (feature not available in standalone mode)
+app.post('/_spark/llm', (req, res) => {
+  res.status(501).json({ 
+    error: 'LLM feature not available in standalone mode. This requires the GitHub Spark platform.' 
+  });
+});
+
+// Spark user endpoint - stub (not needed for this app)
+app.get('/_spark/user', (req, res) => {
+  res.json(null);
 });
 
 // SPA fallback - serve index.html for all other routes
