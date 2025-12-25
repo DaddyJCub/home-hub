@@ -6,6 +6,8 @@
   body {
     font-family: 'Karla', sans-serif;
     @apply bg-background text-foreground;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
   
   h1, h2, h3, h4, h5, h6 {

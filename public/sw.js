@@ -1,5 +1,5 @@
-const APP_CACHE = 'homehub-static-v3';
-const RUNTIME_CACHE = 'homehub-runtime-v3';
+const APP_CACHE = 'homehub-static-v4';
+const RUNTIME_CACHE = 'homehub-runtime-v4';
 
 const PRECACHE_URLS = [
   '/',
