@@ -325,7 +325,8 @@ export function scheduleSmartMorningReminder(
   if (!preferences.enabled || !preferences.smartChoreReminders || !preferences.choresEnabled) return null
 
   const now = new Date()
-  const [hours, minutes] = preferences.morningReminderTime.split(':').map(Number)
+  const timeStr = preferences.morningReminderTime || DEFAULT_NOTIFICATION_PREFERENCES.morningReminderTime
+  const [hours, minutes] = timeStr.split(':').map(Number)
   const targetTime = new Date(now)
   targetTime.setHours(hours, minutes, 0, 0)
 
@@ -383,7 +384,8 @@ export function scheduleEveningFollowUp(
   if (!preferences.enabled || !preferences.smartChoreReminders || !preferences.choresEnabled) return null
 
   const now = new Date()
-  const [hours, minutes] = preferences.eveningFollowUpTime.split(':').map(Number)
+  const timeStr = preferences.eveningFollowUpTime || DEFAULT_NOTIFICATION_PREFERENCES.eveningFollowUpTime
+  const [hours, minutes] = timeStr.split(':').map(Number)
   const targetTime = new Date(now)
   targetTime.setHours(hours, minutes, 0, 0)
 

@@ -26,7 +26,10 @@ import {
 export function NotificationSettings() {
   const [preferencesRaw, setPreferences] =
     useKV<NotificationPreferences>('notification-preferences', DEFAULT_NOTIFICATION_PREFERENCES)
-  const preferences = preferencesRaw ?? DEFAULT_NOTIFICATION_PREFERENCES
+  // Merge with defaults to ensure new properties are always available
+  const preferences = preferencesRaw 
+    ? { ...DEFAULT_NOTIFICATION_PREFERENCES, ...preferencesRaw }
+    : DEFAULT_NOTIFICATION_PREFERENCES
 
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'

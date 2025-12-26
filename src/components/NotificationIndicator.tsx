@@ -19,7 +19,10 @@ export function NotificationIndicator({ chores, events }: NotificationIndicatorP
     'notification-preferences',
     DEFAULT_NOTIFICATION_PREFERENCES
   )
-  const preferences = preferencesRaw ?? DEFAULT_NOTIFICATION_PREFERENCES
+  // Merge with defaults to ensure new properties are always available
+  const preferences = preferencesRaw 
+    ? { ...DEFAULT_NOTIFICATION_PREFERENCES, ...preferencesRaw }
+    : DEFAULT_NOTIFICATION_PREFERENCES
 
   if (!preferences.enabled || typeof Notification === 'undefined' || Notification.permission !== 'granted') {
     return null

@@ -13,7 +13,10 @@ export function useNotifications(chores: Chore[], events: CalendarEvent[]) {
     'notification-preferences',
     DEFAULT_NOTIFICATION_PREFERENCES
   )
-  const preferences = preferencesRaw ?? DEFAULT_NOTIFICATION_PREFERENCES
+  // Merge with defaults to ensure new properties are always available
+  const preferences = preferencesRaw 
+    ? { ...DEFAULT_NOTIFICATION_PREFERENCES, ...preferencesRaw }
+    : DEFAULT_NOTIFICATION_PREFERENCES
 
   // Track smart notification timers
   const smartTimersRef = useRef<{ morningTimer: NodeJS.Timeout | null; eveningTimer: NodeJS.Timeout | null }>({
