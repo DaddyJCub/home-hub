@@ -7,6 +7,15 @@ import { fileURLToPath, pathToFileURL } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Simple logger (available for early startup)
+const log = (level, message, data = null) => {
+  const timestamp = new Date().toISOString();
+  const logLine = data 
+    ? `[${timestamp}] ${level}: ${message} ${JSON.stringify(data)}`
+    : `[${timestamp}] ${level}: ${message}`;
+  console.log(logLine);
+};
+
 const FALLBACK_KV_DEFAULTS = {
   'theme-id': 'warm-home',
   'dark-mode': false,
@@ -102,15 +111,6 @@ const app = express();
 const PORT = process.env.PORT || 4173;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = process.env.DATA_DIR || '/data';
-
-// Simple logger
-const log = (level, message, data = null) => {
-  const timestamp = new Date().toISOString();
-  const logLine = data 
-    ? `[${timestamp}] ${level}: ${message} ${JSON.stringify(data)}`
-    : `[${timestamp}] ${level}: ${message}`;
-  console.log(logLine);
-};
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
