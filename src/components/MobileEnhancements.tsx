@@ -38,10 +38,11 @@ const DEFAULT_MOBILE_PREFERENCES: MobilePreferences = {
 
 export function MobileEnhancements() {
   const isMobile = useIsMobile()
-  const [preferences = DEFAULT_MOBILE_PREFERENCES, setPreferences] = useKV<MobilePreferences>(
+  const [preferencesRaw, setPreferences] = useKV<MobilePreferences>(
     'mobile-preferences',
     DEFAULT_MOBILE_PREFERENCES
   )
+  const preferences = preferencesRaw ?? DEFAULT_MOBILE_PREFERENCES
 
   const handleToggle = (key: keyof MobilePreferences, value: boolean) => {
     setPreferences(prev => ({ ...(prev || DEFAULT_MOBILE_PREFERENCES), [key]: value }))

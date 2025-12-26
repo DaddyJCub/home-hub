@@ -8,10 +8,11 @@ import {
 } from '@/lib/notifications'
 
 export function useNotifications(chores: Chore[], events: CalendarEvent[]) {
-  const [preferences = DEFAULT_NOTIFICATION_PREFERENCES] = useKV<NotificationPreferences>(
+  const [preferencesRaw] = useKV<NotificationPreferences>(
     'notification-preferences',
     DEFAULT_NOTIFICATION_PREFERENCES
   )
+  const preferences = preferencesRaw ?? DEFAULT_NOTIFICATION_PREFERENCES
 
   const scheduleNotifications = useCallback(() => {
     if (preferences.enabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {

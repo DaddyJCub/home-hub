@@ -7,9 +7,9 @@ import type { Chore } from '@/lib/types'
 import { format, startOfWeek, addDays, isToday } from 'date-fns'
 
 export default function WeeklyChoreSchedule() {
-  const [chores = []] = useKV<Chore[]>('chores', [])
-  const [, setChores] = useKV<Chore[]>('chores', [])
-  const [selectedMember = 'all'] = useKV<string>('selected-member-filter', 'all')
+  const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
+  const [selectedMember] = useKV<string>('selected-member-filter', 'all')
+  const chores = choresRaw ?? []
 
   const filteredChores = selectedMember === 'all' 
     ? chores 

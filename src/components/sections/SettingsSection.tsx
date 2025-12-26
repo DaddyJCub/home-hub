@@ -54,20 +54,28 @@ interface DashboardWidget {
 }
 
 export default function SettingsSection() {
-  const [currentThemeId = 'warm-home', setCurrentThemeId] = useKV<string>('theme-id', 'warm-home')
-  const [isDarkMode = false, setIsDarkMode] = useKV<boolean>('dark-mode', false)
-  const [members = [], setMembers] = useKV<HouseholdMember[]>('household-members', [])
-  const [dashboardWidgets = [], setDashboardWidgets] = useKV<DashboardWidget[]>(
+  const [currentThemeId, setCurrentThemeId] = useKV<string>('theme-id', 'warm-home')
+  const [isDarkMode, setIsDarkMode] = useKV<boolean>('dark-mode', false)
+  const [membersRaw, setMembers] = useKV<HouseholdMember[]>('household-members', [])
+  const [dashboardWidgetsRaw, setDashboardWidgets] = useKV<DashboardWidget[]>(
     'dashboard-widgets',
     []
   )
   const isMobile = useIsMobile()
 
-  const [chores = []] = useKV<Chore[]>('chores', [])
-  const [shoppingItems = []] = useKV<ShoppingItem[]>('shopping-items', [])
-  const [meals = []] = useKV<Meal[]>('meals', [])
-  const [recipes = []] = useKV<Recipe[]>('recipes', [])
-  const [events = []] = useKV<CalendarEvent[]>('calendar-events', [])
+  const [choresRaw] = useKV<Chore[]>('chores', [])
+  const [shoppingItemsRaw] = useKV<ShoppingItem[]>('shopping-items', [])
+  const [mealsRaw] = useKV<Meal[]>('meals', [])
+  const [recipesRaw] = useKV<Recipe[]>('recipes', [])
+  const [eventsRaw] = useKV<CalendarEvent[]>('calendar-events', [])
+  
+  const members = membersRaw ?? []
+  const dashboardWidgets = dashboardWidgetsRaw ?? []
+  const chores = choresRaw ?? []
+  const shoppingItems = shoppingItemsRaw ?? []
+  const meals = mealsRaw ?? []
+  const recipes = recipesRaw ?? []
+  const events = eventsRaw ?? []
 
   const [newMemberName, setNewMemberName] = useState('')
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false)
@@ -118,8 +126,9 @@ export default function SettingsSection() {
   }
 
   const handleToggleWidget = (widgetId: string) => {
-    setDashboardWidgets((current = []) => {
-      const existing = current.length > 0 ? current : defaultWidgets
+    setDashboardWidgets((current) => {
+      const currentArr = current ?? []
+      const existing = currentArr.length > 0 ? currentArr : defaultWidgets
       return existing.map((w) => (w.id === widgetId ? { ...w, enabled: !w.enabled } : w))
     })
     toast.success('Dashboard layout updated')

@@ -121,7 +121,8 @@ function SortableNavItem({ item, onToggle }: SortableNavItemProps) {
 }
 
 function MobileNavCustomizer() {
-  const [navItems, setNavItems] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
+  const [navItemsRaw, setNavItems] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
+  const navItems = navItemsRaw ?? DEFAULT_NAV_ITEMS
   const [open, setOpen] = useState(false)
 
   const sensors = useSensors(

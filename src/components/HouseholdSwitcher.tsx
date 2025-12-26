@@ -20,8 +20,10 @@ export default function HouseholdSwitcher() {
   const [newHouseholdName, setNewHouseholdName] = useState('')
   const [inviteCode, setInviteCode] = useState('')
   
-  const [households = [], setHouseholds] = useKV<Household[]>('households', [])
-  const [householdMembers = [], setHouseholdMembers] = useKV<HouseholdMember[]>('household-members-v2', [])
+  const [householdsRaw, setHouseholds] = useKV<Household[]>('households', [])
+  const [householdMembersRaw, setHouseholdMembers] = useKV<HouseholdMember[]>('household-members-v2', [])
+  const households = householdsRaw ?? []
+  const householdMembers = householdMembersRaw ?? []
 
   const handleCreateHousehold = async () => {
     if (!newHouseholdName.trim() || !currentUser) return

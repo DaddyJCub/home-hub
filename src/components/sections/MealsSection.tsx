@@ -15,8 +15,10 @@ import { format, startOfWeek, addDays } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
 
 export default function MealsSection() {
-  const [meals = [], setMeals] = useKV<Meal[]>('meals', [])
-  const [recipes = []] = useKV<Recipe[]>('recipes', [])
+  const [mealsRaw, setMeals] = useKV<Meal[]>('meals', [])
+  const [recipesRaw] = useKV<Recipe[]>('recipes', [])
+  const meals = mealsRaw ?? []
+  const recipes = recipesRaw ?? []
   const { currentHousehold } = useAuth()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [autoPlannerOpen, setAutoPlannerOpen] = useState(false)
@@ -50,14 +52,14 @@ export default function MealsSection() {
       recipeId: mealForm.recipeId || undefined
     }
 
-    setMeals((current = []) => [...current, newMeal])
+    setMeals((current) => [...(current ?? []), newMeal])
     setDialogOpen(false)
     setMealForm({ name: '', type: 'dinner', recipeId: '' })
     toast.success('Meal added to plan')
   }
 
   const handleDeleteMeal = (id: string) => {
-    setMeals((current = []) => current.filter((meal) => meal.id !== id))
+    setMeals((current) => (current ?? []).filter((meal) => meal.id !== id))
     toast.success('Meal removed')
   }
 

@@ -16,9 +16,11 @@ import { useAuth } from '@/lib/AuthContext'
 
 export default function CalendarSection() {
   const { currentHousehold } = useAuth()
-  const [events = [], setEvents] = useKV<CalendarEvent[]>('calendar-events', [])
-  const [members = []] = useKV<HouseholdMember[]>('household-members', [])
-  const [selectedMember = 'all'] = useKV<string>('selected-member-filter', 'all')
+  const [eventsRaw, setEvents] = useKV<CalendarEvent[]>('calendar-events', [])
+  const [membersRaw] = useKV<HouseholdMember[]>('household-members', [])
+  const [selectedMember] = useKV<string>('selected-member-filter', 'all')
+  const events = eventsRaw ?? []
+  const members = membersRaw ?? []
   const [currentDate, setCurrentDate] = useState(new Date())
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
@@ -106,8 +108,8 @@ export default function CalendarSection() {
     }
 
     if (editingEvent) {
-      setEvents((current = []) =>
-        current.map((evt) =>
+      setEvents((current) =>
+        (current ?? []).map((evt) =>
           evt.id === editingEvent.id
             ? {
                 ...evt,
@@ -146,7 +148,7 @@ export default function CalendarSection() {
         createdAt: Date.now()
       }
 
-      setEvents((current = []) => [...current, newEvent])
+      setEvents((current) => [...(current ?? []), newEvent])
       toast.success('Event added')
     }
 
@@ -154,7 +156,7 @@ export default function CalendarSection() {
   }
 
   const handleDeleteEvent = (id: string) => {
-    setEvents((current = []) => current.filter((evt) => evt.id !== id))
+    setEvents((current) => (current ?? []).filter((evt) => evt.id !== id))
     toast.success('Event deleted')
   }
 

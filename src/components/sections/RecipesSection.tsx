@@ -16,7 +16,8 @@ import { useAuth } from '@/lib/AuthContext'
 
 export default function RecipesSection() {
   const { currentHousehold } = useAuth()
-  const [recipes = [], setRecipes] = useKV<Recipe[]>('recipes', [])
+  const [recipesRaw, setRecipes] = useKV<Recipe[]>('recipes', [])
+  const recipes = recipesRaw ?? []
   const [dialogOpen, setDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null)
@@ -106,8 +107,8 @@ export default function RecipesSection() {
       .filter((t) => t)
 
     if (editingRecipe) {
-      setRecipes((current = []) =>
-        current.map((recipe) =>
+      setRecipes((current) =>
+        (current ?? []).map((recipe) =>
           recipe.id === editingRecipe.id
             ? {
                 ...recipe,
@@ -146,7 +147,7 @@ export default function RecipesSection() {
         createdAt: Date.now()
       }
 
-      setRecipes((current = []) => [...current, newRecipe])
+      setRecipes((current) => [...(current ?? []), newRecipe])
       toast.success('Recipe added')
     }
 
@@ -167,7 +168,7 @@ export default function RecipesSection() {
   }
 
   const handleDeleteRecipe = (id: string) => {
-    setRecipes((current = []) => current.filter((recipe) => recipe.id !== id))
+    setRecipes((current) => (current ?? []).filter((recipe) => recipe.id !== id))
     setViewDialogOpen(false)
     toast.success('Recipe deleted')
   }

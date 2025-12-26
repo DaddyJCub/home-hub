@@ -105,12 +105,19 @@ function AppContent() {
   })
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
-  const [currentThemeId = 'warm-home', setCurrentThemeId] = useKV<string>('theme-id', 'warm-home')
-  const [isDarkMode = false, setIsDarkMode] = useKV<boolean>('dark-mode', false)
-  const [enabledTabs = TAB_CONFIGS.filter(t => t.enabled).map(t => t.id)] = useKV<TabId[]>('enabled-tabs', TAB_CONFIGS.filter(t => t.enabled).map(t => t.id))
-  const [navItems = DEFAULT_NAV_ITEMS] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
-  const [chores = []] = useKV<Chore[]>('chores', [])
-  const [events = []] = useKV<CalendarEvent[]>('calendar-events', [])
+  const [currentThemeId, setCurrentThemeId] = useKV<string>('theme-id', 'warm-home')
+  const [isDarkMode, setIsDarkMode] = useKV<boolean>('dark-mode', false)
+  const [enabledTabsRaw] = useKV<TabId[]>('enabled-tabs', TAB_CONFIGS.filter(t => t.enabled).map(t => t.id))
+  const [navItemsRaw] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
+  const [choresRaw] = useKV<Chore[]>('chores', [])
+  const [eventsRaw] = useKV<CalendarEvent[]>('calendar-events', [])
+  
+  // Null-safe fallbacks - useKV may return null instead of undefined
+  const enabledTabs = enabledTabsRaw ?? TAB_CONFIGS.filter(t => t.enabled).map(t => t.id)
+  const navItems = navItemsRaw ?? DEFAULT_NAV_ITEMS
+  const chores = choresRaw ?? []
+  const events = eventsRaw ?? []
+  
   const { isAuthenticated, currentHousehold, logout } = useAuth()
 
   useNotifications(chores, events)

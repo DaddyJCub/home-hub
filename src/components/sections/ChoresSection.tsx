@@ -42,9 +42,11 @@ const DAYS_OF_WEEK = [
 
 export default function ChoresSection() {
   const { currentHousehold } = useAuth()
-  const [chores = [], setChores] = useKV<Chore[]>('chores', [])
-  const [members = [], setMembers] = useKV<HouseholdMember[]>('household-members', [])
-  const [selectedMember = 'all'] = useKV<string>('selected-member-filter', 'all')
+  const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
+  const [membersRaw, setMembers] = useKV<HouseholdMember[]>('household-members', [])
+  const [selectedMember] = useKV<string>('selected-member-filter', 'all')
+  const chores = choresRaw ?? []
+  const members = membersRaw ?? []
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingChore, setEditingChore] = useState<Chore | null>(null)
   
@@ -115,8 +117,8 @@ export default function ChoresSection() {
     }
 
     if (editingChore) {
-      setChores((current = []) =>
-        current.map((chore) =>
+      setChores((current) =>
+        (current ?? []).map((chore) =>
           chore.id === editingChore.id
             ? { ...chore, ...choreData }
             : chore
@@ -131,7 +133,7 @@ export default function ChoresSection() {
         completed: false,
         createdAt: Date.now()
       }
-      setChores((current = []) => [...current, newChore])
+      setChores((current) => [...(current ?? []), newChore])
       toast.success('Chore added')
     }
 
@@ -155,8 +157,8 @@ export default function ChoresSection() {
   }
 
   const handleToggleChore = (id: string) => {
-    setChores((current = []) =>
-      current.map((chore) => {
+    setChores((current) =>
+      (current ?? []).map((chore) => {
         if (chore.id !== id) return chore
         
         const newCompleted = !chore.completed
@@ -194,7 +196,7 @@ export default function ChoresSection() {
   }
 
   const handleDeleteChore = (id: string) => {
-    setChores((current = []) => current.filter((chore) => chore.id !== id))
+    setChores((current) => (current ?? []).filter((chore) => chore.id !== id))
     toast.success('Chore deleted')
   }
 
@@ -665,7 +667,7 @@ export default function ChoresSection() {
                   onClick={() => {
                     const confirmed = window.confirm('Clear all completed chores? This cannot be undone.')
                     if (confirmed) {
-                      setChores((current = []) => current.filter((c) => !c.completed))
+                      setChores((current) => (current ?? []).filter((c) => !c.completed))
                     }
                   }}
                   className="text-xs h-8"

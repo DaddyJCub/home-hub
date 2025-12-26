@@ -11,10 +11,14 @@ interface NotificationSummaryProps {
 }
 
 export function NotificationSummary({ className }: NotificationSummaryProps) {
-  const [chores = []] = useKV<Chore[]>('chores', [])
-  const [events = []] = useKV<CalendarEvent[]>('calendar-events', [])
-  const [shoppingItems = []] = useKV<ShoppingItem[]>('shopping-items', [])
-  const [meals = []] = useKV<Meal[]>('meals', [])
+  const [choresRaw] = useKV<Chore[]>('chores', [])
+  const [eventsRaw] = useKV<CalendarEvent[]>('calendar-events', [])
+  const [shoppingItemsRaw] = useKV<ShoppingItem[]>('shopping-items', [])
+  const [mealsRaw] = useKV<Meal[]>('meals', [])
+  const chores = choresRaw ?? []
+  const events = eventsRaw ?? []
+  const shoppingItems = shoppingItemsRaw ?? []
+  const meals = mealsRaw ?? []
 
   const now = Date.now()
   const today = new Date().setHours(0, 0, 0, 0)

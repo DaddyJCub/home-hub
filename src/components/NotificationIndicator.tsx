@@ -15,10 +15,11 @@ interface NotificationIndicatorProps {
 }
 
 export function NotificationIndicator({ chores, events }: NotificationIndicatorProps) {
-  const [preferences = DEFAULT_NOTIFICATION_PREFERENCES] = useKV<NotificationPreferences>(
+  const [preferencesRaw] = useKV<NotificationPreferences>(
     'notification-preferences',
     DEFAULT_NOTIFICATION_PREFERENCES
   )
+  const preferences = preferencesRaw ?? DEFAULT_NOTIFICATION_PREFERENCES
 
   if (!preferences.enabled || typeof Notification === 'undefined' || Notification.permission !== 'granted') {
     return null

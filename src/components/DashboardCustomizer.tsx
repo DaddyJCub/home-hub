@@ -267,7 +267,8 @@ function SortableWidget({ widget, onToggle }: SortableWidgetProps) {
 }
 
 export default function DashboardCustomizer() {
-  const [widgets, setWidgets] = useKV<DashboardWidget[]>('dashboard-widgets', defaultWidgets)
+  const [widgetsRaw, setWidgets] = useKV<DashboardWidget[]>('dashboard-widgets', defaultWidgets)
+  const widgets = widgetsRaw ?? defaultWidgets
 
   const sensors = useSensors(
     useSensor(PointerSensor),

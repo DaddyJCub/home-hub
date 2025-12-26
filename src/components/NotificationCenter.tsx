@@ -33,8 +33,9 @@ interface NotificationCenterProps {
 }
 
 export function NotificationCenter({ chores, events }: NotificationCenterProps) {
-  const [notifications = [], setNotifications] = useKV<NotificationItem[]>('notification-history', [])
+  const [notificationsRaw, setNotifications] = useKV<NotificationItem[]>('notification-history', [])
   const [isOpen, setIsOpen] = useState(false)
+  const notifications = notificationsRaw ?? []
 
   const upcomingChores = getUpcomingChores(chores, 48)
   const upcomingEvents = getUpcomingEvents(events, 48)
@@ -42,19 +43,19 @@ export function NotificationCenter({ chores, events }: NotificationCenterProps) 
   const unreadCount = notifications.filter(n => !n.read).length
 
   const markAsRead = (id: string) => {
-    setNotifications((current = []) =>
-      current.map(n => (n.id === id ? { ...n, read: true } : n))
+    setNotifications((current) =>
+      (current ?? []).map(n => (n.id === id ? { ...n, read: true } : n))
     )
   }
 
   const markAllAsRead = () => {
-    setNotifications((current = []) =>
-      current.map(n => ({ ...n, read: true }))
+    setNotifications((current) =>
+      (current ?? []).map(n => ({ ...n, read: true }))
     )
   }
 
   const deleteNotification = (id: string) => {
-    setNotifications((current = []) => current.filter(n => n.id !== id))
+    setNotifications((current) => (current ?? []).filter(n => n.id !== id))
   }
 
   const clearAll = () => {

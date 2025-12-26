@@ -22,9 +22,12 @@ const STORES = ['Grocery Store', 'Farmers Market', 'Warehouse Club', 'Specialty 
 
 export default function ShoppingSection() {
   const { currentHousehold } = useAuth()
-  const [items = [], setItems] = useKV<ShoppingItem[]>('shopping-items', [])
-  const [meals = []] = useKV<Meal[]>('meals', [])
-  const [recipes = []] = useKV<Recipe[]>('recipes', [])
+  const [itemsRaw, setItems] = useKV<ShoppingItem[]>('shopping-items', [])
+  const [mealsRaw] = useKV<Meal[]>('meals', [])
+  const [recipesRaw] = useKV<Recipe[]>('recipes', [])
+  const items = itemsRaw ?? []
+  const meals = mealsRaw ?? []
+  const recipes = recipesRaw ?? []
   const [dialogOpen, setDialogOpen] = useState(false)
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null)
@@ -70,8 +73,8 @@ export default function ShoppingSection() {
     }
 
     if (editingItem) {
-      setItems((current = []) =>
-        current.map((item) =>
+      setItems((current) =>
+        (current ?? []).map((item) =>
           item.id === editingItem.id
             ? { ...item, ...itemData }
             : item
@@ -92,7 +95,7 @@ export default function ShoppingSection() {
         createdAt: Date.now()
       }
 
-      setItems((current = []) => [...current, newItem])
+      setItems((current) => [...(current ?? []), newItem])
       toast.success('Item added to list')
     }
 
@@ -102,15 +105,15 @@ export default function ShoppingSection() {
   }
 
   const handleToggleItem = (id: string) => {
-    setItems((current = []) =>
-      current.map((item) =>
+    setItems((current) =>
+      (current ?? []).map((item) =>
         item.id === id ? { ...item, purchased: !item.purchased } : item
       )
     )
   }
 
   const handleDeleteItem = (id: string) => {
-    setItems((current = []) => current.filter((item) => item.id !== id))
+    setItems((current) => (current ?? []).filter((item) => item.id !== id))
     toast.success('Item deleted')
   }
 
@@ -130,7 +133,7 @@ export default function ShoppingSection() {
   const clearPurchased = () => {
     const confirmed = window.confirm('Clear all purchased items? This cannot be undone.')
     if (confirmed) {
-      setItems((current = []) => current.filter((item) => !item.purchased))
+      setItems((current) => (current ?? []).filter((item) => !item.purchased))
       toast.success('Purchased items cleared')
     }
   }
@@ -184,7 +187,7 @@ export default function ShoppingSection() {
       createdAt: Date.now()
     }))
 
-    setItems((current = []) => [...current, ...newItems])
+    setItems((current) => [...(current ?? []), ...newItems])
     setGenerateDialogOpen(false)
     toast.success(`Added ${newItems.length} items from meal plan`)
   }

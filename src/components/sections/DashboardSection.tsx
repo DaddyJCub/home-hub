@@ -12,14 +12,21 @@ import WeeklyChoreSchedule from '@/components/WeeklyChoreSchedule'
 import { NotificationSummary } from '@/components/NotificationSummary'
 
 export default function DashboardSection() {
-  const [chores = []] = useKV<Chore[]>('chores', [])
-  const [shoppingItems = []] = useKV<ShoppingItem[]>('shopping-items', [])
-  const [meals = []] = useKV<Meal[]>('meals', [])
-  const [recipes = []] = useKV<Recipe[]>('recipes', [])
-  const [events = []] = useKV<CalendarEvent[]>('calendar-events', [])
-  const [members = []] = useKV<HouseholdMember[]>('household-members', [])
-  const [dashboardWidgets = []] = useKV<DashboardWidget[]>('dashboard-widgets', [])
-  const [selectedMember = 'all'] = useKV<string>('selected-member-filter', 'all')
+  const [choresRaw] = useKV<Chore[]>('chores', [])
+  const [shoppingItemsRaw] = useKV<ShoppingItem[]>('shopping-items', [])
+  const [mealsRaw] = useKV<Meal[]>('meals', [])
+  const [recipesRaw] = useKV<Recipe[]>('recipes', [])
+  const [eventsRaw] = useKV<CalendarEvent[]>('calendar-events', [])
+  const [membersRaw] = useKV<HouseholdMember[]>('household-members', [])
+  const [dashboardWidgetsRaw] = useKV<DashboardWidget[]>('dashboard-widgets', [])
+  const [selectedMember] = useKV<string>('selected-member-filter', 'all')
+  const chores = choresRaw ?? []
+  const shoppingItems = shoppingItemsRaw ?? []
+  const meals = mealsRaw ?? []
+  const recipes = recipesRaw ?? []
+  const events = eventsRaw ?? []
+  const members = membersRaw ?? []
+  const dashboardWidgets = dashboardWidgetsRaw ?? []
 
   const filteredChores = selectedMember === 'all' 
     ? chores 

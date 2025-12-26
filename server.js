@@ -109,7 +109,7 @@ cleanupCorruptedData();
 
 // ONE-TIME FULL DATABASE RESET - Remove this after first successful deploy
 // This ensures all corrupted data is cleared
-const RESET_VERSION = 2; // Increment this to force another reset
+const RESET_VERSION = 3; // Increment this to force another reset
 const resetMarker = db.prepare('SELECT value FROM kv_store WHERE key = ?').get('__reset_version__');
 const currentVersion = resetMarker ? JSON.parse(resetMarker.value) : 0;
 if (currentVersion < RESET_VERSION) {
@@ -156,7 +156,7 @@ const ARRAY_KEYS = [
 ];
 
 // KV Store API - GET
-// For missing keys, return null - Spark will use its default value
+// For missing keys, return 204 No Content - this should make Spark use the default value
 app.get('/_spark/kv/:key', (req, res) => {
   const { key } = req.params;
   try {
@@ -166,9 +166,9 @@ app.get('/_spark/kv/:key', (req, res) => {
       log('DEBUG', `GET /_spark/kv/${key}`, { found: true, valueType: typeof parsed, isArray: Array.isArray(parsed) });
       res.json(parsed);
     } else {
-      log('DEBUG', `GET /_spark/kv/${key}`, { found: false, returning: 'null' });
-      // Return null for missing keys - Spark should use default value
-      res.json(null);
+      log('DEBUG', `GET /_spark/kv/${key}`, { found: false, returning: '204 No Content' });
+      // Return 204 No Content for missing keys - hopefully Spark uses default value
+      res.status(204).end();
     }
   } catch (err) {
     log('ERROR', `GET /_spark/kv/${key} failed`, { error: err.message });

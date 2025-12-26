@@ -4,8 +4,9 @@ import { User, Users } from '@phosphor-icons/react'
 import type { HouseholdMember } from '@/lib/types'
 
 export default function MemberFilter() {
-  const [members = []] = useKV<HouseholdMember[]>('household-members', [])
+  const [membersRaw] = useKV<HouseholdMember[]>('household-members', [])
   const [selectedMember, setSelectedMember] = useKV<string>('selected-member-filter', 'all')
+  const members = membersRaw ?? []
 
   if (members.length === 0) {
     return null

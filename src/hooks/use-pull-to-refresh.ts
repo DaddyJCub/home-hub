@@ -8,7 +8,8 @@ interface UsePullToRefreshProps {
 }
 
 export function usePullToRefresh({ onRefresh, threshold = 80, enabled = true }: UsePullToRefreshProps) {
-  const [mobilePreferences = { pullToRefresh: true }] = useKV<any>('mobile-preferences', { pullToRefresh: true })
+  const [mobilePreferencesRaw] = useKV<any>('mobile-preferences', { pullToRefresh: true })
+  const mobilePreferences = mobilePreferencesRaw ?? { pullToRefresh: true }
   const [isPulling, setIsPulling] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [pullDistance, setPullDistance] = useState(0)

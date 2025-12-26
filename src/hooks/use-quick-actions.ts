@@ -17,8 +17,10 @@ interface UseQuickActionsProps {
 }
 
 export function useQuickActions({ onAction, hapticFeedback = true }: UseQuickActionsProps) {
-  const [config = DEFAULT_CONFIG] = useKV<QuickActionConfig>('quick-actions-config', DEFAULT_CONFIG)
-  const [mobilePreferences = { quickActions: true, hapticFeedback: true }] = useKV<any>('mobile-preferences', { quickActions: true, hapticFeedback: true })
+  const [configRaw] = useKV<QuickActionConfig>('quick-actions-config', DEFAULT_CONFIG)
+  const [mobilePreferencesRaw] = useKV<any>('mobile-preferences', { quickActions: true, hapticFeedback: true })
+  const config = configRaw ?? DEFAULT_CONFIG
+  const mobilePreferences = mobilePreferencesRaw ?? { quickActions: true, hapticFeedback: true }
   const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const [isLongPressing, setIsLongPressing] = useState(false)
 

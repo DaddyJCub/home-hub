@@ -32,13 +32,17 @@ interface DaypartConfig {
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerProps) {
-  const [recipes = []] = useKV<Recipe[]>('recipes', [])
-  const [meals, setMeals] = useKV<Meal[]>('meals', [])
+  const [recipesRaw] = useKV<Recipe[]>('recipes', [])
+  const [mealsRaw, setMeals] = useKV<Meal[]>('meals', [])
+  const recipes = recipesRaw ?? []
+  const meals = mealsRaw ?? []
   const { currentHousehold } = useAuth()
   const [isGenerating, setIsGenerating] = useState(false)
   
-  const [dayConstraints = [], setDayConstraints] = useKV<DayConstraint[]>('meal-day-constraints', [])
-  const [daypartConfigs = [], setDaypartConfigs] = useKV<DaypartConfig[]>('meal-daypart-configs', [])
+  const [dayConstraintsRaw, setDayConstraints] = useKV<DayConstraint[]>('meal-day-constraints', [])
+  const [daypartConfigsRaw, setDaypartConfigs] = useKV<DaypartConfig[]>('meal-daypart-configs', [])
+  const dayConstraints = dayConstraintsRaw ?? []
+  const daypartConfigs = daypartConfigsRaw ?? []
   
   const [newConstraintDay, setNewConstraintDay] = useState<string>('0')
   const [newConstraintTag, setNewConstraintTag] = useState<string>('')
@@ -51,16 +55,17 @@ export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerP
   }
 
   const toggleDaypart = (dayOfWeek: number, daypart: 'breakfast' | 'lunch' | 'dinner') => {
-    setDaypartConfigs((current = []) => {
-      const existing = current.find(c => c.dayOfWeek === dayOfWeek)
+    setDaypartConfigs((current) => {
+      const currentArr = current ?? []
+      const existing = currentArr.find(c => c.dayOfWeek === dayOfWeek)
       if (existing) {
-        return current.map(c => 
+        return currentArr.map(c => 
           c.dayOfWeek === dayOfWeek 
             ? { ...c, [daypart]: !c[daypart] }
             : c
         )
       } else {
-        return [...current, { 
+        return [...currentArr, { 
           dayOfWeek, 
           breakfast: daypart === 'breakfast' ? false : true,
           lunch: daypart === 'lunch' ? false : true,
@@ -80,16 +85,17 @@ export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerP
     const exists = dayConstraints.some(c => c.dayOfWeek === dayOfWeek)
     
     if (exists) {
-      setDayConstraints((current = []) => 
-        current.map(c => 
+      setDayConstraints((current) => {
+        const currentArr = current ?? []
+        return currentArr.map(c => 
           c.dayOfWeek === dayOfWeek 
             ? { ...c, requiredTag: newConstraintTag }
             : c
         )
-      )
+      })
     } else {
-      setDayConstraints((current = []) => [
-        ...current,
+      setDayConstraints((current) => [
+        ...(current ?? []),
         { dayOfWeek, requiredTag: newConstraintTag }
       ])
     }
@@ -99,7 +105,7 @@ export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerP
   }
 
   const removeDayConstraint = (dayOfWeek: number) => {
-    setDayConstraints((current = []) => current.filter(c => c.dayOfWeek !== dayOfWeek))
+    setDayConstraints((current) => (current ?? []).filter(c => c.dayOfWeek !== dayOfWeek))
     toast.success('Constraint removed')
   }
 
@@ -165,9 +171,10 @@ export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerP
         }
       }
 
-      setMeals((current = []) => {
+      setMeals((current) => {
+        const currentArr = current ?? []
         const weekDates = weekDays.map(d => d.date)
-        const currentNonWeek = current.filter(m => !weekDates.includes(m.date))
+        const currentNonWeek = currentArr.filter(m => !weekDates.includes(m.date))
         return [...currentNonWeek, ...newMeals]
       })
 

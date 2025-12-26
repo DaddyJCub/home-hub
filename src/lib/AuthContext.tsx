@@ -18,11 +18,16 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [users = [], setUsers] = useKV<User[]>('users', [])
-  const [currentUserId = null, setCurrentUserId] = useKV<string | null>('current-user-id', null)
-  const [households = [], setHouseholds] = useKV<Household[]>('households', [])
-  const [householdMembers = [], setHouseholdMembers] = useKV<HouseholdMember[]>('household-members-v2', [])
-  const [currentHouseholdId = null, setCurrentHouseholdId] = useKV<string | null>('current-household-id', null)
+  const [usersRaw, setUsers] = useKV<User[]>('users', [])
+  const [currentUserId, setCurrentUserId] = useKV<string | null>('current-user-id', null)
+  const [householdsRaw, setHouseholds] = useKV<Household[]>('households', [])
+  const [householdMembersRaw, setHouseholdMembers] = useKV<HouseholdMember[]>('household-members-v2', [])
+  const [currentHouseholdId, setCurrentHouseholdId] = useKV<string | null>('current-household-id', null)
+  
+  // Null-safe fallbacks - useKV may return null instead of undefined
+  const users = usersRaw ?? []
+  const households = householdsRaw ?? []
+  const householdMembers = householdMembersRaw ?? []
   
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [currentHousehold, setCurrentHousehold] = useState<Household | null>(null)
