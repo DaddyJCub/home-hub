@@ -45,6 +45,14 @@ log('INFO', 'Database initialized');
 // Auto-cleanup corrupted data from old bug where we returned {success: true} instead of the actual value
 // This detects entries that are objects with just "success" key and removes them
 function cleanupCorruptedData() {
+  // Keys that MUST be arrays
+  const arrayKeys = [
+    'users', 'households', 'household-members', 'household-members-v2',
+    'chores', 'calendar-events', 'shopping-items', 'meals', 'recipes',
+    'dashboard-widgets', 'enabled-tabs', 'mobile-nav-items',
+    'notification-history', 'meal-day-constraints', 'meal-daypart-configs'
+  ];
+  
   try {
     const rows = db.prepare('SELECT key, value FROM kv_store').all();
     let cleaned = 0;
@@ -52,9 +60,8 @@ function cleanupCorruptedData() {
     for (const row of rows) {
       try {
         const parsed = JSON.parse(row.value);
-        // Detect corrupted data patterns:
-        // 1. {success: true} - from old PUT/POST response bug
-        // 2. Objects where we expected arrays (users, households, chores, etc.)
+        
+        // Check 1: {success: true} corruption
         const isCorruptedSuccessObject = (
           typeof parsed === 'object' && 
           parsed !== null && 
@@ -63,9 +70,20 @@ function cleanupCorruptedData() {
           parsed.success === true
         );
         
-        if (isCorruptedSuccessObject) {
+        // Check 2: Array keys that aren't arrays
+        const shouldBeArray = arrayKeys.includes(row.key);
+        const isNotArray = shouldBeArray && !Array.isArray(parsed);
+        
+        // Check 3: null values for array keys (shouldn't happen)
+        const isNullArray = shouldBeArray && parsed === null;
+        
+        if (isCorruptedSuccessObject || isNotArray || isNullArray) {
           db.prepare('DELETE FROM kv_store WHERE key = ?').run(row.key);
-          log('INFO', `Cleaned corrupted data for key: ${row.key}`);
+          log('INFO', `Cleaned corrupted data for key: ${row.key}`, { 
+            reason: isCorruptedSuccessObject ? 'success-object' : isNotArray ? 'not-array' : 'null-array',
+            valueType: typeof parsed,
+            isArray: Array.isArray(parsed)
+          });
           cleaned++;
         }
       } catch (e) {
@@ -88,6 +106,18 @@ function cleanupCorruptedData() {
 
 // Run cleanup on startup
 cleanupCorruptedData();
+
+// ONE-TIME FULL DATABASE RESET - Remove this after first successful deploy
+// This ensures all corrupted data is cleared
+const RESET_VERSION = 2; // Increment this to force another reset
+const resetMarker = db.prepare('SELECT value FROM kv_store WHERE key = ?').get('__reset_version__');
+const currentVersion = resetMarker ? JSON.parse(resetMarker.value) : 0;
+if (currentVersion < RESET_VERSION) {
+  log('INFO', '=== PERFORMING ONE-TIME DATABASE RESET ===');
+  db.prepare('DELETE FROM kv_store').run();
+  db.prepare('INSERT INTO kv_store (key, value) VALUES (?, ?)').run('__reset_version__', JSON.stringify(RESET_VERSION));
+  log('INFO', '=== DATABASE RESET COMPLETE - Fresh start ===');
+}
 
 // Middleware
 app.use(express.json());
@@ -117,6 +147,14 @@ app.get('/healthz.txt', (req, res) => {
   res.send('ok');
 });
 
+// Keys that MUST be arrays - used for validation
+const ARRAY_KEYS = [
+  'users', 'households', 'household-members', 'household-members-v2',
+  'chores', 'calendar-events', 'shopping-items', 'meals', 'recipes',
+  'dashboard-widgets', 'enabled-tabs', 'mobile-nav-items',
+  'notification-history', 'meal-day-constraints', 'meal-daypart-configs'
+];
+
 // KV Store API - GET
 // For missing keys, return null - Spark will use its default value
 app.get('/_spark/kv/:key', (req, res) => {
@@ -141,6 +179,24 @@ app.get('/_spark/kv/:key', (req, res) => {
 // KV Store API - PUT/POST
 app.put('/_spark/kv/:key', (req, res) => {
   const { key } = req.params;
+  
+  // Validate: array keys must receive arrays, reject empty objects
+  if (ARRAY_KEYS.includes(key)) {
+    if (!Array.isArray(req.body)) {
+      log('WARN', `PUT /_spark/kv/${key} rejected - expected array`, { received: typeof req.body, isArray: false });
+      // Return empty array instead of saving corrupted data
+      res.json([]);
+      return;
+    }
+  }
+  
+  // Reject completely empty objects (likely empty request body)
+  if (typeof req.body === 'object' && req.body !== null && !Array.isArray(req.body) && Object.keys(req.body).length === 0) {
+    log('WARN', `PUT /_spark/kv/${key} rejected - empty object`);
+    res.json(null);
+    return;
+  }
+  
   const value = JSON.stringify(req.body);
   log('DEBUG', `PUT /_spark/kv/${key}`, { bodyType: typeof req.body, isArray: Array.isArray(req.body), storedValue: value.substring(0, 200) });
   try {
@@ -160,6 +216,24 @@ app.put('/_spark/kv/:key', (req, res) => {
 
 app.post('/_spark/kv/:key', (req, res) => {
   const { key } = req.params;
+  
+  // Validate: array keys must receive arrays, reject empty objects
+  if (ARRAY_KEYS.includes(key)) {
+    if (!Array.isArray(req.body)) {
+      log('WARN', `POST /_spark/kv/${key} rejected - expected array`, { received: typeof req.body, isArray: false });
+      // Return empty array instead of saving corrupted data
+      res.json([]);
+      return;
+    }
+  }
+  
+  // Reject completely empty objects (likely empty request body)
+  if (typeof req.body === 'object' && req.body !== null && !Array.isArray(req.body) && Object.keys(req.body).length === 0) {
+    log('WARN', `POST /_spark/kv/${key} rejected - empty object`);
+    res.json(null);
+    return;
+  }
+  
   const value = JSON.stringify(req.body);
   log('DEBUG', `POST /_spark/kv/${key}`, { bodyType: typeof req.body, isArray: Array.isArray(req.body), storedValue: value.substring(0, 200) });
   try {
