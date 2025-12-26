@@ -650,6 +650,7 @@ export default function RecipesSection() {
           </DialogContent>
         </Dialog>
       </div>
+    </div>
 
       {(recipes.length > 0 || allTags.length > 0) && (
         <div className="space-y-3">
