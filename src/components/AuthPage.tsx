@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -20,14 +20,15 @@ export default function AuthPage() {
     setIsLoading(true)
 
     try {
-      const success = await login(loginForm.email, loginForm.password)
-      if (success) {
+      const result = await login(loginForm.email, loginForm.password)
+      if (result.success) {
         toast.success('Welcome back!')
       } else {
-        toast.error('Invalid email or password')
+        toast.error(result.error || 'Invalid email or password')
       }
     } catch (error) {
-      toast.error('Login failed')
+      const message = error instanceof Error ? error.message : 'Login failed'
+      toast.error(message)
     } finally {
       setIsLoading(false)
     }
@@ -49,14 +50,15 @@ export default function AuthPage() {
     setIsLoading(true)
 
     try {
-      const success = await signup(signupForm.email, signupForm.password, signupForm.displayName)
-      if (success) {
+      const result = await signup(signupForm.email, signupForm.password, signupForm.displayName)
+      if (result.success) {
         toast.success('Account created! Welcome to HomeHub')
       } else {
-        toast.error('Email already in use')
+        toast.error(result.error || 'Signup failed')
       }
     } catch (error) {
-      toast.error('Signup failed')
+      const message = error instanceof Error ? error.message : 'Signup failed'
+      toast.error(message)
     } finally {
       setIsLoading(false)
     }
@@ -103,7 +105,7 @@ export default function AuthPage() {
                     <Input
                       id="login-password"
                       type="password"
-                      placeholder="••••••••"
+                      placeholder="********"
                       value={loginForm.password}
                       onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                       required
@@ -152,7 +154,7 @@ export default function AuthPage() {
                     <Input
                       id="signup-password"
                       type="password"
-                      placeholder="••••••••"
+                      placeholder="********"
                       value={signupForm.password}
                       onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
                       required
@@ -164,7 +166,7 @@ export default function AuthPage() {
                     <Input
                       id="signup-confirm"
                       type="password"
-                      placeholder="••••••••"
+                      placeholder="********"
                       value={signupForm.confirmPassword}
                       onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
                       required

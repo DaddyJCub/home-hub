@@ -46,6 +46,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import type { HouseholdMember, Chore, ShoppingItem, Meal, Recipe, CalendarEvent } from '@/lib/types'
 import { PWADiagnostics } from '@/components/PWADiagnostics'
 import { PushDiagnostics } from '@/components/PushDiagnostics'
+import DiagnosticsPanel from '@/components/DiagnosticsPanel'
 
 interface DashboardWidget {
   id: string
@@ -253,6 +254,7 @@ export default function SettingsSection() {
 
       <PWADiagnostics />
       <PushDiagnostics />
+      <DiagnosticsPanel />
 
       <Card>
         <CardHeader>

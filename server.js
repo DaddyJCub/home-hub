@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { KV_DEFAULTS, REQUIRED_KV_KEYS, cloneDefaultValue } from './kv-defaults.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,6 +32,22 @@ if (!fs.existsSync(DATA_DIR)) {
 const dbPath = path.join(DATA_DIR, 'homehub.db');
 log('INFO', `Opening database: ${dbPath}`);
 const db = new Database(dbPath);
+let lastSeededCount = 0;
+
+const persistKvValue = (key, value) => {
+  db.prepare(`
+    INSERT INTO kv_store (key, value, updated_at) 
+    VALUES (?, ?, strftime('%s', 'now'))
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = strftime('%s', 'now')
+  `).run(key, JSON.stringify(value));
+};
+
+const ARRAY_KEYS = [
+  'users', 'households', 'household-members', 'household-members-v2',
+  'chores', 'calendar-events', 'shopping-items', 'meals', 'recipes',
+  'dashboard-widgets', 'enabled-tabs', 'mobile-nav-items',
+  'notification-history', 'meal-day-constraints', 'meal-daypart-configs'
+];
 
 // Create KV table if not exists
 db.exec(`
@@ -104,6 +121,58 @@ function cleanupCorruptedData() {
   }
 }
 
+function seedDefaultKvValues() {
+  let seeded = 0;
+
+  for (const key of REQUIRED_KV_KEYS) {
+    try {
+      const row = db.prepare('SELECT value FROM kv_store WHERE key = ?').get(key);
+
+      if (row) {
+        try {
+          const parsed = JSON.parse(row.value);
+          const expectedArray = ARRAY_KEYS.includes(key);
+          if ((expectedArray && !Array.isArray(parsed)) || parsed === null) {
+            const fallback = cloneDefaultValue(key);
+            persistKvValue(key, fallback);
+            seeded++;
+          }
+        } catch (parseErr) {
+          const fallback = cloneDefaultValue(key);
+          persistKvValue(key, fallback);
+          seeded++;
+        }
+        continue;
+      }
+
+      const defaultValue = cloneDefaultValue(key);
+      if (defaultValue !== undefined) {
+        persistKvValue(key, defaultValue);
+        seeded++;
+      }
+    } catch (err) {
+      log('ERROR', `Failed to seed default for key: ${key}`, { error: err.message });
+    }
+  }
+
+  lastSeededCount = seeded;
+  if (seeded > 0) {
+    log('INFO', `Seeded ${seeded} KV defaults`);
+  } else {
+    log('INFO', 'KV defaults already present');
+  }
+}
+
+const buildFallbackValue = (key) => {
+  if (Object.prototype.hasOwnProperty.call(KV_DEFAULTS, key)) {
+    return cloneDefaultValue(key);
+  }
+  if (ARRAY_KEYS.includes(key)) {
+    return [];
+  }
+  return null;
+};
+
 // Run cleanup on startup
 cleanupCorruptedData();
 
@@ -118,6 +187,9 @@ if (currentVersion < RESET_VERSION) {
   db.prepare('INSERT INTO kv_store (key, value) VALUES (?, ?)').run('__reset_version__', JSON.stringify(RESET_VERSION));
   log('INFO', '=== DATABASE RESET COMPLETE - Fresh start ===');
 }
+
+// Ensure required keys exist before serving requests
+seedDefaultKvValues();
 
 // Middleware
 app.use(express.json());
@@ -147,14 +219,6 @@ app.get('/healthz.txt', (req, res) => {
   res.send('ok');
 });
 
-// Keys that MUST be arrays - used for validation
-const ARRAY_KEYS = [
-  'users', 'households', 'household-members', 'household-members-v2',
-  'chores', 'calendar-events', 'shopping-items', 'meals', 'recipes',
-  'dashboard-widgets', 'enabled-tabs', 'mobile-nav-items',
-  'notification-history', 'meal-day-constraints', 'meal-daypart-configs'
-];
-
 // KV Store API - GET
 // For missing keys, return 204 No Content - this should make Spark use the default value
 app.get('/_spark/kv/:key', (req, res) => {
@@ -162,13 +226,21 @@ app.get('/_spark/kv/:key', (req, res) => {
   try {
     const row = db.prepare('SELECT value FROM kv_store WHERE key = ?').get(key);
     if (row) {
-      const parsed = JSON.parse(row.value);
-      log('DEBUG', `GET /_spark/kv/${key}`, { found: true, valueType: typeof parsed, isArray: Array.isArray(parsed) });
-      res.json(parsed);
+      try {
+        const parsed = JSON.parse(row.value);
+        log('DEBUG', `GET /_spark/kv/${key}`, { found: true, valueType: typeof parsed, isArray: Array.isArray(parsed) });
+        res.json(parsed);
+      } catch (parseErr) {
+        const fallback = buildFallbackValue(key);
+        persistKvValue(key, fallback);
+        log('WARN', `GET /_spark/kv/${key} returned corrupted JSON, resetting to fallback`);
+        res.json(fallback);
+      }
     } else {
-      log('DEBUG', `GET /_spark/kv/${key}`, { found: false, returning: '204 No Content' });
-      // Return 204 No Content for missing keys - hopefully Spark uses default value
-      res.status(204).end();
+      const fallback = buildFallbackValue(key);
+      persistKvValue(key, fallback);
+      log('DEBUG', `GET /_spark/kv/${key}`, { found: false, returning: 'default', defaultType: typeof fallback });
+      res.json(fallback);
     }
   } catch (err) {
     log('ERROR', `GET /_spark/kv/${key} failed`, { error: err.message });
@@ -200,11 +272,7 @@ app.put('/_spark/kv/:key', (req, res) => {
   const value = JSON.stringify(req.body);
   log('DEBUG', `PUT /_spark/kv/${key}`, { bodyType: typeof req.body, isArray: Array.isArray(req.body), storedValue: value.substring(0, 200) });
   try {
-    db.prepare(`
-      INSERT INTO kv_store (key, value, updated_at) 
-      VALUES (?, ?, strftime('%s', 'now'))
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = strftime('%s', 'now')
-    `).run(key, value);
+    persistKvValue(key, req.body);
     log('DEBUG', `PUT /_spark/kv/${key} saved successfully`);
     // Return the saved value - Spark uses this to update its state
     res.json(req.body);
@@ -237,11 +305,7 @@ app.post('/_spark/kv/:key', (req, res) => {
   const value = JSON.stringify(req.body);
   log('DEBUG', `POST /_spark/kv/${key}`, { bodyType: typeof req.body, isArray: Array.isArray(req.body), storedValue: value.substring(0, 200) });
   try {
-    db.prepare(`
-      INSERT INTO kv_store (key, value, updated_at) 
-      VALUES (?, ?, strftime('%s', 'now'))
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = strftime('%s', 'now')
-    `).run(key, value);
+    persistKvValue(key, req.body);
     log('DEBUG', `POST /_spark/kv/${key} saved successfully`);
     // Return the saved value - Spark uses this to update its state
     res.json(req.body);
@@ -283,6 +347,44 @@ app.post('/_spark/llm', (req, res) => {
 app.get('/_spark/user', (req, res) => {
   log('DEBUG', 'GET /_spark/user');
   res.json(null);
+});
+
+app.get('/_spark/status', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT key FROM kv_store').all();
+    const keys = rows.map((row) => row.key);
+    const missing = REQUIRED_KV_KEYS.filter((key) => !keys.includes(key));
+    res.json({
+      ok: true,
+      keys,
+      missing,
+      defaultsSeeded: lastSeededCount,
+      resetVersion: currentVersion,
+      dataPath: dbPath
+    });
+  } catch (err) {
+    log('ERROR', 'GET /_spark/status failed', { error: err.message });
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/_spark/kv/seed-defaults', (req, res) => {
+  try {
+    seedDefaultKvValues();
+    const rows = db.prepare('SELECT key FROM kv_store').all();
+    const keys = rows.map((row) => row.key);
+    const missing = REQUIRED_KV_KEYS.filter((key) => !keys.includes(key));
+    res.json({ ok: true, missing, defaultsSeeded: lastSeededCount });
+  } catch (err) {
+    log('ERROR', 'POST /_spark/kv/seed-defaults failed', { error: err.message });
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/_debug/auth-log', (req, res) => {
+  const { event = 'auth', message = 'Auth log', context = null } = req.body || {};
+  log('AUTH', message, { event, context });
+  res.json({ ok: true });
 });
 
 // Debug endpoint - dump all KV data (useful for troubleshooting)
