@@ -20,6 +20,8 @@ interface AuthContextType {
   switchHousehold: (householdId: string) => void
   createHousehold: (name: string) => Household | null
   joinHousehold: (inviteCode: string) => AuthResult
+  addHouseholdMember: (displayName: string) => HouseholdMember | null
+  removeHouseholdMember: (memberId: string) => boolean
   currentUserRole: 'owner' | 'admin' | 'member' | null
   lastAuthError: string | null
 }
@@ -205,6 +207,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true }
   }
 
+  // Add a household member (non-user member for chore assignment)
+  const addHouseholdMember = (displayName: string): HouseholdMember | null => {
+    if (!currentHouseholdId || !displayName.trim()) return null
+    
+    const newMember: HouseholdMember = {
+      id: generateId(),
+      householdId: currentHouseholdId,
+      userId: `local_${generateId()}`, // Local-only member (not a real user)
+      displayName: displayName.trim(),
+      role: 'member',
+      joinedAt: Date.now()
+    }
+    setHouseholdMembers(prev => [...prev, newMember])
+    return newMember
+  }
+
+  // Remove a household member
+  const removeHouseholdMember = (memberId: string): boolean => {
+    if (!currentHouseholdId) return false
+    
+    const member = householdMembers.find(m => m.id === memberId && m.householdId === currentHouseholdId)
+    if (!member) return false
+    
+    // Don't allow removing the owner
+    if (member.role === 'owner') return false
+    
+    setHouseholdMembers(prev => prev.filter(m => m.id !== memberId))
+    return true
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -219,6 +251,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         switchHousehold,
         createHousehold,
         joinHousehold,
+        addHouseholdMember,
+        removeHouseholdMember,
         currentUserRole,
         lastAuthError
       }}

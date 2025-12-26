@@ -17,9 +17,12 @@ import { useAuth } from '@/lib/AuthContext'
 export default function MealsSection() {
   const [mealsRaw, setMeals] = useKV<Meal[]>('meals', [])
   const [recipesRaw] = useKV<Recipe[]>('recipes', [])
-  const meals = mealsRaw ?? []
-  const recipes = recipesRaw ?? []
   const { currentHousehold } = useAuth()
+  // Filter data by current household
+  const allMeals = mealsRaw ?? []
+  const allRecipes = recipesRaw ?? []
+  const meals = currentHousehold ? allMeals.filter(m => m.householdId === currentHousehold.id) : []
+  const recipes = currentHousehold ? allRecipes.filter(r => r.householdId === currentHousehold.id) : []
   const [dialogOpen, setDialogOpen] = useState(false)
   const [autoPlannerOpen, setAutoPlannerOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string>('')
@@ -38,6 +41,11 @@ export default function MealsSection() {
   }
 
   const handleAddMeal = () => {
+    if (!currentHousehold) {
+      toast.error('Please select a household first')
+      return
+    }
+    
     if (!mealForm.name.trim()) {
       toast.error('Please enter a meal name')
       return
@@ -45,7 +53,7 @@ export default function MealsSection() {
 
     const newMeal: Meal = {
       id: Date.now().toString(),
-      householdId: currentHousehold?.id || '',
+      householdId: currentHousehold.id,
       date: selectedDate,
       type: mealForm.type,
       name: mealForm.name.trim(),

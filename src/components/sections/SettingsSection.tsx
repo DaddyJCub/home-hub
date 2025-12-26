@@ -48,6 +48,7 @@ import { PWADiagnostics } from '@/components/PWADiagnostics'
 import { PushDiagnostics } from '@/components/PushDiagnostics'
 import { useAuth } from '@/lib/AuthContext'
 import DiagnosticsPanel from '@/components/DiagnosticsPanel'
+import { BugTracker } from '@/components/BugTracker'
 
 interface DashboardWidget {
   id: string
@@ -56,7 +57,7 @@ interface DashboardWidget {
 }
 
 export default function SettingsSection() {
-  const { householdMembers } = useAuth()
+  const { householdMembers, addHouseholdMember, removeHouseholdMember, currentHousehold } = useAuth()
   const [currentThemeId, setCurrentThemeId] = useKV<string>('theme-id', 'warm-home')
   const [isDarkMode, setIsDarkMode] = useKV<boolean>('dark-mode', false)
   const [dashboardWidgetsRaw, setDashboardWidgets] = useKV<DashboardWidget[]>('dashboard-widgets', [])
@@ -117,11 +118,23 @@ export default function SettingsSection() {
       return
     }
 
-    toast.info('Member management has been moved to household settings')
+    const newMember = addHouseholdMember(newMemberName.trim())
+    if (newMember) {
+      toast.success(`${newMemberName.trim()} added to household`)
+      setNewMemberName('')
+      setIsAddMemberOpen(false)
+    } else {
+      toast.error('Failed to add member')
+    }
   }
 
   const handleRemoveMember = (memberId: string) => {
-    toast.info('Member management has been moved to household settings')
+    const success = removeHouseholdMember(memberId)
+    if (success) {
+      toast.success('Member removed from household')
+    } else {
+      toast.error('Cannot remove this member (owner cannot be removed)')
+    }
   }
 
   const handleToggleWidget = (widgetId: string) => {
@@ -133,34 +146,44 @@ export default function SettingsSection() {
   }
 
   const handleDeleteData = async () => {
+    if (!currentHousehold) {
+      toast.error('No household selected')
+      setIsConfirmDeleteOpen(false)
+      return
+    }
+    
+    // Filter out current household's data only, keeping other households' data intact
+    const filterOtherHouseholds = <T extends { householdId: string }>(items: T[]) => 
+      items.filter(item => item.householdId !== currentHousehold.id)
+    
     switch (deleteTarget) {
       case 'all':
-        setChores([])
-        setShoppingItems([])
-        setMeals([])
-        setRecipes([])
-        setEvents([])
-        toast.success('All data deleted')
+        setChores(filterOtherHouseholds(chores))
+        setShoppingItems(filterOtherHouseholds(shoppingItems))
+        setMeals(filterOtherHouseholds(meals))
+        setRecipes(filterOtherHouseholds(recipes))
+        setEvents(filterOtherHouseholds(events))
+        toast.success('All household data deleted')
         break
       case 'chores':
-        setChores([])
-        toast.success('All chores deleted')
+        setChores(filterOtherHouseholds(chores))
+        toast.success('All household chores deleted')
         break
       case 'shopping':
-        setShoppingItems([])
-        toast.success('All shopping items deleted')
+        setShoppingItems(filterOtherHouseholds(shoppingItems))
+        toast.success('All household shopping items deleted')
         break
       case 'meals':
-        setMeals([])
-        toast.success('All meal plans deleted')
+        setMeals(filterOtherHouseholds(meals))
+        toast.success('All household meal plans deleted')
         break
       case 'recipes':
-        setRecipes([])
-        toast.success('All recipes deleted')
+        setRecipes(filterOtherHouseholds(recipes))
+        toast.success('All household recipes deleted')
         break
       case 'events':
-        setEvents([])
-        toast.success('All calendar events deleted')
+        setEvents(filterOtherHouseholds(events))
+        toast.success('All household calendar events deleted')
         break
     }
     setIsConfirmDeleteOpen(false)
@@ -171,12 +194,22 @@ export default function SettingsSection() {
   }
 
   const handleExportData = () => {
+    if (!currentHousehold) {
+      toast.error('No household selected')
+      return
+    }
+    
+    // Export only current household's data
+    const filterHousehold = <T extends { householdId: string }>(items: T[]) =>
+      items.filter(item => item.householdId === currentHousehold.id)
+    
     const exportData = {
-      chores,
-      shoppingItems,
-      meals,
-      recipes,
-      events,
+      householdName: currentHousehold.name,
+      chores: filterHousehold(chores),
+      shoppingItems: filterHousehold(shoppingItems),
+      meals: filterHousehold(meals),
+      recipes: filterHousehold(recipes),
+      events: filterHousehold(events),
       members,
       theme: currentThemeId,
       darkMode: isDarkMode,
@@ -248,6 +281,8 @@ export default function SettingsSection() {
       )}
 
       <NotificationSettings />
+
+      <BugTracker />
 
       <PWADiagnostics />
       <PushDiagnostics />

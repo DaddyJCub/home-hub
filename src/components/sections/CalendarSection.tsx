@@ -15,12 +15,13 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMont
 import { useAuth } from '@/lib/AuthContext'
 
 export default function CalendarSection() {
-  const { currentHousehold } = useAuth()
+  const { currentHousehold, householdMembers } = useAuth()
   const [eventsRaw, setEvents] = useKV<CalendarEvent[]>('calendar-events', [])
-  const [membersRaw] = useKV<HouseholdMember[]>('household-members', [])
   const [selectedMember] = useKV<string>('selected-member-filter', 'all')
-  const events = eventsRaw ?? []
-  const members = membersRaw ?? []
+  // Filter events by current household
+  const allEvents = eventsRaw ?? []
+  const events = currentHousehold ? allEvents.filter(e => e.householdId === currentHousehold.id) : []
+  const members = householdMembers ?? []
   const [currentDate, setCurrentDate] = useState(new Date())
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)

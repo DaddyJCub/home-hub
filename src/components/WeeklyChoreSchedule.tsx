@@ -5,11 +5,14 @@ import { Button } from '@/components/ui/button'
 import { CheckCircle, Circle, Clock, User } from '@phosphor-icons/react'
 import type { Chore } from '@/lib/types'
 import { format, startOfWeek, addDays, isToday } from 'date-fns'
+import { useAuth } from '@/lib/AuthContext'
 
 export default function WeeklyChoreSchedule() {
+  const { currentHousehold } = useAuth()
   const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
   const [selectedMember] = useKV<string>('selected-member-filter', 'all')
-  const chores = choresRaw ?? []
+  const allChores = choresRaw ?? []
+  const chores = currentHousehold ? allChores.filter(c => c.householdId === currentHousehold.id) : []
 
   const filteredChores = selectedMember === 'all' 
     ? chores 

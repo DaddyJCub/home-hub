@@ -2,11 +2,12 @@ import { useKV } from '@github/spark/hooks'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { User, Users } from '@phosphor-icons/react'
 import type { HouseholdMember } from '@/lib/types'
+import { useAuth } from '@/lib/AuthContext'
 
 export default function MemberFilter() {
-  const [membersRaw] = useKV<HouseholdMember[]>('household-members', [])
+  const { householdMembers } = useAuth()
   const [selectedMember, setSelectedMember] = useKV<string>('selected-member-filter', 'all')
-  const members = membersRaw ?? []
+  const members = householdMembers ?? []
 
   if (members.length === 0) {
     return null

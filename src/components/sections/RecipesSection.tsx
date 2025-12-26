@@ -17,7 +17,9 @@ import { useAuth } from '@/lib/AuthContext'
 export default function RecipesSection() {
   const { currentHousehold } = useAuth()
   const [recipesRaw, setRecipes] = useKV<Recipe[]>('recipes', [])
-  const recipes = recipesRaw ?? []
+  // Filter recipes by current household
+  const allRecipes = recipesRaw ?? []
+  const recipes = currentHousehold ? allRecipes.filter(r => r.householdId === currentHousehold.id) : []
   const [dialogOpen, setDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null)

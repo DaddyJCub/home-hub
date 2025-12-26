@@ -25,9 +25,13 @@ export default function ShoppingSection() {
   const [itemsRaw, setItems] = useKV<ShoppingItem[]>('shopping-items', [])
   const [mealsRaw] = useKV<Meal[]>('meals', [])
   const [recipesRaw] = useKV<Recipe[]>('recipes', [])
-  const items = itemsRaw ?? []
-  const meals = mealsRaw ?? []
-  const recipes = recipesRaw ?? []
+  // Filter data by current household
+  const allItems = itemsRaw ?? []
+  const allMeals = mealsRaw ?? []
+  const allRecipes = recipesRaw ?? []
+  const items = currentHousehold ? allItems.filter(i => i.householdId === currentHousehold.id) : []
+  const meals = currentHousehold ? allMeals.filter(m => m.householdId === currentHousehold.id) : []
+  const recipes = currentHousehold ? allRecipes.filter(r => r.householdId === currentHousehold.id) : []
   const [dialogOpen, setDialogOpen] = useState(false)
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null)

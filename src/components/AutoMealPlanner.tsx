@@ -34,9 +34,14 @@ const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
 export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerProps) {
   const [recipesRaw] = useKV<Recipe[]>('recipes', [])
   const [mealsRaw, setMeals] = useKV<Meal[]>('meals', [])
-  const recipes = recipesRaw ?? []
-  const meals = mealsRaw ?? []
+  const allRecipes = recipesRaw ?? []
+  const allMeals = mealsRaw ?? []
   const { currentHousehold } = useAuth()
+  
+  // Filter by current household
+  const recipes = currentHousehold ? allRecipes.filter(r => r.householdId === currentHousehold.id) : []
+  const meals = currentHousehold ? allMeals.filter(m => m.householdId === currentHousehold.id) : []
+  
   const [isGenerating, setIsGenerating] = useState(false)
   
   const [dayConstraintsRaw, setDayConstraints] = useKV<DayConstraint[]>('meal-day-constraints', [])
@@ -108,6 +113,11 @@ export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerP
   }
 
   const handleGenerateMealPlan = () => {
+    if (!currentHousehold) {
+      toast.error('Please select a household first')
+      return
+    }
+    
     if (recipes.length === 0) {
       toast.error('Add some recipes first before auto-planning')
       return
@@ -158,7 +168,7 @@ export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerP
           
           newMeals.push({
             id: `${Date.now()}-${date}-${daypart}`,
-            householdId: currentHousehold?.id || '',
+            householdId: currentHousehold.id,
             date,
             type: daypart,
             name: randomRecipe.name,

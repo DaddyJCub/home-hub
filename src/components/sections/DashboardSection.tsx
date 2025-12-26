@@ -1,5 +1,5 @@
 import { useKV } from '@github/spark/hooks'
-import { CalendarBlank, CheckCircle, ShoppingCart, CookingPot, Broom, TrendUp, Sparkle, MapPin, Clock, User } from '@phosphor-icons/react'
+import { CalendarBlank, CheckCircle, ShoppingCart, CookingPot, Broom, TrendUp, Sparkle, MapPin, Clock, User, ArrowRight } from '@phosphor-icons/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,22 +10,33 @@ import { useState } from 'react'
 import DashboardCustomizer, { type DashboardWidget } from '@/components/DashboardCustomizer'
 import WeeklyChoreSchedule from '@/components/WeeklyChoreSchedule'
 import { NotificationSummary } from '@/components/NotificationSummary'
+import { useAuth } from '@/lib/AuthContext'
 
-export default function DashboardSection() {
+interface DashboardSectionProps {
+  onNavigate?: (tab: string) => void
+}
+
+export default function DashboardSection({ onNavigate }: DashboardSectionProps) {
+  const { householdMembers, currentHousehold } = useAuth()
   const [choresRaw] = useKV<Chore[]>('chores', [])
   const [shoppingItemsRaw] = useKV<ShoppingItem[]>('shopping-items', [])
   const [mealsRaw] = useKV<Meal[]>('meals', [])
   const [recipesRaw] = useKV<Recipe[]>('recipes', [])
   const [eventsRaw] = useKV<CalendarEvent[]>('calendar-events', [])
-  const [membersRaw] = useKV<HouseholdMember[]>('household-members', [])
   const [dashboardWidgetsRaw] = useKV<DashboardWidget[]>('dashboard-widgets', [])
   const [selectedMember] = useKV<string>('selected-member-filter', 'all')
-  const chores = choresRaw ?? []
-  const shoppingItems = shoppingItemsRaw ?? []
-  const meals = mealsRaw ?? []
-  const recipes = recipesRaw ?? []
-  const events = eventsRaw ?? []
-  const members = membersRaw ?? []
+  // Filter all data by current household
+  const allChores = choresRaw ?? []
+  const allShoppingItems = shoppingItemsRaw ?? []
+  const allMeals = mealsRaw ?? []
+  const allRecipes = recipesRaw ?? []
+  const allEvents = eventsRaw ?? []
+  const chores = currentHousehold ? allChores.filter(c => c.householdId === currentHousehold.id) : []
+  const shoppingItems = currentHousehold ? allShoppingItems.filter(i => i.householdId === currentHousehold.id) : []
+  const meals = currentHousehold ? allMeals.filter(m => m.householdId === currentHousehold.id) : []
+  const recipes = currentHousehold ? allRecipes.filter(r => r.householdId === currentHousehold.id) : []
+  const events = currentHousehold ? allEvents.filter(e => e.householdId === currentHousehold.id) : []
+  const members = householdMembers ?? []
   const dashboardWidgets = dashboardWidgetsRaw ?? []
 
   const filteredChores = selectedMember === 'all' 
@@ -139,71 +150,95 @@ export default function DashboardSection() {
       case 'stats':
         return (
           <div key="stats" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
+            <Card 
+              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
+              onClick={() => onNavigate?.('chores')}
+            >
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Pending Chores</CardTitle>
-                <Broom className="text-muted-foreground" size={20} />
+                <Broom className="text-muted-foreground group-hover:text-primary transition-colors" size={20} />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-primary">{pendingChores.length}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {chores.length > 0
-                    ? `${Math.round((chores.length - pendingChores.length) / chores.length * 100)}% complete`
-                    : 'No chores yet'}
+                <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
+                  <span>
+                    {chores.length > 0
+                      ? `${Math.round((chores.length - pendingChores.length) / chores.length * 100)}% complete`
+                      : 'No chores yet'}
+                  </span>
+                  <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                 </p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card 
+              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
+              onClick={() => onNavigate?.('shopping')}
+            >
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Shopping List</CardTitle>
-                <ShoppingCart className="text-muted-foreground" size={20} />
+                <ShoppingCart className="text-muted-foreground group-hover:text-primary transition-colors" size={20} />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-primary">{unpurchasedItems.length}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {shoppingItems.length > 0
-                    ? `${shoppingItems.length - unpurchasedItems.length} purchased`
-                    : 'List is empty'}
+                <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
+                  <span>
+                    {shoppingItems.length > 0
+                      ? `${shoppingItems.length - unpurchasedItems.length} purchased`
+                      : 'List is empty'}
+                  </span>
+                  <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                 </p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card 
+              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
+              onClick={() => onNavigate?.('recipes')}
+            >
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Recipes</CardTitle>
-                <CookingPot className="text-muted-foreground" size={20} />
+                <CookingPot className="text-muted-foreground group-hover:text-primary transition-colors" size={20} />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-primary">{recipes.length}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  In your collection
+                <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
+                  <span>In your collection</span>
+                  <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                 </p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card 
+              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
+              onClick={() => onNavigate?.('meals')}
+            >
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Meals Planned</CardTitle>
-                <CalendarBlank className="text-muted-foreground" size={20} />
+                <CalendarBlank className="text-muted-foreground group-hover:text-primary transition-colors" size={20} />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-primary">{meals.length}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  This week
+                <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
+                  <span>This week</span>
+                  <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                 </p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card 
+              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
+              onClick={() => onNavigate?.('calendar')}
+            >
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Upcoming Events</CardTitle>
-                <CalendarBlank className="text-muted-foreground" size={20} />
+                <CalendarBlank className="text-muted-foreground group-hover:text-primary transition-colors" size={20} />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-primary">{upcomingEvents.length}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {todaysEvents.length > 0 ? `${todaysEvents.length} today` : 'Next few days'}
+                <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
+                  <span>{todaysEvents.length > 0 ? `${todaysEvents.length} today` : 'Next few days'}</span>
+                  <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                 </p>
               </CardContent>
             </Card>
@@ -212,7 +247,11 @@ export default function DashboardSection() {
 
       case 'time-estimate':
         return totalEstimatedTime > 0 ? (
-          <Card key="time-estimate" className="bg-accent/10 border-accent">
+          <Card 
+            key="time-estimate" 
+            className="bg-accent/10 border-accent cursor-pointer hover:shadow-md transition-all"
+            onClick={() => onNavigate?.('chores')}
+          >
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center">
@@ -471,11 +510,17 @@ export default function DashboardSection() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {isWidgetEnabled('today-meals') && (
-          <Card>
+          <Card 
+            className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+            onClick={() => onNavigate?.('meals')}
+          >
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CookingPot size={24} />
-              Today's Meals
+            <CardTitle className="flex items-center gap-2 justify-between">
+              <span className="flex items-center gap-2">
+                <CookingPot size={24} />
+                Today's Meals
+              </span>
+              <ArrowRight size={16} className="text-muted-foreground" />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -520,11 +565,17 @@ export default function DashboardSection() {
         )}
 
         {isWidgetEnabled('priorities') && (
-          <Card>
+          <Card 
+            className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+            onClick={() => onNavigate?.('chores')}
+          >
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle size={24} />
-              Top Priorities
+            <CardTitle className="flex items-center gap-2 justify-between">
+              <span className="flex items-center gap-2">
+                <CheckCircle size={24} />
+                Top Priorities
+              </span>
+              <ArrowRight size={16} className="text-muted-foreground" />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -559,11 +610,17 @@ export default function DashboardSection() {
         )}
 
         {isWidgetEnabled('upcoming-events') && (
-          <Card>
+          <Card 
+            className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+            onClick={() => onNavigate?.('calendar')}
+          >
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarBlank size={24} />
-                Upcoming Events
+              <CardTitle className="flex items-center gap-2 justify-between">
+                <span className="flex items-center gap-2">
+                  <CalendarBlank size={24} />
+                  Upcoming Events
+                </span>
+                <ArrowRight size={16} className="text-muted-foreground" />
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -607,11 +664,17 @@ export default function DashboardSection() {
       </div>
 
       {isWidgetEnabled('weekly-calendar') && (
-        <Card>
+        <Card 
+          className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+          onClick={() => onNavigate?.('meals')}
+        >
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarBlank size={24} />
-            Weekly Meal Calendar
+          <CardTitle className="flex items-center gap-2 justify-between">
+            <span className="flex items-center gap-2">
+              <CalendarBlank size={24} />
+              Weekly Meal Calendar
+            </span>
+            <ArrowRight size={16} className="text-muted-foreground" />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -658,11 +721,17 @@ export default function DashboardSection() {
       )}
 
       {isWidgetEnabled('shopping-preview') && unpurchasedItems.length > 0 && (
-        <Card>
+        <Card 
+          className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+          onClick={() => onNavigate?.('shopping')}
+        >
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShoppingCart size={24} />
-              Shopping List Preview
+            <CardTitle className="flex items-center gap-2 justify-between">
+              <span className="flex items-center gap-2">
+                <ShoppingCart size={24} />
+                Shopping List Preview
+              </span>
+              <ArrowRight size={16} className="text-muted-foreground" />
             </CardTitle>
           </CardHeader>
           <CardContent>

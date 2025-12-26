@@ -23,6 +23,7 @@ import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { NotificationIndicator } from '@/components/NotificationIndicator'
 import { NotificationCenter } from '@/components/NotificationCenter'
 import { RefreshIndicator } from '@/components/RefreshIndicator'
+import { BugIndicator } from '@/components/BugIndicator'
 import type { Chore, CalendarEvent } from '@/lib/types'
 import type { NavItem } from '@/components/MobileNavCustomizer'
 import DashboardSection from '@/components/sections/DashboardSection'
@@ -115,10 +116,14 @@ function AppContent() {
   // Null-safe fallbacks - useKV may return null instead of undefined
   const enabledTabs = enabledTabsRaw ?? TAB_CONFIGS.filter(t => t.enabled).map(t => t.id)
   const navItems = navItemsRaw ?? DEFAULT_NAV_ITEMS
-  const chores = choresRaw ?? []
-  const events = eventsRaw ?? []
+  const allChores = choresRaw ?? []
+  const allEvents = eventsRaw ?? []
   
   const { isAuthenticated, currentHousehold, logout } = useAuth()
+  
+  // Filter by current household for notifications
+  const chores = currentHousehold ? allChores.filter(c => c.householdId === currentHousehold.id) : []
+  const events = currentHousehold ? allEvents.filter(e => e.householdId === currentHousehold.id) : []
 
   useNotifications(chores, events)
 
@@ -134,9 +139,25 @@ function AppContent() {
   const visibleTabs = TAB_CONFIGS.filter(tab => enabledTabs.includes(tab.id))
   const tabOrder = visibleTabs.map(tab => tab.id)
   
+  // For mobile navigation: show first 4 enabled items in the bar, rest in More menu
   const enabledNavItems = navItems.filter(item => item.enabled && item.id !== 'settings')
   const visibleNavItems = enabledNavItems.slice(0, 4)
   const overflowNavItems = enabledNavItems.slice(4)
+  
+  // All available tabs for the More menu (includes disabled ones for quick access)
+  const allAvailableTabs: { id: string; label: string; iconName: string }[] = [
+    { id: 'dashboard', label: 'Dashboard', iconName: 'House' },
+    { id: 'chores', label: 'Chores', iconName: 'Broom' },
+    { id: 'shopping', label: 'Shopping', iconName: 'ShoppingCart' },
+    { id: 'meals', label: 'Meals', iconName: 'CookingPot' },
+    { id: 'calendar', label: 'Calendar', iconName: 'CalendarBlank' },
+    { id: 'recipes', label: 'Recipes', iconName: 'BookOpen' },
+  ]
+  
+  // Get tabs not in the visible nav items for the More menu
+  const moreMenuItems = allAvailableTabs.filter(
+    tab => !visibleNavItems.some(nav => nav.id === tab.id)
+  )
 
   const navigateToTab = (direction: 'left' | 'right') => {
     const currentIndex = tabOrder.indexOf(activeTab as TabId)
@@ -158,16 +179,12 @@ function AppContent() {
   })
 
   useEffect(() => {
-    const theme = getThemeById(currentThemeId)
-    if (theme) {
-      applyTheme(theme, isDarkMode)
-    }
-  }, [])
-
-  useEffect(() => {
-    const theme = getThemeById(currentThemeId)
-    if (theme) {
-      applyTheme(theme, isDarkMode)
+    // Apply theme when values are loaded from storage
+    if (currentThemeId) {
+      const theme = getThemeById(currentThemeId)
+      if (theme) {
+        applyTheme(theme, isDarkMode ?? false)
+      }
     }
   }, [currentThemeId, isDarkMode])
 
@@ -197,6 +214,7 @@ function AppContent() {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
+              <BugIndicator onClick={() => setActiveTab('settings')} />
               <NotificationCenter chores={chores} events={events} />
               <HouseholdSwitcher />
             </div>
@@ -277,7 +295,7 @@ function AppContent() {
           )}
 
           <TabsContent value="dashboard" className="mt-0">
-            <DashboardSection />
+            <DashboardSection onNavigate={setActiveTab} />
           </TabsContent>
 
           <TabsContent value="chores" className="mt-0">
@@ -328,31 +346,41 @@ function AppContent() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex flex-col items-center gap-0.5 py-2 transition-colors text-muted-foreground"
+                  className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
+                    moreMenuItems.some(item => item.id === activeTab) || activeTab === 'settings' 
+                      ? 'text-primary' 
+                      : 'text-muted-foreground'
+                  }`}
                 >
                   <DotsThree size={22} weight="bold" />
                   <span className="text-[10px] font-medium">More</span>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 mb-2">
-                {overflowNavItems.map((item) => {
-                  const IconComponent = getIcon(item.iconName)
+                {moreMenuItems.map((item) => {
+                  const IconComponent = getIcon(item.iconName, item.id)
+                  const isActive = activeTab === item.id
                   
                   return (
                     <DropdownMenuItem
                       key={item.id}
                       onClick={() => setActiveTab(item.id)}
-                      className="gap-2"
+                      className={`gap-2 ${isActive ? 'bg-accent' : ''}`}
                     >
                       <IconComponent size={18} />
                       {item.label}
+                      {isActive && <span className="ml-auto text-xs text-primary">●</span>}
                     </DropdownMenuItem>
                   )
                 })}
-                {overflowNavItems.length > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuItem onClick={() => setActiveTab('settings')} className="gap-2">
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => setActiveTab('settings')} 
+                  className={`gap-2 ${activeTab === 'settings' ? 'bg-accent' : ''}`}
+                >
                   <Gear size={18} />
                   Settings
+                  {activeTab === 'settings' && <span className="ml-auto text-xs text-primary">●</span>}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

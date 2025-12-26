@@ -41,12 +41,15 @@ const DAYS_OF_WEEK = [
 ]
 
 export default function ChoresSection() {
-  const { currentHousehold } = useAuth()
+  const { currentHousehold, householdMembers } = useAuth()
   const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
-  const [membersRaw, setMembers] = useKV<HouseholdMember[]>('household-members', [])
   const [selectedMember] = useKV<string>('selected-member-filter', 'all')
-  const chores = choresRaw ?? []
-  const members = membersRaw ?? []
+  // Filter chores by current household
+  const allChores = choresRaw ?? []
+  const chores = currentHousehold 
+    ? allChores.filter(c => c.householdId === currentHousehold.id)
+    : []
+  const members = householdMembers ?? []
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingChore, setEditingChore] = useState<Chore | null>(null)
   

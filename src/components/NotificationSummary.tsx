@@ -5,20 +5,28 @@ import { Progress } from '@/components/ui/progress'
 import { Broom, CalendarBlank, ShoppingCart, CookingPot, CheckCircle, Clock } from '@phosphor-icons/react'
 import type { Chore, CalendarEvent, ShoppingItem, Meal } from '@/lib/types'
 import { formatDistanceToNow } from 'date-fns'
+import { useAuth } from '@/lib/AuthContext'
 
 interface NotificationSummaryProps {
   className?: string
 }
 
 export function NotificationSummary({ className }: NotificationSummaryProps) {
+  const { currentHousehold } = useAuth()
   const [choresRaw] = useKV<Chore[]>('chores', [])
   const [eventsRaw] = useKV<CalendarEvent[]>('calendar-events', [])
   const [shoppingItemsRaw] = useKV<ShoppingItem[]>('shopping-items', [])
   const [mealsRaw] = useKV<Meal[]>('meals', [])
-  const chores = choresRaw ?? []
-  const events = eventsRaw ?? []
-  const shoppingItems = shoppingItemsRaw ?? []
-  const meals = mealsRaw ?? []
+  const allChores = choresRaw ?? []
+  const allEvents = eventsRaw ?? []
+  const allShoppingItems = shoppingItemsRaw ?? []
+  const allMeals = mealsRaw ?? []
+  
+  // Filter by current household
+  const chores = currentHousehold ? allChores.filter(c => c.householdId === currentHousehold.id) : []
+  const events = currentHousehold ? allEvents.filter(e => e.householdId === currentHousehold.id) : []
+  const shoppingItems = currentHousehold ? allShoppingItems.filter(i => i.householdId === currentHousehold.id) : []
+  const meals = currentHousehold ? allMeals.filter(m => m.householdId === currentHousehold.id) : []
 
   const now = Date.now()
   const today = new Date().setHours(0, 0, 0, 0)
