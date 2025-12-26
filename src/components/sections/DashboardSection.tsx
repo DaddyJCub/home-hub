@@ -1,14 +1,17 @@
 import { useKV } from '@github/spark/hooks'
-import { CalendarBlank, CheckCircle, ShoppingCart, CookingPot, Broom, TrendUp, Sparkle, MapPin, Clock, User, ArrowRight } from '@phosphor-icons/react'
+import { 
+  CalendarBlank, CheckCircle, ShoppingCart, CookingPot, Broom, 
+  Clock, User, ArrowRight, CaretDown, CaretUp, House, Sparkle,
+  Sun, Moon, CloudSun, MapPin, Bell, Warning
+} from '@phosphor-icons/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent, HouseholdMember } from '@/lib/types'
-import { format, startOfWeek, addDays, isToday, isAfter, isSameDay, startOfDay } from 'date-fns'
-import { useState } from 'react'
-import DashboardCustomizer, { type DashboardWidget } from '@/components/DashboardCustomizer'
-import WeeklyChoreSchedule from '@/components/WeeklyChoreSchedule'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent } from '@/lib/types'
+import { format, isToday, isAfter, isSameDay, startOfDay, addDays, parseISO, isTomorrow } from 'date-fns'
+import { useState, useMemo } from 'react'
 import { NotificationSummary } from '@/components/NotificationSummary'
 import { useAuth } from '@/lib/AuthContext'
 
@@ -16,744 +19,556 @@ interface DashboardSectionProps {
   onNavigate?: (tab: string) => void
 }
 
+// Get greeting based on time of day
+const getGreeting = () => {
+  const hour = new Date().getHours()
+  if (hour < 12) return { text: 'Good morning', icon: Sun }
+  if (hour < 17) return { text: 'Good afternoon', icon: CloudSun }
+  return { text: 'Good evening', icon: Moon }
+}
+
+// Priority colors
+const priorityColors = {
+  high: 'bg-red-500/20 text-red-700 border-red-300 dark:text-red-300',
+  medium: 'bg-yellow-500/20 text-yellow-700 border-yellow-300 dark:text-yellow-300',
+  low: 'bg-green-500/20 text-green-700 border-green-300 dark:text-green-300'
+}
+
 export default function DashboardSection({ onNavigate }: DashboardSectionProps) {
-  const { householdMembers, currentHousehold } = useAuth()
+  const { householdMembers, currentHousehold, currentUser } = useAuth()
   const [choresRaw] = useKV<Chore[]>('chores', [])
   const [shoppingItemsRaw] = useKV<ShoppingItem[]>('shopping-items', [])
   const [mealsRaw] = useKV<Meal[]>('meals', [])
   const [recipesRaw] = useKV<Recipe[]>('recipes', [])
   const [eventsRaw] = useKV<CalendarEvent[]>('calendar-events', [])
-  const [dashboardWidgetsRaw] = useKV<DashboardWidget[]>('dashboard-widgets', [])
   const [selectedMember] = useKV<string>('selected-member-filter', 'all')
-  // Filter all data by current household
-  const allChores = choresRaw ?? []
-  const allShoppingItems = shoppingItemsRaw ?? []
-  const allMeals = mealsRaw ?? []
-  const allRecipes = recipesRaw ?? []
-  const allEvents = eventsRaw ?? []
-  const chores = currentHousehold ? allChores.filter(c => c.householdId === currentHousehold.id) : []
-  const shoppingItems = currentHousehold ? allShoppingItems.filter(i => i.householdId === currentHousehold.id) : []
-  const meals = currentHousehold ? allMeals.filter(m => m.householdId === currentHousehold.id) : []
-  const recipes = currentHousehold ? allRecipes.filter(r => r.householdId === currentHousehold.id) : []
-  const events = currentHousehold ? allEvents.filter(e => e.householdId === currentHousehold.id) : []
-  const members = householdMembers ?? []
-  const dashboardWidgets = dashboardWidgetsRaw ?? []
 
+  // Collapsible states
+  const [showAllChores, setShowAllChores] = useState(false)
+  const [showAllEvents, setShowAllEvents] = useState(false)
+  const [showShopping, setShowShopping] = useState(true)
+
+  // Filter all data by current household
+  const chores = useMemo(() => {
+    const all = choresRaw ?? []
+    return currentHousehold ? all.filter(c => c.householdId === currentHousehold.id) : []
+  }, [choresRaw, currentHousehold])
+
+  const shoppingItems = useMemo(() => {
+    const all = shoppingItemsRaw ?? []
+    return currentHousehold ? all.filter(i => i.householdId === currentHousehold.id) : []
+  }, [shoppingItemsRaw, currentHousehold])
+
+  const meals = useMemo(() => {
+    const all = mealsRaw ?? []
+    return currentHousehold ? all.filter(m => m.householdId === currentHousehold.id) : []
+  }, [mealsRaw, currentHousehold])
+
+  const recipes = useMemo(() => {
+    const all = recipesRaw ?? []
+    return currentHousehold ? all.filter(r => r.householdId === currentHousehold.id) : []
+  }, [recipesRaw, currentHousehold])
+
+  const events = useMemo(() => {
+    const all = eventsRaw ?? []
+    return currentHousehold ? all.filter(e => e.householdId === currentHousehold.id) : []
+  }, [eventsRaw, currentHousehold])
+
+  const members = householdMembers ?? []
+
+  // Filtered data based on selected member
   const filteredChores = selectedMember === 'all' 
     ? chores 
     : chores.filter(c => c.assignedTo === selectedMember)
-  
+
   const filteredEvents = selectedMember === 'all'
     ? events
     : events.filter(e => e.bookedBy === selectedMember || e.attendees?.includes(selectedMember))
 
-  const pendingChores = filteredChores.filter((c) => !c.completed)
-  const unpurchasedItems = shoppingItems.filter((i) => !i.purchased)
-  
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 })
-  const next7Days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  // Computed values
+  const pendingChores = filteredChores.filter(c => !c.completed)
+  const highPriorityChores = pendingChores.filter(c => c.priority === 'high')
+  const unpurchasedItems = shoppingItems.filter(i => !i.purchased)
   
   const todayStr = format(new Date(), 'yyyy-MM-dd')
-  const todaysMeals = meals.filter((m) => m.date === todayStr)
+  const todaysMeals = meals.filter(m => m.date === todayStr)
 
+  // Today's and upcoming events
+  const todaysEvents = useMemo(() => {
+    return filteredEvents
+      .filter(evt => evt.date === todayStr)
+      .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''))
+  }, [filteredEvents, todayStr])
+
+  const upcomingEvents = useMemo(() => {
+    const today = startOfDay(new Date())
+    return filteredEvents
+      .filter(evt => {
+        const eventDate = parseISO(evt.date)
+        return isAfter(eventDate, today) && !isSameDay(eventDate, today)
+      })
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 5)
+  }, [filteredEvents])
+
+  // Get recipe name helper
   const getRecipeName = (recipeId?: string) => {
     if (!recipeId) return null
-    const recipe = recipes.find((r) => r.id === recipeId)
+    const recipe = recipes.find(r => r.id === recipeId)
     return recipe?.name
   }
 
-  const getMealsForDay = (date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd')
-    return meals.filter((meal) => meal.date === dateStr)
-  }
+  // Completion stats
+  const completionRate = chores.length > 0 
+    ? Math.round(((chores.length - pendingChores.length) / chores.length) * 100)
+    : 0
 
-  const getRoomChores = () => {
-    const roomMap: Record<string, Chore[]> = {}
-    pendingChores.forEach((chore) => {
-      const room = chore.room || 'Unassigned'
-      if (!roomMap[room]) {
-        roomMap[room] = []
-      }
-      roomMap[room].push(chore)
-    })
-    return roomMap
-  }
-
-  const roomChores = getRoomChores()
-  const totalEstimatedTime = pendingChores.reduce((acc, chore) => 
-    acc + (chore.estimatedMinutes || 0), 0
-  )
-
-  const todaysEvents = filteredEvents.filter((evt) => evt.date === todayStr)
-  const upcomingEvents = filteredEvents
-    .filter((evt) => {
-      const eventDate = new Date(evt.date)
-      const today = startOfDay(new Date())
-      return isAfter(eventDate, today) || isSameDay(eventDate, today)
-    })
-    .sort((a, b) => {
-      const dateCompare = a.date.localeCompare(b.date)
-      if (dateCompare !== 0) return dateCompare
-      if (a.startTime && b.startTime) {
-        return a.startTime.localeCompare(b.startTime)
-      }
-      return 0
-    })
-    .slice(0, 5)
-
-  const categoryColors: Record<string, string> = {
-    personal: 'bg-blue-500/20 text-blue-700 border-blue-300',
-    work: 'bg-purple-500/20 text-purple-700 border-purple-300',
-    appointment: 'bg-green-500/20 text-green-700 border-green-300',
-    booking: 'bg-orange-500/20 text-orange-700 border-orange-300',
-    other: 'bg-gray-500/20 text-gray-700 border-gray-300'
-  }
-
-  const getMemberStats = (memberName: string) => {
-    const memberChores = chores.filter(c => c.assignedTo === memberName)
-    const pendingChores = memberChores.filter(c => !c.completed)
-    const completedChores = memberChores.filter(c => c.completed)
-    const memberEvents = events.filter(e => 
-      e.attendees?.includes(memberName) || e.bookedBy === memberName
-    )
-    
-    const completionRate = memberChores.length > 0 
-      ? Math.round((completedChores.length / memberChores.length) * 100)
-      : 0
-
-    return {
-      totalChores: memberChores.length,
-      pendingChores: pendingChores.length,
-      completedChores: completedChores.length,
-      completionRate,
-      upcomingEvents: memberEvents.length,
-      estimatedTime: pendingChores.reduce((acc, chore) => 
-        acc + (chore.estimatedMinutes || 0), 0
-      )
-    }
-  }
-
-  const isWidgetEnabled = (widgetId: string) => {
-    if (!dashboardWidgets || dashboardWidgets.length === 0) return true
-    const widget = dashboardWidgets.find((w) => w.id === widgetId)
-    return widget ? widget.enabled : true
-  }
-
-  const sortedWidgets = dashboardWidgets && dashboardWidgets.length > 0
-    ? [...dashboardWidgets].sort((a, b) => (a.order || 0) - (b.order || 0))
-    : []
-
-  const renderWidget = (widgetId: string) => {
-    if (!isWidgetEnabled(widgetId)) return null
-
-    switch (widgetId) {
-      case 'stats':
-        return (
-          <div key="stats" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card 
-              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
-              onClick={() => onNavigate?.('chores')}
-            >
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Pending Chores</CardTitle>
-                <Broom className="text-muted-foreground group-hover:text-primary transition-colors" size={20} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-primary">{pendingChores.length}</div>
-                <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
-                  <span>
-                    {chores.length > 0
-                      ? `${Math.round((chores.length - pendingChores.length) / chores.length * 100)}% complete`
-                      : 'No chores yet'}
-                  </span>
-                  <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card 
-              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
-              onClick={() => onNavigate?.('shopping')}
-            >
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Shopping List</CardTitle>
-                <ShoppingCart className="text-muted-foreground group-hover:text-primary transition-colors" size={20} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-primary">{unpurchasedItems.length}</div>
-                <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
-                  <span>
-                    {shoppingItems.length > 0
-                      ? `${shoppingItems.length - unpurchasedItems.length} purchased`
-                      : 'List is empty'}
-                  </span>
-                  <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card 
-              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
-              onClick={() => onNavigate?.('recipes')}
-            >
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Recipes</CardTitle>
-                <CookingPot className="text-muted-foreground group-hover:text-primary transition-colors" size={20} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-primary">{recipes.length}</div>
-                <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
-                  <span>In your collection</span>
-                  <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card 
-              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
-              onClick={() => onNavigate?.('meals')}
-            >
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Meals Planned</CardTitle>
-                <CalendarBlank className="text-muted-foreground group-hover:text-primary transition-colors" size={20} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-primary">{meals.length}</div>
-                <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
-                  <span>This week</span>
-                  <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card 
-              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
-              onClick={() => onNavigate?.('calendar')}
-            >
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Upcoming Events</CardTitle>
-                <CalendarBlank className="text-muted-foreground group-hover:text-primary transition-colors" size={20} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-primary">{upcomingEvents.length}</div>
-                <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
-                  <span>{todaysEvents.length > 0 ? `${todaysEvents.length} today` : 'Next few days'}</span>
-                  <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )
-
-      case 'time-estimate':
-        return totalEstimatedTime > 0 ? (
-          <Card 
-            key="time-estimate" 
-            className="bg-accent/10 border-accent cursor-pointer hover:shadow-md transition-all"
-            onClick={() => onNavigate?.('chores')}
-          >
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center">
-                  <Clock size={28} className="text-accent" />
-                </div>
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-muted-foreground">Estimated Time for Pending Chores</div>
-                  <div className="text-3xl font-bold text-accent mt-1">
-                    {Math.floor(totalEstimatedTime / 60)}h {totalEstimatedTime % 60}m
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm text-muted-foreground">{pendingChores.length} tasks</div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    ~{Math.round(totalEstimatedTime / pendingChores.length)} min avg
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null
-
-      case 'weekly-chore-schedule':
-        return <WeeklyChoreSchedule key="weekly-chore-schedule" />
-
-      case 'room-chores':
-        return Object.keys(roomChores).length > 0 ? (
-          <Card key="room-chores">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin size={24} />
-                Chores by Room
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Object.entries(roomChores)
-                  .sort(([, a], [, b]) => b.length - a.length)
-                  .map(([room, chores]) => {
-                    const totalTime = chores.reduce((acc, c) => acc + (c.estimatedMinutes || 0), 0)
-                    const priorityCount = {
-                      high: chores.filter(c => c.priority === 'high').length,
-                      medium: chores.filter(c => c.priority === 'medium').length,
-                      low: chores.filter(c => c.priority === 'low').length,
-                    }
-
-                    return (
-                      <Card key={room} className="border-2">
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-lg flex items-center justify-between">
-                            <span className="flex items-center gap-2">
-                              <MapPin size={18} className="text-primary" />
-                              {room}
-                            </span>
-                            <Badge variant="secondary">{chores.length}</Badge>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          {totalTime > 0 && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Clock size={14} />
-                              ~{totalTime} min total
-                            </div>
-                          )}
-                          <div className="flex gap-2">
-                            {priorityCount.high > 0 && (
-                              <Badge variant="destructive" className="text-xs">
-                                {priorityCount.high} high
-                              </Badge>
-                            )}
-                            {priorityCount.medium > 0 && (
-                              <Badge variant="default" className="text-xs">
-                                {priorityCount.medium} med
-                              </Badge>
-                            )}
-                            {priorityCount.low > 0 && (
-                              <Badge variant="outline" className="text-xs">
-                                {priorityCount.low} low
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="space-y-2 pt-2 border-t">
-                            {chores.slice(0, 3).map((chore) => (
-                              <div key={chore.id} className="text-sm flex items-start gap-2">
-                                <CheckCircle size={14} className="text-muted-foreground flex-shrink-0 mt-0.5" />
-                                <span className="flex-1 leading-tight">{chore.title}</span>
-                              </div>
-                            ))}
-                            {chores.length > 3 && (
-                              <p className="text-xs text-muted-foreground italic">
-                                +{chores.length - 3} more...
-                              </p>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-              </div>
-            </CardContent>
-          </Card>
-        ) : null
-
-      case 'member-stats':
-        return members.length > 0 && selectedMember === 'all' ? (
-          <Card key="member-stats">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User size={24} className="text-primary" />
-                Household Members
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {members.map((member) => {
-                  const stats = getMemberStats(member.displayName)
-                  return (
-                    <div key={member.id} className="p-4 rounded-lg border-2 bg-gradient-to-br from-card to-secondary/20 space-y-3 hover:border-primary/50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center ring-2 ring-primary/30">
-                            <User size={24} className="text-primary" />
-                          </div>
-                          <div>
-                            <div className="font-semibold text-lg">{member.displayName}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {stats.pendingChores} pending tasks
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-3xl font-bold text-primary">{stats.completionRate}%</div>
-                          <div className="text-xs text-muted-foreground">completion</div>
-                        </div>
-                      </div>
-                      
-                      {stats.totalChores > 0 && (
-                        <div className="space-y-2">
-                          <Progress value={stats.completionRate} className="h-2.5" />
-                          <div className="flex items-center justify-between text-sm text-muted-foreground">
-                            <span>{stats.completedChores} of {stats.totalChores} chores done</span>
-                            {stats.estimatedTime > 0 && (
-                              <span className="flex items-center gap-1">
-                                <Clock size={14} />
-                                ~{stats.estimatedTime} min
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="text-center p-3 rounded-md bg-primary/10 border border-primary/20">
-                          <div className="text-xl font-bold text-primary">{stats.totalChores}</div>
-                          <div className="text-xs text-muted-foreground">Total Chores</div>
-                        </div>
-                        <div className="text-center p-3 rounded-md bg-secondary/50 border border-secondary">
-                          <div className="text-xl font-bold text-foreground">{stats.upcomingEvents}</div>
-                          <div className="text-xs text-muted-foreground">Events</div>
-                        </div>
-                        <div className="text-center p-3 rounded-md bg-accent/10 border border-accent/20">
-                          <div className="text-xl font-bold text-accent">{stats.pendingChores}</div>
-                          <div className="text-xs text-muted-foreground">Pending</div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        ) : null
-
-      case 'todays-events':
-        return todaysEvents.length > 0 ? (
-          <Card key="todays-events">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarBlank size={24} />
-                Today's Events
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {todaysEvents.map((event) => (
-                  <div
-                    key={event.id}
-                    className="p-3 rounded-lg border bg-secondary/30 space-y-2"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="font-semibold">{event.title}</div>
-                        {event.startTime && (
-                          <div className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                            <Clock size={14} />
-                            {event.startTime}
-                            {event.endTime && ` - ${event.endTime}`}
-                          </div>
-                        )}
-                      </div>
-                      <Badge className={categoryColors[event.category]}>
-                        {event.category}
-                      </Badge>
-                    </div>
-                    {event.location && (
-                      <div className="text-sm flex items-center gap-2 text-muted-foreground">
-                        <MapPin size={14} />
-                        {event.location}
-                      </div>
-                    )}
-                    {event.bookedBy && (
-                      <div className="text-xs text-muted-foreground">
-                        Booked by: {event.bookedBy}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ) : null
-
-      default:
-        return null
-    }
-  }
+  const greeting = getGreeting()
+  const GreetingIcon = greeting.icon
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      <div className="flex items-start justify-between gap-2 md:gap-4 flex-wrap">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-2xl md:text-3xl font-bold truncate">Dashboard</h2>
-          <p className="text-sm text-muted-foreground">
-            {selectedMember === 'all' 
-              ? 'Your household at a glance' 
-              : `${selectedMember}'s view`}
-          </p>
+    <div className="space-y-4 pb-20">
+      {/* Greeting Header - Compact */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+            <GreetingIcon size={20} className="text-primary" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold">{greeting.text}</h2>
+            <p className="text-xs text-muted-foreground">
+              {format(new Date(), 'EEEE, MMMM d')}
+            </p>
+          </div>
         </div>
-        <DashboardCustomizer />
+        {currentHousehold && (
+          <Badge variant="outline" className="gap-1">
+            <House size={12} />
+            <span className="hidden sm:inline">{currentHousehold.name}</span>
+          </Badge>
+        )}
       </div>
 
+      {/* Notification Summary - If any */}
       <NotificationSummary />
 
-      {sortedWidgets.length > 0 ? (
-        sortedWidgets.map((widget) => renderWidget(widget.id))
-      ) : (
-        <>
-          {renderWidget('stats')}
-          {renderWidget('time-estimate')}
-          {renderWidget('weekly-chore-schedule')}
-          {renderWidget('room-chores')}
-          {renderWidget('member-stats')}
-          {renderWidget('todays-events')}
-        </>
-      )}
+      {/* Quick Stats Row - Horizontal scroll on mobile */}
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4 sm:overflow-visible">
+        <QuickStatPill
+          icon={Broom}
+          label="Chores"
+          value={pendingChores.length}
+          subtext={completionRate > 0 ? `${completionRate}% done` : undefined}
+          highlight={highPriorityChores.length > 0}
+          onClick={() => onNavigate?.('chores')}
+        />
+        <QuickStatPill
+          icon={ShoppingCart}
+          label="Shopping"
+          value={unpurchasedItems.length}
+          subtext="items"
+          onClick={() => onNavigate?.('shopping')}
+        />
+        <QuickStatPill
+          icon={CalendarBlank}
+          label="Today"
+          value={todaysEvents.length}
+          subtext="events"
+          highlight={todaysEvents.length > 0}
+          onClick={() => onNavigate?.('calendar')}
+        />
+        <QuickStatPill
+          icon={CookingPot}
+          label="Meals"
+          value={todaysMeals.length}
+          subtext="planned"
+          onClick={() => onNavigate?.('meals')}
+        />
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {isWidgetEnabled('today-meals') && (
-          <Card 
-            className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
-            onClick={() => onNavigate?.('meals')}
-          >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 justify-between">
-              <span className="flex items-center gap-2">
-                <CookingPot size={24} />
-                Today's Meals
-              </span>
-              <ArrowRight size={16} className="text-muted-foreground" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {todaysMeals.length > 0 ? (
-              <div className="space-y-3">
-                {['breakfast', 'lunch', 'dinner'].map((type) => {
-                  const typedMealType = type as 'breakfast' | 'lunch' | 'dinner'
-                  const meal = todaysMeals.find((m) => m.type === typedMealType)
-                  
-                  return (
-                    <div key={type} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30">
-                      <div className="flex-1">
-                        <div className="text-xs font-semibold text-muted-foreground uppercase mb-1">
-                          {type}
-                        </div>
-                        {meal ? (
-                          <>
-                            <div className="font-medium">{meal.name}</div>
-                            {meal.recipeId && (
-                              <Badge variant="outline" className="text-xs mt-1">
-                                <CookingPot size={12} className="mr-1" />
-                                {getRecipeName(meal.recipeId)}
-                              </Badge>
-                            )}
-                          </>
-                        ) : (
-                          <div className="text-sm text-muted-foreground italic">Not planned</div>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+      {/* Alert: High Priority Chores */}
+      {highPriorityChores.length > 0 && (
+        <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <Warning size={18} className="text-red-600 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium text-red-700 dark:text-red-300">
+                  {highPriorityChores.length} high priority {highPriorityChores.length === 1 ? 'task' : 'tasks'}
+                </span>
+                <span className="text-xs text-red-600/80 dark:text-red-400/80 ml-2">
+                  {highPriorityChores[0]?.title}
+                  {highPriorityChores.length > 1 && ` +${highPriorityChores.length - 1} more`}
+                </span>
               </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <CookingPot size={48} className="mx-auto mb-3 opacity-50" />
-                <p className="text-sm">No meals planned for today</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        )}
-
-        {isWidgetEnabled('priorities') && (
-          <Card 
-            className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
-            onClick={() => onNavigate?.('chores')}
-          >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 justify-between">
-              <span className="flex items-center gap-2">
-                <CheckCircle size={24} />
-                Top Priorities
-              </span>
-              <ArrowRight size={16} className="text-muted-foreground" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {pendingChores.length > 0 ? (
-                <>
-                  <div className="text-sm font-semibold text-muted-foreground">Pending Chores</div>
-                  {pendingChores.slice(0, 5).map((chore) => (
-                    <div key={chore.id} className="flex items-center gap-2 p-2 rounded-md bg-secondary/30">
-                      <CheckCircle size={16} className="text-muted-foreground flex-shrink-0" />
-                      <span className="text-sm flex-1">{chore.title}</span>
-                      <Badge variant="secondary" className="text-xs">
-                        {chore.assignedTo}
-                      </Badge>
-                    </div>
-                  ))}
-                  {pendingChores.length > 5 && (
-                    <p className="text-xs text-muted-foreground text-center">
-                      +{pendingChores.length - 5} more chores
-                    </p>
-                  )}
-                </>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <CheckCircle size={48} className="mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">All chores completed!</p>
-                </div>
-              )}
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="text-red-700 hover:bg-red-100 dark:text-red-300 px-2"
+                onClick={() => onNavigate?.('chores')}
+              >
+                <ArrowRight size={16} />
+              </Button>
             </div>
           </CardContent>
         </Card>
-        )}
-
-        {isWidgetEnabled('upcoming-events') && (
-          <Card 
-            className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
-            onClick={() => onNavigate?.('calendar')}
-          >
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 justify-between">
-                <span className="flex items-center gap-2">
-                  <CalendarBlank size={24} />
-                  Upcoming Events
-                </span>
-                <ArrowRight size={16} className="text-muted-foreground" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {upcomingEvents.length > 0 ? (
-                <div className="space-y-3">
-                  {upcomingEvents.map((event) => (
-                    <div
-                      key={event.id}
-                      className="p-3 rounded-lg border bg-secondary/30 space-y-1"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">{event.title}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {format(new Date(event.date), 'MMM d')}
-                            {event.startTime && ` at ${event.startTime}`}
-                          </div>
-                        </div>
-                        <Badge className={`text-xs ${categoryColors[event.category]}`}>
-                          {event.category}
-                        </Badge>
-                      </div>
-                      {event.location && (
-                        <div className="text-xs flex items-center gap-1 text-muted-foreground">
-                          <MapPin size={12} />
-                          {event.location}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <CalendarBlank size={48} className="mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">No upcoming events</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {isWidgetEnabled('weekly-calendar') && (
-        <Card 
-          className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
-          onClick={() => onNavigate?.('meals')}
-        >
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 justify-between">
-            <span className="flex items-center gap-2">
-              <CalendarBlank size={24} />
-              Weekly Meal Calendar
-            </span>
-            <ArrowRight size={16} className="text-muted-foreground" />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
-            {next7Days.map((day) => {
-              const dayMeals = getMealsForDay(day)
-              const isDayToday = isToday(day)
-
-              return (
-                <div
-                  key={day.toString()}
-                  className={`p-3 rounded-lg border-2 ${
-                    isDayToday ? 'border-primary bg-primary/5' : 'border-border'
-                  }`}
-                >
-                  <div className="text-center mb-2">
-                    <div className="text-xs font-semibold text-muted-foreground">
-                      {format(day, 'EEE')}
-                    </div>
-                    <div className={`text-lg font-bold ${isDayToday ? 'text-primary' : ''}`}>
-                      {format(day, 'd')}
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    {dayMeals.length > 0 ? (
-                      dayMeals.slice(0, 3).map((meal) => (
-                        <div
-                          key={meal.id}
-                          className="text-xs bg-secondary/50 rounded px-1.5 py-1 truncate"
-                        >
-                          {meal.name}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-xs text-muted-foreground text-center italic">-</div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
       )}
 
-      {isWidgetEnabled('shopping-preview') && unpurchasedItems.length > 0 && (
-        <Card 
-          className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
-          onClick={() => onNavigate?.('shopping')}
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 justify-between">
+      {/* Today's Schedule - Combined Events & Meals */}
+      {(todaysEvents.length > 0 || todaysMeals.length > 0) && (
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-base flex items-center justify-between">
               <span className="flex items-center gap-2">
-                <ShoppingCart size={24} />
-                Shopping List Preview
+                <Sun size={18} className="text-primary" />
+                Today's Schedule
               </span>
-              <ArrowRight size={16} className="text-muted-foreground" />
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => onNavigate?.('calendar')}
+              >
+                View All <ArrowRight size={12} className="ml-1" />
+              </Button>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              {unpurchasedItems.slice(0, 8).map((item) => (
-                <div key={item.id} className="flex items-center gap-2 p-2 rounded-md bg-secondary/30">
-                  <span className="text-sm flex-1 truncate">{item.name}</span>
-                  {item.quantity && (
-                    <Badge variant="outline" className="text-xs">
-                      {item.quantity}
+          <CardContent className="px-4 pb-3 space-y-2">
+            {/* Today's Events */}
+            {todaysEvents.slice(0, showAllEvents ? undefined : 3).map(event => (
+              <div 
+                key={event.id}
+                className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                onClick={() => onNavigate?.('calendar')}
+              >
+                <div className="w-12 text-center flex-shrink-0">
+                  {event.isAllDay ? (
+                    <span className="text-xs font-medium text-muted-foreground">All day</span>
+                  ) : event.startTime ? (
+                    <span className="text-sm font-semibold">{event.startTime}</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">--:--</span>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{event.title}</p>
+                  {event.location && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <MapPin size={10} />
+                      {event.location}
+                    </p>
+                  )}
+                </div>
+                <Badge variant="outline" className="text-xs flex-shrink-0">
+                  {event.category}
+                </Badge>
+              </div>
+            ))}
+
+            {/* Meals */}
+            {todaysMeals.length > 0 && (
+              <div className="flex gap-2 mt-2 pt-2 border-t overflow-x-auto">
+                {['breakfast', 'lunch', 'dinner'].map(type => {
+                  const meal = todaysMeals.find(m => m.type === type)
+                  return (
+                    <div 
+                      key={type}
+                      className={`flex-1 min-w-[100px] p-2 rounded-lg text-center ${
+                        meal ? 'bg-primary/10' : 'bg-muted/30'
+                      }`}
+                    >
+                      <p className="text-[10px] uppercase font-semibold text-muted-foreground">{type}</p>
+                      <p className={`text-xs truncate ${meal ? 'font-medium' : 'text-muted-foreground italic'}`}>
+                        {meal?.name || '-'}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {todaysEvents.length > 3 && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="w-full h-7 text-xs"
+                onClick={() => setShowAllEvents(!showAllEvents)}
+              >
+                {showAllEvents ? (
+                  <>Show Less <CaretUp size={12} className="ml-1" /></>
+                ) : (
+                  <>Show {todaysEvents.length - 3} More <CaretDown size={12} className="ml-1" /></>
+                )}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending Chores - Collapsible */}
+      <Collapsible open={showAllChores} onOpenChange={setShowAllChores}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="pb-2 pt-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors">
+              <CardTitle className="text-base flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <CheckCircle size={18} className="text-primary" />
+                  Pending Chores
+                  <Badge variant="secondary" className="ml-1">{pendingChores.length}</Badge>
+                </span>
+                <div className="flex items-center gap-2">
+                  {pendingChores.length > 3 && (
+                    showAllChores ? <CaretUp size={16} /> : <CaretDown size={16} />
+                  )}
+                </div>
+              </CardTitle>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CardContent className="px-4 pb-3">
+            {pendingChores.length > 0 ? (
+              <div className="space-y-2">
+                {pendingChores.slice(0, 3).map(chore => (
+                  <ChoreItem key={chore.id} chore={chore} />
+                ))}
+                <CollapsibleContent className="space-y-2">
+                  {pendingChores.slice(3).map(chore => (
+                    <ChoreItem key={chore.id} chore={chore} />
+                  ))}
+                </CollapsibleContent>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <Sparkle size={24} className="mx-auto text-primary mb-2" />
+                <p className="text-sm text-muted-foreground">All caught up! 🎉</p>
+              </div>
+            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full mt-3"
+              onClick={() => onNavigate?.('chores')}
+            >
+              Manage Chores <ArrowRight size={14} className="ml-1" />
+            </Button>
+          </CardContent>
+        </Card>
+      </Collapsible>
+
+      {/* Shopping List - Compact */}
+      {unpurchasedItems.length > 0 && (
+        <Collapsible open={showShopping} onOpenChange={setShowShopping}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="pb-2 pt-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors">
+                <CardTitle className="text-base flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <ShoppingCart size={18} className="text-primary" />
+                    Shopping List
+                    <Badge variant="secondary" className="ml-1">{unpurchasedItems.length}</Badge>
+                  </span>
+                  {showShopping ? <CaretUp size={16} /> : <CaretDown size={16} />}
+                </CardTitle>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="px-4 pb-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {unpurchasedItems.slice(0, 12).map(item => (
+                    <Badge 
+                      key={item.id} 
+                      variant="outline"
+                      className="text-xs py-1"
+                    >
+                      {item.name}
+                      {item.quantity && item.quantity !== '1' && (
+                        <span className="ml-1 opacity-60">×{item.quantity}</span>
+                      )}
+                    </Badge>
+                  ))}
+                  {unpurchasedItems.length > 12 && (
+                    <Badge variant="secondary" className="text-xs">
+                      +{unpurchasedItems.length - 12} more
                     </Badge>
                   )}
                 </div>
-              ))}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full mt-3"
+                  onClick={() => onNavigate?.('shopping')}
+                >
+                  Go Shopping <ArrowRight size={14} className="ml-1" />
+                </Button>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      )}
+
+      {/* Upcoming Events - Compact List */}
+      {upcomingEvents.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <CalendarBlank size={18} className="text-primary" />
+                Coming Up
+              </span>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => onNavigate?.('calendar')}
+              >
+                Calendar <ArrowRight size={12} className="ml-1" />
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            <div className="space-y-1">
+              {upcomingEvents.map(event => {
+                const eventDate = parseISO(event.date)
+                const isTmrw = isTomorrow(eventDate)
+                return (
+                  <div 
+                    key={event.id}
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="w-10 text-center flex-shrink-0">
+                      <p className="text-xs text-muted-foreground">
+                        {isTmrw ? 'TMR' : format(eventDate, 'EEE').toUpperCase()}
+                      </p>
+                      <p className="text-sm font-bold">{format(eventDate, 'd')}</p>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate">{event.title}</p>
+                    </div>
+                    {event.startTime && (
+                      <span className="text-xs text-muted-foreground">{event.startTime}</span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
-            {unpurchasedItems.length > 8 && (
-              <p className="text-xs text-muted-foreground text-center mt-3">
-                +{unpurchasedItems.length - 8} more items
-              </p>
-            )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Household Members - Compact */}
+      {members.length > 1 && selectedMember === 'all' && (
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-base flex items-center gap-2">
+              <User size={18} className="text-primary" />
+              Family Progress
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            <div className="space-y-3">
+              {members.slice(0, 4).map(member => {
+                const memberChores = chores.filter(c => c.assignedTo === member.displayName)
+                const memberPending = memberChores.filter(c => !c.completed).length
+                const memberCompleted = memberChores.filter(c => c.completed).length
+                const rate = memberChores.length > 0 
+                  ? Math.round((memberCompleted / memberChores.length) * 100)
+                  : 0
+
+                return (
+                  <div key={member.id} className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-semibold text-primary">
+                        {member.displayName.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium truncate">{member.displayName}</span>
+                        <span className="text-xs text-muted-foreground">{memberPending} pending</span>
+                      </div>
+                      <Progress value={rate} className="h-1.5" />
+                    </div>
+                    <span className="text-xs font-semibold text-primary w-8 text-right">{rate}%</span>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Empty State */}
+      {pendingChores.length === 0 && todaysEvents.length === 0 && unpurchasedItems.length === 0 && (
+        <Card className="p-6 text-center">
+          <Sparkle size={40} className="mx-auto text-primary mb-3" />
+          <h3 className="font-semibold mb-1">All Clear!</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            No pending tasks, events, or shopping items.
+          </p>
+          <div className="flex gap-2 justify-center flex-wrap">
+            <Button size="sm" variant="outline" onClick={() => onNavigate?.('chores')}>
+              Add Chore
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => onNavigate?.('calendar')}>
+              Add Event
+            </Button>
+          </div>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+// Quick Stat Pill Component
+interface QuickStatPillProps {
+  icon: typeof Broom
+  label: string
+  value: number
+  subtext?: string
+  highlight?: boolean
+  onClick?: () => void
+}
+
+function QuickStatPill({ icon: Icon, label, value, subtext, highlight, onClick }: QuickStatPillProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full
+        border transition-all active:scale-95
+        ${highlight 
+          ? 'bg-primary/10 border-primary/30 text-primary' 
+          : 'bg-muted/50 border-border hover:bg-muted'
+        }
+      `}
+    >
+      <Icon size={16} className={highlight ? 'text-primary' : 'text-muted-foreground'} />
+      <span className="text-lg font-bold">{value}</span>
+      <span className="text-xs text-muted-foreground hidden sm:inline">
+        {subtext || label}
+      </span>
+    </button>
+  )
+}
+
+// Chore Item Component
+function ChoreItem({ chore }: { chore: Chore }) {
+  return (
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+        chore.priority === 'high' ? 'bg-red-500' :
+        chore.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+      }`} />
+      <span className="text-sm flex-1 truncate">{chore.title}</span>
+      {chore.assignedTo && (
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+          {chore.assignedTo}
+        </Badge>
+      )}
+      {chore.estimatedMinutes && (
+        <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+          <Clock size={10} />
+          {chore.estimatedMinutes}m
+        </span>
       )}
     </div>
   )

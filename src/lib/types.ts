@@ -93,18 +93,36 @@ export interface Meal {
   recipeId?: string
 }
 
+export type EventCategory = 'personal' | 'work' | 'appointment' | 'booking' | 'vacation' | 'holiday' | 'school' | 'sports' | 'medical' | 'birthday' | 'other'
+
+export type RecurrencePattern = 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'
+
+export type ReminderTime = 'none' | '5min' | '15min' | '30min' | '1hour' | '2hours' | '1day' | '2days' | '1week'
+
 export interface CalendarEvent {
   id: string
   householdId: string
   title: string
   date: string
+  endDate?: string // For multi-day events (trips, vacations)
+  isAllDay?: boolean
   startTime?: string
   endTime?: string
   description?: string
   location?: string
   attendees?: string[]
-  category: 'personal' | 'work' | 'appointment' | 'booking' | 'other'
+  category: EventCategory
   color?: string
   bookedBy?: string
   createdAt: number
+  // Recurrence
+  recurrence?: RecurrencePattern
+  recurrenceEndDate?: string
+  recurrenceParentId?: string // Links recurring instances to parent
+  // Reminders
+  reminder?: ReminderTime
+  // Additional metadata
+  isPrivate?: boolean
+  notes?: string
+  url?: string // Link to external resource
 }

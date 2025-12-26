@@ -7,9 +7,10 @@ A collaborative household management application that helps households coordinat
 2. **Collaborative** - Household members can work together with real-time visibility into contributions and shared data.
 3. **Organized** - Information is logically grouped by household, reducing mental overhead of coordination.
 4. **Practical** - Quick access to daily needs like shopping lists and upcoming meals without unnecessary complexity.
+5. **Reliable** - Data persists across sessions with proper state synchronization between components.
 
 **Complexity Level**: Complex Application (advanced functionality with multiple views and user management)
-This is a multi-feature application with user authentication, household management, role-based access control, and distinct but related sections (chores, shopping, meals, recipes, calendar) that are scoped to households. The state management includes user sessions, household switching, and permission-based feature access.
+This is a multi-feature application with user authentication, household management, role-based access control, and distinct but related sections (chores, shopping, meals, recipes, calendar) that are scoped to households. The state management includes user sessions, household switching, permission-based feature access, and synchronized localStorage persistence.
 
 ## Essential Features
 
@@ -84,11 +85,11 @@ This is a multi-feature application with user authentication, household manageme
 - **Success criteria**: System generates coherent weekly meal plans using available recipes and allows easy customization
 
 ### Dashboard Overview
-- **Functionality**: Unified view showing upcoming meals, pending chores, shopping list summary, calendar events, and quick stats with member-specific filtering
+- **Functionality**: Unified view showing upcoming meals, pending chores, shopping list summary, calendar events, and quick stats with member-specific filtering. Dashboard cards are clickable for quick navigation to detailed sections.
 - **Purpose**: Provide at-a-glance household status without navigating between sections, with ability to focus on individual member responsibilities
-- **Trigger**: User navigates to dashboard (new default/home section) or selects member filter
-- **Progression**: View dashboard → See today's meals and events → Check pending chores count → View shopping items needed → See upcoming calendar events → Access calendar of upcoming week → Quick-add items → Navigate to detailed sections → Select member filter to view single person's data
-- **Success criteria**: Dashboard displays real-time data from all sections including calendar events, enables quick actions, and filters all data when a specific member is selected
+- **Trigger**: User navigates to dashboard (new default/home section), selects member filter, or clicks on dashboard cards
+- **Progression**: View dashboard → See today's meals and events → Check pending chores count → View shopping items needed → See upcoming calendar events → Access calendar of upcoming week → Click any card to navigate to that section → Quick-add items → Select member filter to view single person's data
+- **Success criteria**: Dashboard displays real-time data from all sections including calendar events, cards are clickable to navigate to relevant sections, enables quick actions, and filters all data when a specific member is selected
 
 ### User Profiles
 - **Functionality**: Simple identification for each household member with visual contribution tracking and member-specific filtered views
@@ -98,11 +99,18 @@ This is a multi-feature application with user authentication, household manageme
 - **Success criteria**: Multiple household members can be added, assigned to tasks, their contributions are visualized with completion rates, pending tasks, event attendance, and estimated time remaining. Member-specific filtering works across all sections (Dashboard, Chores, Calendar) showing only data relevant to the selected person.
 
 ### Theme Customization
-- **Functionality**: Choose from multiple pre-designed color themes
+- **Functionality**: Choose from multiple pre-designed color themes with dark/light mode toggle
 - **Purpose**: Personalize the visual appearance to match user preferences
 - **Trigger**: User navigates to settings section
-- **Progression**: View settings → Browse theme options → Select new theme → Theme applies instantly → Save preference
-- **Success criteria**: Users can switch between themes and preference persists across sessions
+- **Progression**: View settings → Browse theme options → Select new theme → Theme applies instantly → Toggle dark/light mode → Save preference
+- **Success criteria**: Users can switch between themes and dark/light mode, preferences persist across sessions and are synchronized between all app components
+
+### Bug Tracking & Diagnostics
+- **Functionality**: Automatic capture of application errors with detailed context for debugging
+- **Purpose**: Enable easy diagnosis of issues by capturing errors with stack traces, timestamps, and context
+- **Trigger**: Any unhandled error, promise rejection, or console error occurs in the application
+- **Progression**: Error occurs → Bug tracker captures details (message, stack trace, URL, timestamp, context) → Bug indicator badge appears in header → User can view bugs in Settings → Copy formatted bug report for sharing → Mark resolved or delete bugs
+- **Success criteria**: All errors are automatically captured with useful context, users can easily copy bug reports for diagnosis, and resolved bugs can be cleared
 
 ### Dashboard Customization
 - **Functionality**: Drag-and-drop widget reordering, toggle visibility, apply layout presets, and organize dashboard layout
@@ -119,14 +127,14 @@ This is a multi-feature application with user authentication, household manageme
 - **Success criteria**: Users can export all data and selectively delete data categories safely
 
 ### Mobile Optimization Features
-- **Functionality**: Customizable bottom navigation, swipe gestures, offline mode with service worker, visual feedback for connectivity
+- **Functionality**: Customizable bottom navigation with overflow "More" menu, swipe gestures, offline mode with service worker, visual feedback for connectivity
 - **Purpose**: Provide a native-app-like mobile experience with personalization, intuitive gesture navigation, and reliable offline functionality
 - **Trigger**: Mobile browser/PWA usage, network connectivity changes, service worker updates
 - **Progression**: 
-  - **Custom Navigation**: Settings → Mobile Navigation → Toggle tabs on/off (3-5 limit) → Changes apply immediately to bottom nav → Swipe left/right between enabled tabs
+  - **Custom Navigation**: Settings → Mobile Navigation → Toggle tabs on/off → First 4 enabled tabs show in bottom nav → Additional tabs appear in "More" menu → Swipe left/right between enabled tabs
   - **Offline Mode**: App loads → Service worker caches assets → Network goes offline → Banner appears at top → Changes queue for sync → Network returns → Changes sync automatically → Banner disappears
   - **Updates**: New version deployed → Service worker detects update → Update banner appears at bottom → Click "Update" → App refreshes with new version
-- **Success criteria**: Users can customize which tabs appear in mobile nav (3-5 items), swipe between tabs with natural gestures, use app fully offline with visual feedback, receive non-intrusive update notifications, and maintain all functionality in PWA mode
+- **Success criteria**: Users can customize which tabs appear in mobile nav, overflow tabs accessible via "More" menu, swipe between tabs with natural gestures, use app fully offline with visual feedback, receive non-intrusive update notifications, and maintain all functionality in PWA mode
 
 ### Member-Specific Views
 - **Functionality**: Global filter in header that shows only data relevant to a selected household member across all sections
@@ -138,13 +146,47 @@ This is a multi-feature application with user authentication, household manageme
 ## Edge Case Handling
 
 - **Empty States**: Display helpful prompts with suggested first actions when lists/schedules are empty
-- **Data Persistence**: All data persists using useKV to survive page refreshes and work offline-first
+- **Data Persistence**: All data persists using useKV hook with localStorage backend that synchronizes across components using the same key via custom events
+- **Multi-Household Data Isolation**: All data operations properly filter by householdId to prevent data from one household appearing in another; create/update/delete operations preserve other households' data
 - **Completed Items Overflow**: Provide clear/archive functionality to prevent clutter from completed items
 - **Missing Recipe Links**: Meal plans work independently of recipes; linking is optional enhancement
 - **Recurring Chore Logic**: Clearly indicate next due date and handle completion without losing schedule
 - **Offline Mode**: App functions fully offline with service worker caching; changes sync when connection returns
 - **PWA Install**: Manifest configured for native-like installation on mobile devices with proper icons and display mode
 - **Gesture Conflicts**: Swipe gestures only active on mobile with appropriate threshold to avoid accidental navigation
+- **Error Boundaries**: React error boundaries catch rendering errors and display user-friendly fallback with bug reporting capability
+- **State Synchronization**: Multiple components using the same useKV key stay synchronized via event-based updates (both same-tab and cross-tab)
+
+## Technical Architecture
+
+### State Management
+- **useKV Hook**: Custom hook wrapping localStorage with React state synchronization
+  - Automatic persistence to localStorage with `hh_kv_` prefix
+  - Event-based synchronization between components using the same key
+  - Cross-tab synchronization via storage events
+  - Same-tab synchronization via custom `hh-kv-change` events
+  - Functional updates supported for safe concurrent modifications
+
+### Data Model
+All data entities include a `householdId` field for multi-household support:
+- **Chore**: id, householdId, title, assignedTo, frequency, room, priority, dueDate, notes, daysOfWeek, estimatedMinutes, completed, createdAt, lastCompleted, nextDue
+- **ShoppingItem**: id, householdId, name, category, quantity, priority, store, notes, purchased, createdAt
+- **Meal**: id, householdId, date, type (breakfast/lunch/dinner), name, recipeId
+- **Recipe**: id, householdId, name, ingredients[], instructions, prepTime, cookTime, servings, tags[], sourceUrl, imageUrl, createdAt
+- **CalendarEvent**: id, householdId, title, date, startTime, endTime, description, location, category, bookedBy, attendees[], createdAt
+
+### Authentication Context
+- User, Household, and HouseholdMember management
+- Role-based permissions (owner, admin, member)
+- Household switching with automatic data filtering
+- Member management (add/remove) scoped to current household
+- Persistent sessions via localStorage
+
+### Error Handling
+- Global error boundary with fallback UI
+- Automatic bug capture (errors, promise rejections, console errors)
+- Bug report formatting for easy sharing/diagnosis
+- Stack trace and context preservation
 
 ## Design Direction
 
@@ -216,10 +258,12 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - Recipe card with expandable ingredients/instructions and tag filtering
   - Shopping list with category grouping headers and auto-generation from meals
   - Chore frequency selector (daily/weekly/biweekly/monthly)
-  - Dashboard with stat cards and preview widgets
+  - Dashboard with stat cards and preview widgets (clickable to navigate to sections)
   - AI-powered recipe URL parser
-  - AI-powered automated meal planner with preferences
+  - AI-powered automated meal planner with day-of-week constraints and daypart configuration
   - Global member filter in header with persistent state
+  - Bug indicator badge in header with unresolved count
+  - Notification summary widget with today's overview
 
 - **States**:
   - Buttons: Solid primary for main actions, ghost for secondary, with pressed state that feels substantial
@@ -251,6 +295,9 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - FloppyDisk for export/save
   - CaretLeft/CaretRight for calendar navigation
   - X for remove/close
+  - Bug for error/bug tracking indicator
+  - Copy for clipboard operations
+  - Moon/Sun for dark/light mode toggle
 
 - **Spacing**:
   - Container padding: p-6 (desktop) / p-4 (mobile)
