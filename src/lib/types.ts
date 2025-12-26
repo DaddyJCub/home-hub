@@ -33,19 +33,29 @@ export interface HouseholdMemberLegacy {
 export interface ChoreCompletion {
   id: string
   choreId: string
-  userId: string
+  completedBy: string // member name who completed
   householdId: string
   completedAt: number
+  scheduledFor?: string // the date it was scheduled for
+  notes?: string
+  skipped?: boolean // if it was skipped rather than completed
 }
+
+export type ChoreFrequency = 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly' | 'custom'
+
+export type ChoreRotation = 'none' | 'rotate' | 'anyone' // none = fixed assignee, rotate = auto-rotate, anyone = whoever does it
 
 export interface Chore {
   id: string
   householdId: string
   title: string
+  description?: string
   assignedTo: string
-  frequency: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly'
+  frequency: ChoreFrequency
+  customIntervalDays?: number // for custom frequency
   completed: boolean
   lastCompleted?: number
+  lastCompletedBy?: string
   nextDue?: number
   createdAt: number
   room?: string
@@ -54,6 +64,16 @@ export interface Chore {
   notes?: string
   daysOfWeek?: number[]
   estimatedMinutes?: number
+  // New fields for enhanced tracking
+  rotation?: ChoreRotation
+  rotationOrder?: string[] // ordered list of member names for rotation
+  currentRotationIndex?: number
+  streak?: number // consecutive on-time completions
+  bestStreak?: number
+  totalCompletions?: number
+  averageCompletionTime?: number // in minutes
+  lastSkipped?: number
+  trackTime?: boolean // whether to track actual time spent
 }
 
 export interface ShoppingItem {

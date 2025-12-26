@@ -43,11 +43,20 @@ This is a multi-feature application with user authentication, household manageme
 - **Success criteria**: Each household has a unique, persistent invite code. Codes can be copied easily. Invalid codes show error message. Users cannot join the same household twice.
 
 ### Chore Management
-- **Functionality**: Create, assign, and track household chores with customizable recurring schedules, room assignments, priorities, estimated time, notes, member-specific filtering, and a compact weekly schedule view for at-a-glance planning
-- **Purpose**: Ensure fair distribution of household tasks with flexible scheduling, better organization by location, clear prioritization, ability to view individual workloads, and quick visual overview of the week's chores
+- **Functionality**: Comprehensive chore tracking system inspired by Grocy with completion history, streak tracking, rotation assignments, time tracking, skip/reschedule options, overdue indicators, and detailed statistics
+- **Purpose**: Ensure fair distribution of household tasks with gamification (streaks), accountability (completion history), flexible scheduling, and insights into household contribution patterns
 - **Trigger**: User navigates to chores section, selects member filter, or views weekly chore schedule widget on dashboard
-- **Progression**: View chore list → Add/edit chore → Assign to person → Set room/location → Set priority level → Set frequency (one-time/recurring) → Select specific days of week for weekly/biweekly tasks → Add estimated time and notes → Mark complete → Chore updates or resets based on schedule → Filter and sort chores by room, assignee, or priority → Use member filter to view only one person's chores → View weekly chore schedule widget showing all chores organized by day with quick-complete functionality
-- **Success criteria**: Chores can be created with full customization options (room, priority, days of week, estimated time, notes), filtered by multiple criteria including member-specific views, sorted by various fields, and recurring chores automatically reset with proper day-of-week support. Weekly chore schedule widget displays chores organized by day of the week, shows estimated time per day, color-codes by priority, allows quick completion with click, and respects member filtering.
+- **Progression**: View chore list with tabs (Pending/Completed/All) → Add/edit chore → Assign to person or set rotation → Set room/location → Set priority level → Set frequency (once/daily/weekly/biweekly/monthly/quarterly/yearly/custom interval) → Select days of week for weekly tasks → Enable time tracking (optional) → Mark complete with optional notes → View completion history and streaks → Skip recurring chores (reschedules to next due) → Track statistics by member
+- **Key Features**:
+  - **Completion Tracking**: Full history of who completed each chore and when, with optional notes
+  - **Streak Tracking**: Visual streak counter (🔥) for recurring chores completed on time, best streak tracking, streak resets on skip or overdue
+  - **Overdue Indicators**: Red highlighting, "X days overdue" display, overdue alert banner, Due Today section
+  - **Chore Rotation**: Fixed (one person), Rotate (cycles through members automatically), Anyone (whoever does it)
+  - **Time Tracking**: Optional start/stop timer, track actual vs estimated time, average completion time calculation
+  - **Skip/Reschedule**: Skip button for recurring chores, logs skip in history, reschedules to next due date
+  - **Statistics Dashboard**: This week's completions, total completions, average streak, overdue count, completions by member
+  - **Advanced Filtering**: Filter by room, priority; sort by due date, priority, room, or created date
+- **Success criteria**: Chores track full completion history with streaks, rotation works automatically, time tracking captures actual effort, statistics provide insights into household contributions, overdue chores are prominently highlighted, and skip functionality allows flexibility without losing data
 
 ### Shopping List
 - **Functionality**: Collaborative list of items to purchase with categories, quantity, priority levels, store assignments, and notes
@@ -64,11 +73,20 @@ This is a multi-feature application with user authentication, household manageme
 - **Success criteria**: Meals can be planned for specific days/times, linked to recipes, and viewed in calendar format
 
 ### Calendar & Events
-- **Functionality**: Monthly calendar view with shared household events, appointments, and bookings including room reservations with member-specific filtering
-- **Purpose**: Centralize family scheduling, track appointments, manage room bookings, coordinate household activities, and view individual member schedules
-- **Trigger**: User navigates to calendar section or selects member filter
-- **Progression**: View monthly calendar → Click on day to add event → Enter event details (title, time, location, category, attendees, booked by) → Save event → View events on calendar and in upcoming list → Edit or delete events as needed → Use member filter to view only events where member is booked by or attending
-- **Success criteria**: Events can be created with various categories (personal, work, appointment, booking, other), assigned to household members, and displayed on a monthly calendar view with upcoming events sidebar. Room booking information (who booked the room) can be tracked. Member filtering shows only events relevant to selected person (bookedBy or in attendees list).
+- **Functionality**: Multi-view calendar (Month/Week/Agenda) with multi-day event support, recurring events, reminders, 11 event categories, drag-to-select date ranges, and "Today at a Glance" overview
+- **Purpose**: Centralize family scheduling with support for long trips, recurring appointments, flexible viewing options, and quick daily overview
+- **Trigger**: User navigates to calendar section, switches views, or selects member filter
+- **Progression**: View calendar in preferred view (Month/Week/Agenda) → Click day or drag across multiple days to add event → Enter event details (title, dates, times, location, category, attendees) → Set recurrence pattern (none/daily/weekly/biweekly/monthly/yearly) → Set reminder (none/at time/15min/30min/1hr/1day/1week before) → Toggle all-day and private options → Save event → View events with multi-day spans displayed as colored bars → Use "Today at a Glance" card for quick daily overview
+- **Key Features**:
+  - **Multiple Views**: Month (traditional calendar grid), Week (7-day detailed view), Agenda (chronological list)
+  - **Multi-Day Events**: Drag to select date range, events span across days with visual bars, support for trips and vacations
+  - **Recurring Events**: Daily, weekly, bi-weekly, monthly, yearly patterns with optional end date
+  - **11 Event Categories**: Personal, Work, Appointment, Booking, Birthday, Holiday, Travel, School, Health, Social, Other - each with distinct colors
+  - **Reminders**: Configurable reminder times (at event time, 15/30/60 min, 1 day, 1 week before)
+  - **Today Overview**: "Today at a Glance" card showing today's events, all-day events, and quick navigation
+  - **Privacy**: Mark events as private (shown with lock icon)
+  - **URL Support**: Attach links to events (meeting URLs, booking confirmations)
+- **Success criteria**: Events can span multiple days with intuitive drag selection, recurring events generate properly, multiple views provide flexibility for different planning needs, today's overview provides quick daily summary, and all event types are clearly distinguished by category colors
 
 ### Recipe Collection
 - **Functionality**: Store and organize favorite recipes with ingredients, instructions, tags, and labels; automatically parse recipes from website URLs
@@ -85,11 +103,20 @@ This is a multi-feature application with user authentication, household manageme
 - **Success criteria**: System generates coherent weekly meal plans using available recipes and allows easy customization
 
 ### Dashboard Overview
-- **Functionality**: Unified view showing upcoming meals, pending chores, shopping list summary, calendar events, and quick stats with member-specific filtering. Dashboard cards are clickable for quick navigation to detailed sections.
-- **Purpose**: Provide at-a-glance household status without navigating between sections, with ability to focus on individual member responsibilities
-- **Trigger**: User navigates to dashboard (new default/home section), selects member filter, or clicks on dashboard cards
-- **Progression**: View dashboard → See today's meals and events → Check pending chores count → View shopping items needed → See upcoming calendar events → Access calendar of upcoming week → Click any card to navigate to that section → Quick-add items → Select member filter to view single person's data
-- **Success criteria**: Dashboard displays real-time data from all sections including calendar events, cards are clickable to navigate to relevant sections, enables quick actions, and filters all data when a specific member is selected
+- **Functionality**: Mobile-first unified dashboard with collapsible sections, horizontal scrolling quick stats, progressive disclosure, time-based greeting, and priority alerts
+- **Purpose**: Provide at-a-glance household status optimized for mobile with reduced scrolling, quick access to high-priority items, and ability to focus on individual member responsibilities
+- **Trigger**: User navigates to dashboard (default/home section), selects member filter, or expands/collapses sections
+- **Progression**: View dashboard → See personalized greeting based on time of day → Review horizontal scrolling quick stats (tasks, events, shopping, meals) → Check high-priority alerts (overdue chores, today's events) → Expand collapsible sections for details → View combined "Today's Schedule" (meals + events) → Quick-add items → Navigate to detailed sections
+- **Key Features**:
+  - **Mobile-First Design**: Optimized layout to reduce scrolling, touch-friendly interactions
+  - **Time-Based Greeting**: "Good morning/afternoon/evening" with current date
+  - **Horizontal Quick Stats**: Scrollable stat cards showing pending tasks, today's events, shopping items, planned meals
+  - **High-Priority Alerts**: Prominent display of overdue chores and immediate attention items
+  - **Collapsible Sections**: Expand/collapse Today's Schedule, Chores, Shopping Preview to manage information density
+  - **Progressive Disclosure**: Show summary counts by default, details on demand
+  - **Combined Schedule**: Today's meals and events merged into unified timeline view
+  - **Member Filtering**: All dashboard data filters when specific member selected
+- **Success criteria**: Dashboard loads quickly on mobile, reduces scrolling through collapsible sections, highlights urgent items prominently, provides quick stats at a glance, and maintains full functionality while being more compact
 
 ### User Profiles
 - **Functionality**: Simple identification for each household member with visual contribution tracking and member-specific filtered views
@@ -169,11 +196,12 @@ This is a multi-feature application with user authentication, household manageme
 
 ### Data Model
 All data entities include a `householdId` field for multi-household support:
-- **Chore**: id, householdId, title, assignedTo, frequency, room, priority, dueDate, notes, daysOfWeek, estimatedMinutes, completed, createdAt, lastCompleted, nextDue
+- **Chore**: id, householdId, title, description, assignedTo, frequency (once/daily/weekly/biweekly/monthly/quarterly/yearly/custom), customIntervalDays, room, priority, dueDate, notes, daysOfWeek, estimatedMinutes, completed, createdAt, lastCompleted, lastCompletedBy, nextDue, rotation (none/rotate/anyone), rotationOrder[], currentRotationIndex, streak, bestStreak, totalCompletions, averageCompletionTime, lastSkipped, trackTime
+- **ChoreCompletion**: id, choreId, householdId, completedBy, completedAt, scheduledFor, notes, skipped
 - **ShoppingItem**: id, householdId, name, category, quantity, priority, store, notes, purchased, createdAt
 - **Meal**: id, householdId, date, type (breakfast/lunch/dinner), name, recipeId
 - **Recipe**: id, householdId, name, ingredients[], instructions, prepTime, cookTime, servings, tags[], sourceUrl, imageUrl, createdAt
-- **CalendarEvent**: id, householdId, title, date, startTime, endTime, description, location, category, bookedBy, attendees[], createdAt
+- **CalendarEvent**: id, householdId, title, date, endDate, startTime, endTime, isAllDay, description, location, category (personal/work/appointment/booking/birthday/holiday/travel/school/health/social/other), bookedBy, attendees[], recurrence (none/daily/weekly/biweekly/monthly/yearly), recurrenceEndDate, reminder (none/atTime/15min/30min/1hour/1day/1week), isPrivate, url, createdAt
 
 ### Authentication Context
 - User, Household, and HouseholdMember management
@@ -255,15 +283,20 @@ Animations should feel responsive and helpful - confirming actions and guiding a
 
 - **Customizations**:
   - Custom weekly calendar grid component for meal planning
+  - Multi-view calendar with month/week/agenda toggle and multi-day event support
   - Recipe card with expandable ingredients/instructions and tag filtering
   - Shopping list with category grouping headers and auto-generation from meals
-  - Chore frequency selector (daily/weekly/biweekly/monthly)
-  - Dashboard with stat cards and preview widgets (clickable to navigate to sections)
+  - Chore frequency selector (once/daily/weekly/biweekly/monthly/quarterly/yearly/custom)
+  - Chore rotation system (fixed/rotate/anyone) with automatic member cycling
+  - Chore statistics dashboard with streak tracking and completion history
+  - Time tracking start/stop for chores with average time calculation
+  - Dashboard with collapsible sections and horizontal scrolling quick stats
   - AI-powered recipe URL parser
   - AI-powered automated meal planner with day-of-week constraints and daypart configuration
   - Global member filter in header with persistent state
   - Bug indicator badge in header with unresolved count
   - Notification summary widget with today's overview
+  - Today at a Glance calendar card with quick daily overview
 
 - **States**:
   - Buttons: Solid primary for main actions, ghost for secondary, with pressed state that feels substantial
@@ -276,6 +309,7 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - Broom/cleaning icons for chores (using @phosphor-icons/react)
   - ShoppingCart for shopping list
   - CalendarBlank for meal planning and calendar views
+  - CalendarCheck for due today indicators
   - CookingPot for recipes
   - Plus for add actions
   - Check/CheckCircle for completion
@@ -286,6 +320,7 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - Tag for recipe tags/categories
   - MagnifyingGlass for search
   - Clock for time indicators
+  - Timer for time tracking
   - MapPin for location information (calendar events)
   - Pencil for editing
   - Gear for settings
@@ -294,10 +329,22 @@ Animations should feel responsive and helpful - confirming actions and guiding a
   - ShieldCheck for admin functions
   - FloppyDisk for export/save
   - CaretLeft/CaretRight for calendar navigation
+  - CaretUp/CaretDown for collapsible sections
   - X for remove/close
   - Bug for error/bug tracking indicator
   - Copy for clipboard operations
   - Moon/Sun for dark/light mode toggle
+  - Fire for streak indicators
+  - Trophy for achievements/stats
+  - Warning for overdue/alert indicators
+  - SkipForward for skip chore action
+  - ArrowsClockwise for rotation/recurring
+  - Play/Stop for time tracking
+  - ChartBar for statistics
+  - Repeat for recurring events/chores
+  - Lightning for quick actions
+  - Eye for view/visibility toggles
+  - Funnel for filtering
 
 - **Spacing**:
   - Container padding: p-6 (desktop) / p-4 (mobile)
