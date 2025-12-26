@@ -120,7 +120,7 @@ export default function ChoresSection() {
     }
 
     if (editingChore) {
-      const updated = chores.map((chore) =>
+      const updated = allChores.map((chore) =>
         chore.id === editingChore.id
           ? { ...chore, ...choreData }
           : chore
@@ -135,7 +135,7 @@ export default function ChoresSection() {
         completed: false,
         createdAt: Date.now()
       }
-      const updated = [...chores, newChore]
+      const updated = [...allChores, newChore]
       setChores(updated)
       toast.success('Chore added')
     }
@@ -160,7 +160,7 @@ export default function ChoresSection() {
   }
 
   const handleToggleChore = (id: string) => {
-    const updated = chores.map((chore) => {
+    const updated = allChores.map((chore) => {
       if (chore.id !== id) return chore
       
       const newCompleted = !chore.completed
@@ -198,7 +198,7 @@ export default function ChoresSection() {
   }
 
   const handleDeleteChore = (id: string) => {
-    const updated = chores.filter((chore) => chore.id !== id)
+    const updated = allChores.filter((chore) => chore.id !== id)
     setChores(updated)
     toast.success('Chore deleted')
   }
@@ -670,7 +670,8 @@ export default function ChoresSection() {
                   onClick={() => {
                     const confirmed = window.confirm('Clear all completed chores? This cannot be undone.')
                     if (confirmed) {
-                      const updated = chores.filter((c) => !c.completed)
+                      // Keep other households' chores + current household's incomplete chores
+                      const updated = allChores.filter((c) => c.householdId !== currentHousehold?.id || !c.completed)
                       setChores(updated)
                     }
                   }}

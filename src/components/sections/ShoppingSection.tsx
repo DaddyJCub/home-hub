@@ -77,7 +77,7 @@ export default function ShoppingSection() {
     }
 
     if (editingItem) {
-      const updated = items.map((item) =>
+      const updated = allItems.map((item) =>
         item.id === editingItem.id
           ? { ...item, ...itemData }
           : item
@@ -98,7 +98,7 @@ export default function ShoppingSection() {
         createdAt: Date.now()
       }
 
-      const updated = [...items, newItem]
+      const updated = [...allItems, newItem]
       setItems(updated)
       toast.success('Item added to list')
     }
@@ -109,14 +109,14 @@ export default function ShoppingSection() {
   }
 
   const handleToggleItem = (id: string) => {
-    const updated = items.map((item) =>
+    const updated = allItems.map((item) =>
       item.id === id ? { ...item, purchased: !item.purchased } : item
     )
     setItems(updated)
   }
 
   const handleDeleteItem = (id: string) => {
-    const updated = items.filter((item) => item.id !== id)
+    const updated = allItems.filter((item) => item.id !== id)
     setItems(updated)
     toast.success('Item deleted')
   }
@@ -137,7 +137,8 @@ export default function ShoppingSection() {
   const clearPurchased = () => {
     const confirmed = window.confirm('Clear all purchased items? This cannot be undone.')
     if (confirmed) {
-      const updated = items.filter((item) => !item.purchased)
+      // Keep other households' items + current household's non-purchased items
+      const updated = allItems.filter((item) => item.householdId !== currentHousehold?.id || !item.purchased)
       setItems(updated)
       toast.success('Purchased items cleared')
     }
@@ -192,7 +193,7 @@ export default function ShoppingSection() {
       createdAt: Date.now()
     }))
 
-    const updated = [...items, ...newItems]
+    const updated = [...allItems, ...newItems]
     setItems(updated)
     setGenerateDialogOpen(false)
     toast.success(`Added ${newItems.length} items from meal plan`)

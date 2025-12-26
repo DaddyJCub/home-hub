@@ -180,7 +180,10 @@ export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerP
       }
 
       const weekDates = weekDays.map(d => d.date)
-      const currentNonWeek = meals.filter(m => !weekDates.includes(m.date))
+      // Keep other households' meals and current household's non-week meals
+      const currentNonWeek = allMeals.filter(m => 
+        m.householdId !== currentHousehold.id || !weekDates.includes(m.date)
+      )
       const updatedMeals = [...currentNonWeek, ...newMeals]
       setMeals(updatedMeals)
 

@@ -19,7 +19,8 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': resolve(projectRoot, 'src')
+      '@': resolve(projectRoot, 'src'),
+      '@github/spark/hooks': resolve(projectRoot, 'src/shims/spark-hooks.ts')
     }
   },
 });
