@@ -99,18 +99,33 @@ export interface Recipe {
   cookTime?: string
   servings?: string
   tags?: string[]
+  category?: RecipeCategory // Primary category for organization
   sourceUrl?: string
   imageUrl?: string
   createdAt: number
+  lastMade?: number // Track when recipe was last used
+  timesCooked?: number // How many times this recipe has been made
+  rating?: number // 1-5 star rating
+  nutrition?: {
+    calories?: number
+    protein?: number
+    carbs?: number
+    fat?: number
+  }
 }
+
+export type RecipeCategory = 'breakfast' | 'lunch' | 'dinner' | 'side' | 'dessert' | 'snack' | 'drink' | 'appetizer' | 'soup' | 'salad' | 'other'
 
 export interface Meal {
   id: string
   householdId: string
   date: string
-  type: 'breakfast' | 'lunch' | 'dinner'
+  type: 'breakfast' | 'lunch' | 'dinner' | 'snack'
   name: string
   recipeId?: string
+  isNote?: boolean // For notes like "leftovers", "eating out", etc.
+  servings?: number // How many servings for this meal
+  notes?: string
 }
 
 export type EventCategory = 'personal' | 'work' | 'appointment' | 'booking' | 'vacation' | 'holiday' | 'school' | 'sports' | 'medical' | 'birthday' | 'other'

@@ -339,6 +339,77 @@ export function applyTheme(theme: Theme, isDark: boolean = false) {
     const cssVar = key.replace(/([A-Z])/g, '-$1').toLowerCase()
     root.style.setProperty(`--${cssVar}`, value)
   })
+  
+  // Update meta theme-color for iOS PWA safe area
+  updateThemeColorMeta(colors.background, colors.card)
+}
+
+// Convert OKLCH to RGB hex for meta theme-color tag
+function oklchToHex(oklch: string): string {
+  // Parse oklch value: oklch(L C H) or oklch(L C H / A)
+  const match = oklch.match(/oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)/)
+  if (!match) {
+    // Fallback for non-oklch values
+    return oklch.startsWith('#') ? oklch : '#ffffff'
+  }
+  
+  const [, L, C, H] = match.map(Number)
+  
+  // Convert OKLCH to OKLab
+  const a = C * Math.cos(H * Math.PI / 180)
+  const b = C * Math.sin(H * Math.PI / 180)
+  
+  // Convert OKLab to linear sRGB
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b
+  const s_ = L - 0.0894841775 * a - 1.2914855480 * b
+  
+  const l = l_ * l_ * l_
+  const m = m_ * m_ * m_
+  const s = s_ * s_ * s_
+  
+  let r = +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s
+  let g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s
+  let bl = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
+  
+  // Apply gamma correction
+  const gammaCorrect = (x: number) => {
+    if (x <= 0) return 0
+    if (x >= 1) return 1
+    return x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055
+  }
+  
+  r = Math.round(gammaCorrect(r) * 255)
+  g = Math.round(gammaCorrect(g) * 255)
+  bl = Math.round(gammaCorrect(bl) * 255)
+  
+  // Clamp values
+  r = Math.max(0, Math.min(255, r))
+  g = Math.max(0, Math.min(255, g))
+  bl = Math.max(0, Math.min(255, bl))
+  
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${bl.toString(16).padStart(2, '0')}`
+}
+
+function updateThemeColorMeta(backgroundColor: string, cardColor: string) {
+  // Use card color for header area (matches header bg-card/90)
+  const hexColor = oklchToHex(cardColor)
+  
+  // Update existing meta tag or create new one
+  let metaThemeColor = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null
+  if (!metaThemeColor) {
+    metaThemeColor = document.createElement('meta')
+    metaThemeColor.name = 'theme-color'
+    document.head.appendChild(metaThemeColor)
+  }
+  metaThemeColor.content = hexColor
+  
+  // Also update apple-specific meta for iOS
+  let appleStatusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]') as HTMLMetaElement | null
+  if (appleStatusBar) {
+    // Use 'black-translucent' for colored status bar that blends with content
+    appleStatusBar.content = 'black-translucent'
+  }
 }
 
 export function getThemeById(id: string): Theme | undefined {
