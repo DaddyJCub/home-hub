@@ -70,8 +70,23 @@ function calculateNextDue(frequency: ChoreFrequency, customDays?: number, lastCo
   }
 }
 
+// Check if chore was completed today (for recurring chores)
+function wasCompletedToday(chore: Chore): boolean {
+  if (!chore.lastCompleted) return false
+  const lastCompletedDate = startOfDay(new Date(chore.lastCompleted))
+  const today = startOfDay(new Date())
+  return lastCompletedDate.getTime() === today.getTime()
+}
+
 // Get overdue status
-function getOverdueStatus(chore: Chore): { isOverdue: boolean; isDueToday: boolean; isDueSoon: boolean; daysOverdue: number } {
+function getOverdueStatus(chore: Chore): { isOverdue: boolean; isDueToday: boolean; isDueSoon: boolean; daysOverdue: number; isCompletedToday: boolean } {
+  const isCompletedToday = wasCompletedToday(chore)
+  
+  // For recurring chores that were completed today, they're "done" for today
+  if (chore.frequency !== 'once' && isCompletedToday) {
+    return { isOverdue: false, isDueToday: false, isDueSoon: false, daysOverdue: 0, isCompletedToday: true }
+  }
+  
   if (chore.completed || chore.frequency === 'once') {
     if (chore.dueDate) {
       const dueDate = new Date(chore.dueDate)
@@ -81,10 +96,11 @@ function getOverdueStatus(chore: Chore): { isOverdue: boolean; isDueToday: boole
         isOverdue: !chore.completed && daysOverdue > 0,
         isDueToday: !chore.completed && daysOverdue === 0,
         isDueSoon: !chore.completed && daysOverdue >= -2 && daysOverdue < 0,
-        daysOverdue
+        daysOverdue,
+        isCompletedToday: false
       }
     }
-    return { isOverdue: false, isDueToday: false, isDueSoon: false, daysOverdue: 0 }
+    return { isOverdue: false, isDueToday: false, isDueSoon: false, daysOverdue: 0, isCompletedToday: false }
   }
   
   const nextDue = chore.nextDue || calculateNextDue(chore.frequency, chore.customIntervalDays, chore.lastCompleted)
@@ -95,7 +111,8 @@ function getOverdueStatus(chore: Chore): { isOverdue: boolean; isDueToday: boole
     isOverdue: daysOverdue > 0,
     isDueToday: daysOverdue === 0,
     isDueSoon: daysOverdue >= -2 && daysOverdue < 0,
-    daysOverdue
+    daysOverdue,
+    isCompletedToday: false
   }
 }
 
@@ -119,6 +136,7 @@ export default function ChoresSection() {
   const [trackingChoreId, setTrackingChoreId] = useState<string | null>(null)
   const [trackingStartTime, setTrackingStartTime] = useState<number | null>(null)
   const [completeDialogChore, setCompleteDialogChore] = useState<Chore | null>(null)
+  const [detailChore, setDetailChore] = useState<Chore | null>(null)
   
   // Filters
   const [filterRoom, setFilterRoom] = useState<string>('all')
@@ -405,7 +423,13 @@ export default function ChoresSection() {
     return withStatus
   }, [chores, selectedMember, filterRoom, filterPriority, sortBy])
 
-  const pendingChores = processedChores.filter(({ chore }) => !chore.completed)
+  // Separate recurring chores completed today from actually pending chores
+  const completedTodayChores = processedChores.filter(({ chore, status }) => 
+    !chore.completed && status.isCompletedToday
+  )
+  const pendingChores = processedChores.filter(({ chore, status }) => 
+    !chore.completed && !status.isCompletedToday
+  )
   const completedChores = processedChores.filter(({ chore }) => chore.completed)
   const overdueChores = pendingChores.filter(({ status }) => status.isOverdue)
   const dueTodayChores = pendingChores.filter(({ status }) => status.isDueToday && !status.isOverdue)
@@ -794,6 +818,7 @@ export default function ChoresSection() {
                     onDelete={() => handleDeleteChore(chore.id)}
                     onStartTracking={() => startTracking(chore.id)}
                     onStopTracking={() => stopTracking(chore)}
+                    onClick={() => setDetailChore(chore)}
                   />
                 ))}
               </div>
@@ -819,9 +844,54 @@ export default function ChoresSection() {
                   onDelete={() => handleDeleteChore(chore.id)}
                   onStartTracking={() => startTracking(chore.id)}
                   onStopTracking={() => stopTracking(chore)}
+                  onClick={() => setDetailChore(chore)}
                 />
               ))}
             </div>
+          )}
+
+          {/* Completed Today Section - for recurring chores done today */}
+          {completedTodayChores.length > 0 && (
+            <Collapsible defaultOpen={false}>
+              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2 w-full">
+                <CaretDown size={14} className="transition-transform ui-open:rotate-180" />
+                <CheckCircle size={14} className="text-green-500" />
+                <span>Done Today ({completedTodayChores.length})</span>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-2 mt-2">
+                {completedTodayChores.map(({ chore, status }) => (
+                  <Card 
+                    key={chore.id}
+                    className="cursor-pointer transition-all hover:shadow-md border-green-200 bg-green-50/50 dark:bg-green-950/10"
+                    onClick={() => setDetailChore(chore)}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white">
+                          <Check size={14} weight="bold" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-green-700 dark:text-green-400">{chore.title}</h3>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            {chore.lastCompleted && (
+                              <span>Done {formatDistanceToNow(chore.lastCompleted, { addSuffix: true })}</span>
+                            )}
+                            {chore.lastCompletedBy && (
+                              <span>by {chore.lastCompletedBy}</span>
+                            )}
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              <Repeat size={10} className="mr-0.5" />
+                              Next: {chore.frequency}
+                            </Badge>
+                          </div>
+                        </div>
+                        <Sparkle size={16} className="text-green-500" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
           )}
           
           {pendingChores.length === 0 && (
@@ -847,6 +917,7 @@ export default function ChoresSection() {
               onDelete={() => handleDeleteChore(chore.id)}
               onStartTracking={() => {}}
               onStopTracking={() => {}}
+              onClick={() => setDetailChore(chore)}
             />
           ))}
           {completedChores.length === 0 && (
@@ -871,6 +942,7 @@ export default function ChoresSection() {
               onDelete={() => handleDeleteChore(chore.id)}
               onStartTracking={() => startTracking(chore.id)}
               onStopTracking={() => stopTracking(chore)}
+              onClick={() => setDetailChore(chore)}
             />
           ))}
         </TabsContent>
@@ -889,6 +961,40 @@ export default function ChoresSection() {
               trackingStartTime={trackingStartTime}
               onComplete={(minutes, completedBy, notes) => handleCompleteChore(completeDialogChore, minutes, completedBy, notes)}
               onCancel={() => setCompleteDialogChore(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Chore Detail Dialog */}
+      <Dialog open={!!detailChore} onOpenChange={() => setDetailChore(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          {detailChore && (
+            <ChoreDetailView
+              chore={detailChore}
+              completions={completions.filter(c => c.choreId === detailChore.id)}
+              members={members}
+              onComplete={() => {
+                if (detailChore.trackTime) {
+                  setCompleteDialogChore(detailChore)
+                } else {
+                  handleCompleteChore(detailChore)
+                }
+                setDetailChore(null)
+              }}
+              onSkip={() => {
+                handleSkipChore(detailChore)
+                setDetailChore(null)
+              }}
+              onEdit={() => {
+                openEditDialog(detailChore)
+                setDetailChore(null)
+              }}
+              onDelete={() => {
+                handleDeleteChore(detailChore.id)
+                setDetailChore(null)
+              }}
+              onClose={() => setDetailChore(null)}
             />
           )}
         </DialogContent>
@@ -913,7 +1019,7 @@ export default function ChoresSection() {
 // Chore Card Component
 interface ChoreCardProps {
   chore: Chore
-  status: { isOverdue: boolean; isDueToday: boolean; isDueSoon: boolean; daysOverdue: number }
+  status: { isOverdue: boolean; isDueToday: boolean; isDueSoon: boolean; daysOverdue: number; isCompletedToday: boolean }
   members: { id: string; displayName: string }[]
   isTracking: boolean
   onComplete: () => void
@@ -922,22 +1028,27 @@ interface ChoreCardProps {
   onDelete: () => void
   onStartTracking: () => void
   onStopTracking: () => void
+  onClick: () => void
 }
 
-function ChoreCard({ chore, status, members, isTracking, onComplete, onSkip, onEdit, onDelete, onStartTracking, onStopTracking }: ChoreCardProps) {
+function ChoreCard({ chore, status, members, isTracking, onComplete, onSkip, onEdit, onDelete, onStartTracking, onStopTracking, onClick }: ChoreCardProps) {
   const priorityCfg = priorityConfig[chore.priority || 'medium']
   
   return (
-    <Card className={`
-      ${status.isOverdue ? 'border-red-300 bg-red-50/50 dark:bg-red-950/10' : ''}
-      ${status.isDueToday && !status.isOverdue ? 'border-primary/50 bg-primary/5' : ''}
-      ${chore.completed ? 'opacity-60' : ''}
-    `}>
+    <Card 
+      className={`
+        cursor-pointer transition-all hover:shadow-md
+        ${status.isOverdue ? 'border-red-300 bg-red-50/50 dark:bg-red-950/10' : ''}
+        ${status.isDueToday && !status.isOverdue ? 'border-primary/50 bg-primary/5' : ''}
+        ${chore.completed ? 'opacity-60' : ''}
+      `}
+      onClick={onClick}
+    >
       <CardContent className="p-3">
         <div className="flex items-start gap-3">
           {/* Complete Button */}
           <button
-            onClick={onComplete}
+            onClick={(e) => { e.stopPropagation(); onComplete(); }}
             disabled={chore.completed}
             className={`
               mt-0.5 flex-shrink-0 w-6 h-6 rounded-full border-2 
@@ -1020,7 +1131,7 @@ function ChoreCard({ chore, status, members, isTracking, onComplete, onSkip, onE
               </div>
               
               {/* Actions */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                 {/* Time tracking button */}
                 {chore.trackTime && !chore.completed && (
                   isTracking ? (
@@ -1146,3 +1257,246 @@ function CompleteChoreForm({ chore, members, trackingStartTime, onComplete, onCa
   )
 }
 
+// Chore Detail View Component
+interface ChoreDetailViewProps {
+  chore: Chore
+  completions: ChoreCompletion[]
+  members: { id: string; displayName: string }[]
+  onComplete: () => void
+  onSkip: () => void
+  onEdit: () => void
+  onDelete: () => void
+  onClose: () => void
+}
+
+function ChoreDetailView({ chore, completions, members, onComplete, onSkip, onEdit, onDelete, onClose }: ChoreDetailViewProps) {
+  const priorityCfg = priorityConfig[chore.priority || 'medium']
+  const status = getOverdueStatus(chore)
+  const recentCompletions = completions.sort((a, b) => b.completedAt - a.completedAt).slice(0, 10)
+  
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <DialogHeader className="pb-0">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1">
+            <DialogTitle className="text-xl flex items-center gap-2">
+              {chore.title}
+              {chore.completed && <CheckCircle size={20} className="text-green-500" />}
+            </DialogTitle>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <Badge className={`${priorityCfg.bg} ${priorityCfg.text} border ${priorityCfg.border}`}>
+                {chore.priority || 'medium'} priority
+              </Badge>
+              {chore.frequency !== 'once' && (
+                <Badge variant="secondary" className="gap-1">
+                  <Repeat size={12} />
+                  {chore.frequency}
+                </Badge>
+              )}
+              {status.isOverdue && (
+                <Badge variant="destructive" className="gap-1">
+                  <Warning size={12} />
+                  {status.daysOverdue} days overdue
+                </Badge>
+              )}
+              {status.isDueToday && !status.isOverdue && (
+                <Badge className="bg-primary gap-1">
+                  <CalendarCheck size={12} />
+                  Due today
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+      </DialogHeader>
+
+      {/* Info Grid */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="p-3 rounded-lg bg-muted/50">
+          <p className="text-xs text-muted-foreground mb-1">Assigned To</p>
+          <p className="font-medium flex items-center gap-1">
+            <User size={14} />
+            {chore.assignedTo}
+          </p>
+          {chore.rotation === 'rotate' && (
+            <p className="text-xs text-muted-foreground mt-1">
+              <ArrowsClockwise size={10} className="inline mr-0.5" />
+              Rotates: {chore.rotationOrder?.join(' → ')}
+            </p>
+          )}
+        </div>
+        {chore.room && (
+          <div className="p-3 rounded-lg bg-muted/50">
+            <p className="text-xs text-muted-foreground mb-1">Room</p>
+            <p className="font-medium flex items-center gap-1">
+              <House size={14} />
+              {chore.room}
+            </p>
+          </div>
+        )}
+        {chore.estimatedMinutes && (
+          <div className="p-3 rounded-lg bg-muted/50">
+            <p className="text-xs text-muted-foreground mb-1">Time Estimate</p>
+            <p className="font-medium flex items-center gap-1">
+              <Clock size={14} />
+              {chore.estimatedMinutes} minutes
+            </p>
+            {chore.averageCompletionTime && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Avg: {chore.averageCompletionTime}m
+              </p>
+            )}
+          </div>
+        )}
+        {chore.dueDate && chore.frequency === 'once' && (
+          <div className="p-3 rounded-lg bg-muted/50">
+            <p className="text-xs text-muted-foreground mb-1">Due Date</p>
+            <p className="font-medium flex items-center gap-1">
+              <Calendar size={14} />
+              {format(new Date(chore.dueDate), 'MMM d, yyyy')}
+            </p>
+          </div>
+        )}
+        {chore.nextDue && chore.frequency !== 'once' && (
+          <div className="p-3 rounded-lg bg-muted/50">
+            <p className="text-xs text-muted-foreground mb-1">Next Due</p>
+            <p className="font-medium flex items-center gap-1">
+              <Calendar size={14} />
+              {format(chore.nextDue, 'MMM d, yyyy')}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Stats Section */}
+      {(chore.streak !== undefined || chore.totalCompletions) && (
+        <div className="flex gap-3 p-3 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10">
+          {chore.streak !== undefined && chore.streak > 0 && (
+            <div className="text-center flex-1">
+              <Fire size={20} className="mx-auto text-orange-500 mb-1" />
+              <p className="text-xl font-bold">{chore.streak}</p>
+              <p className="text-xs text-muted-foreground">Current Streak</p>
+            </div>
+          )}
+          {chore.bestStreak !== undefined && chore.bestStreak > 0 && (
+            <div className="text-center flex-1">
+              <Trophy size={20} className="mx-auto text-yellow-500 mb-1" />
+              <p className="text-xl font-bold">{chore.bestStreak}</p>
+              <p className="text-xs text-muted-foreground">Best Streak</p>
+            </div>
+          )}
+          {chore.totalCompletions !== undefined && chore.totalCompletions > 0 && (
+            <div className="text-center flex-1">
+              <CheckCircle size={20} className="mx-auto text-green-500 mb-1" />
+              <p className="text-xl font-bold">{chore.totalCompletions}</p>
+              <p className="text-xs text-muted-foreground">Total Done</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Description/Notes */}
+      {(chore.description || chore.notes) && (
+        <div className="p-3 rounded-lg bg-muted/30 border">
+          {chore.description && (
+            <div className="mb-2">
+              <p className="text-xs font-semibold text-muted-foreground mb-1">Description</p>
+              <p className="text-sm">{chore.description}</p>
+            </div>
+          )}
+          {chore.notes && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-1">Notes</p>
+              <p className="text-sm">{chore.notes}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Last Completed */}
+      {chore.lastCompleted && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-200 dark:border-green-900">
+          <CheckCircle size={18} className="text-green-600" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-700 dark:text-green-300">
+              Last completed {formatDistanceToNow(chore.lastCompleted, { addSuffix: true })}
+            </p>
+            {chore.lastCompletedBy && (
+              <p className="text-xs text-green-600/80 dark:text-green-400/80">by {chore.lastCompletedBy}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Completion History */}
+      {recentCompletions.length > 0 && (
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-between h-auto py-2">
+              <span className="flex items-center gap-2">
+                <Clock size={16} />
+                Completion History ({completions.length})
+              </span>
+              <CaretDown size={16} />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-2">
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {recentCompletions.map(completion => (
+                <div 
+                  key={completion.id} 
+                  className={`flex items-center gap-3 p-2 rounded-lg text-sm ${
+                    completion.skipped ? 'bg-yellow-500/10' : 'bg-muted/30'
+                  }`}
+                >
+                  {completion.skipped ? (
+                    <SkipForward size={14} className="text-yellow-600" />
+                  ) : (
+                    <Check size={14} className="text-green-600" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium">
+                      {completion.skipped ? 'Skipped' : 'Completed'} by {completion.completedBy}
+                    </p>
+                    {completion.notes && (
+                      <p className="text-xs text-muted-foreground truncate">{completion.notes}</p>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground flex-shrink-0">
+                    {format(completion.completedAt, 'MMM d, h:mm a')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2 pt-2 border-t">
+        {!chore.completed && (
+          <>
+            <Button onClick={onComplete} className="flex-1">
+              <Check size={16} className="mr-1" />
+              Complete
+            </Button>
+            {chore.frequency !== 'once' && (
+              <Button variant="outline" onClick={onSkip}>
+                <SkipForward size={16} className="mr-1" />
+                Skip
+              </Button>
+            )}
+          </>
+        )}
+        <Button variant="outline" onClick={onEdit}>
+          <Pencil size={16} className="mr-1" />
+          Edit
+        </Button>
+        <Button variant="ghost" className="text-red-600" onClick={onDelete}>
+          <Trash size={16} />
+        </Button>
+      </div>
+    </div>
+  )
+}

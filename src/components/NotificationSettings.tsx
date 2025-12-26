@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
-import { Bell, BellSlash, Check, X, Broom, CalendarBlank, ShoppingCart, CookingPot, SpeakerHigh, Vibrate, Moon } from '@phosphor-icons/react'
+import { Bell, BellSlash, Check, X, Broom, CalendarBlank, ShoppingCart, CookingPot, SpeakerHigh, Vibrate, Moon, Brain, SunHorizon, MoonStars, Warning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import {
   type NotificationPreferences,
@@ -165,6 +165,90 @@ export function NotificationSettings() {
                     </div>
                   )}
                 </div>
+
+                {/* Smart Chore Notifications */}
+                {preferences.choresEnabled && (
+                  <div className="p-4 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Brain size={20} className="text-primary" />
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <Label className="text-base">Smart Reminders</Label>
+                            <Badge variant="secondary" className="text-[10px]">NEW</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Automatic morning summaries & evening follow-ups
+                          </p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={preferences.smartChoreReminders}
+                        onCheckedChange={value => handleToggle('smartChoreReminders', value)}
+                      />
+                    </div>
+
+                    {preferences.smartChoreReminders && (
+                      <div className="space-y-4 pt-2">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5">
+                              <SunHorizon size={14} className="text-yellow-500" />
+                              <Label className="text-sm">Morning Summary</Label>
+                            </div>
+                            <Input
+                              type="time"
+                              value={preferences.morningReminderTime}
+                              onChange={e => handleTimeChange('morningReminderTime', e.target.value)}
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                              Daily overview of pending chores
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5">
+                              <MoonStars size={14} className="text-indigo-500" />
+                              <Label className="text-sm">Evening Follow-up</Label>
+                            </div>
+                            <Input
+                              type="time"
+                              value={preferences.eveningFollowUpTime}
+                              onChange={e => handleTimeChange('eveningFollowUpTime', e.target.value)}
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                              Reminder for incomplete chores
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5">
+                            <Warning size={14} className="text-red-500" />
+                            <Label className="text-sm">Urgent Notification Threshold</Label>
+                          </div>
+                          <Select
+                            value={String(preferences.urgentOverdueThreshold)}
+                            onValueChange={value => handleMinutesChange('urgentOverdueThreshold', value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">1 day overdue</SelectItem>
+                              <SelectItem value="2">2 days overdue</SelectItem>
+                              <SelectItem value="3">3 days overdue</SelectItem>
+                              <SelectItem value="5">5 days overdue</SelectItem>
+                              <SelectItem value="7">1 week overdue</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-muted-foreground">
+                            Send urgent notification when chores are this many days late
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <Separator />
 

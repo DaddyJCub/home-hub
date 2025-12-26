@@ -2,18 +2,19 @@ import { useKV } from '@github/spark/hooks'
 import { 
   CalendarBlank, CheckCircle, ShoppingCart, CookingPot, Broom, 
   Clock, User, ArrowRight, CaretDown, CaretUp, House, Sparkle,
-  Sun, Moon, CloudSun, MapPin, Bell, Warning
+  Sun, Moon, CloudSun, MapPin, Bell, Warning, Check, Fire
 } from '@phosphor-icons/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent } from '@/lib/types'
-import { format, isToday, isAfter, isSameDay, startOfDay, addDays, parseISO, isTomorrow } from 'date-fns'
-import { useState, useMemo } from 'react'
+import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent, ChoreCompletion } from '@/lib/types'
+import { format, isToday, isAfter, isSameDay, startOfDay, addDays, parseISO, isTomorrow, differenceInDays } from 'date-fns'
+import { useState, useMemo, useCallback } from 'react'
 import { NotificationSummary } from '@/components/NotificationSummary'
 import { useAuth } from '@/lib/AuthContext'
+import { toast } from 'sonner'
 
 interface DashboardSectionProps {
   onNavigate?: (tab: string) => void
@@ -36,7 +37,8 @@ const priorityColors = {
 
 export default function DashboardSection({ onNavigate }: DashboardSectionProps) {
   const { householdMembers, currentHousehold, currentUser } = useAuth()
-  const [choresRaw] = useKV<Chore[]>('chores', [])
+  const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
+  const [completionsRaw, setCompletions] = useKV<ChoreCompletion[]>('chore-completions', [])
   const [shoppingItemsRaw] = useKV<ShoppingItem[]>('shopping-items', [])
   const [mealsRaw] = useKV<Meal[]>('meals', [])
   const [recipesRaw] = useKV<Recipe[]>('recipes', [])
@@ -48,11 +50,13 @@ export default function DashboardSection({ onNavigate }: DashboardSectionProps) 
   const [showAllEvents, setShowAllEvents] = useState(false)
   const [showShopping, setShowShopping] = useState(true)
 
+  const allChores = choresRaw ?? []
+  const allCompletions = completionsRaw ?? []
+
   // Filter all data by current household
   const chores = useMemo(() => {
-    const all = choresRaw ?? []
-    return currentHousehold ? all.filter(c => c.householdId === currentHousehold.id) : []
-  }, [choresRaw, currentHousehold])
+    return currentHousehold ? allChores.filter(c => c.householdId === currentHousehold.id) : []
+  }, [allChores, currentHousehold])
 
   const shoppingItems = useMemo(() => {
     const all = shoppingItemsRaw ?? []
@@ -75,6 +79,93 @@ export default function DashboardSection({ onNavigate }: DashboardSectionProps) 
   }, [eventsRaw, currentHousehold])
 
   const members = householdMembers ?? []
+
+  // Helper to calculate next due date
+  const calculateNextDue = useCallback((frequency: string, customDays?: number, lastCompleted?: number): number => {
+    const base = lastCompleted || Date.now()
+    const msPerDay = 24 * 60 * 60 * 1000
+    switch (frequency) {
+      case 'daily': return base + msPerDay
+      case 'weekly': return base + 7 * msPerDay
+      case 'biweekly': return base + 14 * msPerDay
+      case 'monthly': return base + 30 * msPerDay
+      case 'quarterly': return base + 90 * msPerDay
+      case 'yearly': return base + 365 * msPerDay
+      case 'custom': return base + (customDays || 7) * msPerDay
+      default: return 0
+    }
+  }, [])
+
+  // Helper to check if chore is overdue
+  const isChoreOverdue = useCallback((chore: Chore): boolean => {
+    if (chore.completed || chore.frequency === 'once') {
+      if (chore.dueDate) {
+        const dueDate = new Date(chore.dueDate)
+        return differenceInDays(startOfDay(new Date()), dueDate) > 0
+      }
+      return false
+    }
+    const nextDue = chore.nextDue || calculateNextDue(chore.frequency, chore.customIntervalDays, chore.lastCompleted)
+    return Date.now() > nextDue
+  }, [calculateNextDue])
+
+  // Complete chore handler
+  const handleCompleteChore = useCallback((chore: Chore) => {
+    if (!currentHousehold) return
+    
+    const now = Date.now()
+    const wasOnTime = !isChoreOverdue(chore)
+    
+    // Create completion record
+    const completion: ChoreCompletion = {
+      id: `${chore.id}-${now}`,
+      choreId: chore.id,
+      completedBy: chore.assignedTo,
+      householdId: currentHousehold.id,
+      completedAt: now
+    }
+    setCompletions([...allCompletions, completion])
+    
+    // Update chore
+    const updatedChore: Chore = { ...chore }
+    updatedChore.lastCompleted = now
+    updatedChore.lastCompletedBy = chore.assignedTo
+    updatedChore.totalCompletions = (chore.totalCompletions || 0) + 1
+    
+    // Update streak
+    if (wasOnTime && chore.frequency !== 'once') {
+      updatedChore.streak = (chore.streak || 0) + 1
+      if (updatedChore.streak > (chore.bestStreak || 0)) {
+        updatedChore.bestStreak = updatedChore.streak
+      }
+    } else {
+      updatedChore.streak = 0
+    }
+    
+    // Handle recurring vs one-time
+    if (chore.frequency === 'once') {
+      updatedChore.completed = true
+    } else {
+      updatedChore.completed = false
+      updatedChore.nextDue = calculateNextDue(chore.frequency, chore.customIntervalDays, now)
+      
+      // Handle rotation
+      if (chore.rotation === 'rotate' && chore.rotationOrder && chore.rotationOrder.length > 0) {
+        const nextIndex = ((chore.currentRotationIndex || 0) + 1) % chore.rotationOrder.length
+        updatedChore.currentRotationIndex = nextIndex
+        updatedChore.assignedTo = chore.rotationOrder[nextIndex]
+      }
+    }
+    
+    setChores(allChores.map(c => c.id === chore.id ? updatedChore : c))
+    
+    // Show toast
+    if (updatedChore.streak && updatedChore.streak >= 3) {
+      toast.success(`🔥 ${updatedChore.streak} day streak!`, { description: chore.title })
+    } else {
+      toast.success('Chore completed!', { description: chore.title })
+    }
+  }, [currentHousehold, allChores, allCompletions, setChores, setCompletions, calculateNextDue, isChoreOverdue])
 
   // Filtered data based on selected member
   const filteredChores = selectedMember === 'all' 
@@ -328,11 +419,11 @@ export default function DashboardSection({ onNavigate }: DashboardSectionProps) 
             {pendingChores.length > 0 ? (
               <div className="space-y-2">
                 {pendingChores.slice(0, 3).map(chore => (
-                  <ChoreItem key={chore.id} chore={chore} />
+                  <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} />
                 ))}
                 <CollapsibleContent className="space-y-2">
                   {pendingChores.slice(3).map(chore => (
-                    <ChoreItem key={chore.id} chore={chore} />
+                    <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} />
                   ))}
                 </CollapsibleContent>
               </div>
@@ -551,14 +642,35 @@ function QuickStatPill({ icon: Icon, label, value, subtext, highlight, onClick }
 }
 
 // Chore Item Component
-function ChoreItem({ chore }: { chore: Chore }) {
+interface ChoreItemProps {
+  chore: Chore
+  onComplete: (chore: Chore) => void
+}
+
+function ChoreItem({ chore, onComplete }: ChoreItemProps) {
   return (
-    <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group">
+      {/* Complete Button */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onComplete(chore); }}
+        className="flex-shrink-0 w-5 h-5 rounded-full border-2 border-muted-foreground/30 
+                   hover:border-primary hover:bg-primary/10 flex items-center justify-center 
+                   transition-all opacity-60 group-hover:opacity-100"
+        title="Mark complete"
+      >
+        <Check size={10} className="text-transparent group-hover:text-primary" />
+      </button>
       <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
         chore.priority === 'high' ? 'bg-red-500' :
         chore.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
       }`} />
       <span className="text-sm flex-1 truncate">{chore.title}</span>
+      {chore.streak && chore.streak >= 2 && (
+        <Badge className="text-[10px] px-1 py-0 gap-0.5 bg-orange-500">
+          <Fire size={8} />
+          {chore.streak}
+        </Badge>
+      )}
       {chore.assignedTo && (
         <Badge variant="outline" className="text-[10px] px-1.5 py-0">
           {chore.assignedTo}
