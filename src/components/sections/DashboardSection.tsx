@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 
 interface DashboardSectionProps {
   onNavigate?: (tab: string) => void
+  onViewRecipe?: (recipeId: string) => void
 }
 
 // Get greeting based on time of day
@@ -35,7 +36,7 @@ const priorityColors = {
   low: 'bg-green-500/20 text-green-700 border-green-300 dark:text-green-300'
 }
 
-export default function DashboardSection({ onNavigate }: DashboardSectionProps) {
+export default function DashboardSection({ onNavigate, onViewRecipe }: DashboardSectionProps) {
   const { householdMembers, currentHousehold, currentUser } = useAuth()
   const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
   const [completionsRaw, setCompletions] = useKV<ChoreCompletion[]>('chore-completions', [])
@@ -361,17 +362,28 @@ export default function DashboardSection({ onNavigate }: DashboardSectionProps) 
               <div className="flex gap-2 mt-2 pt-2 border-t overflow-x-auto">
                 {['breakfast', 'lunch', 'dinner'].map(type => {
                   const meal = todaysMeals.find(m => m.type === type)
+                  const hasRecipe = meal?.recipeId
                   return (
                     <div 
                       key={type}
-                      className={`flex-1 min-w-[100px] p-2 rounded-lg text-center ${
+                      className={`flex-1 min-w-[100px] p-2 rounded-lg text-center transition-colors ${
                         meal ? 'bg-primary/10' : 'bg-muted/30'
-                      }`}
+                      } ${hasRecipe ? 'cursor-pointer hover:bg-primary/20 active:bg-primary/25' : ''}`}
+                      onClick={() => {
+                        if (hasRecipe && onViewRecipe) {
+                          onViewRecipe(meal.recipeId!)
+                        } else if (meal) {
+                          onNavigate?.('meals')
+                        }
+                      }}
                     >
                       <p className="text-[10px] uppercase font-semibold text-muted-foreground">{type}</p>
                       <p className={`text-xs truncate ${meal ? 'font-medium' : 'text-muted-foreground italic'}`}>
                         {meal?.name || '-'}
                       </p>
+                      {hasRecipe && (
+                        <p className="text-[10px] text-primary mt-0.5">View recipe →</p>
+                      )}
                     </div>
                   )
                 })}

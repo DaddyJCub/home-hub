@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Plus, Trash, CookingPot, MagnifyingGlass, Clock, Users, Pencil, Link as LinkIcon, X, Tag, Sparkle, Image as ImageIcon, Star, ShoppingCart, CalendarPlus, ForkKnife, GridFour, List, CaretDown, Fire, Printer, ArrowLeft, ShareNetwork } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -33,7 +33,12 @@ const RECIPE_CATEGORIES: { value: RecipeCategory; label: string; icon?: string }
   { value: 'other', label: 'Other' },
 ]
 
-export default function RecipesSection() {
+interface RecipesSectionProps {
+  initialRecipeId?: string | null
+  onRecipeViewed?: () => void
+}
+
+export default function RecipesSection({ initialRecipeId, onRecipeViewed }: RecipesSectionProps = {}) {
   const { currentHousehold } = useAuth()
   const [recipesRaw, setRecipes] = useKV<Recipe[]>('recipes', [])
   const [shoppingItemsRaw, setShoppingItems] = useKV<ShoppingItem[]>('shopping-items', [])
@@ -67,6 +72,19 @@ export default function RecipesSection() {
     sourceUrl: '',
     imageUrl: ''
   })
+
+  // Handle opening a recipe from external navigation (e.g., from Dashboard)
+  useEffect(() => {
+    if (initialRecipeId && recipes.length > 0) {
+      const recipe = recipes.find(r => r.id === initialRecipeId)
+      if (recipe) {
+        setSelectedRecipe(recipe)
+        setCheckedIngredients(new Set())
+        setViewDialogOpen(true)
+        onRecipeViewed?.()
+      }
+    }
+  }, [initialRecipeId, recipes])
 
   const allTags = Array.from(
     new Set(recipes.flatMap((r) => r.tags || []))
@@ -291,13 +309,36 @@ export default function RecipesSection() {
           li { margin-bottom: 8px; }
           .instructions { white-space: pre-wrap; }
           .source { font-size: 12px; color: #888; margin-top: 24px; }
+          .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            margin-bottom: 16px;
+            border-bottom: 1px solid #eee;
+          }
+          .header-bar button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-size: 14px;
+          }
+          .header-bar button:hover {
+            background: #eee;
+          }
           @media print {
             body { padding: 0; }
-            .no-print { display: none; }
+            .no-print { display: none !important; }
           }
         </style>
       </head>
       <body>
+        <div class="header-bar no-print">
+          <button onclick="window.close()">← Back to App</button>
+          <button onclick="window.print()">🖨️ Print Recipe</button>
+        </div>
         <h1>${selectedRecipe.name}</h1>
         ${selectedRecipe.category ? `<p class="meta" style="text-transform: capitalize;">${selectedRecipe.category}</p>` : ''}
         <div class="meta">
@@ -325,9 +366,6 @@ export default function RecipesSection() {
       printWindow.document.write(printContent)
       printWindow.document.close()
       printWindow.focus()
-      setTimeout(() => {
-        printWindow.print()
-      }, 250)
     }
   }
 
@@ -1019,9 +1057,35 @@ export default function RecipesSection() {
                   {/* Instructions */}
                   <div>
                     <h4 className="font-semibold text-lg mb-3">Instructions</h4>
-                    <div className="whitespace-pre-wrap leading-relaxed text-[15px]">
-                      {selectedRecipe.instructions}
-                    </div>
+                    {(() => {
+                      // Check if instructions have numbered steps
+                      const lines = selectedRecipe.instructions.split('\n').filter(l => l.trim())
+                      const hasNumberedSteps = lines.some(line => /^\d+[\.\)]\s/.test(line.trim()))
+                      
+                      if (hasNumberedSteps) {
+                        return (
+                          <ol className="space-y-3">
+                            {lines.map((line, idx) => {
+                              const cleaned = line.trim().replace(/^\d+[\.\)]\s*/, '')
+                              return (
+                                <li key={idx} className="flex gap-3">
+                                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-sm font-medium flex items-center justify-center">
+                                    {idx + 1}
+                                  </span>
+                                  <span className="flex-1 leading-relaxed text-[15px] pt-0.5">{cleaned}</span>
+                                </li>
+                              )
+                            })}
+                          </ol>
+                        )
+                      }
+                      
+                      return (
+                        <div className="whitespace-pre-wrap leading-relaxed text-[15px]">
+                          {selectedRecipe.instructions}
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   {/* Action buttons */}

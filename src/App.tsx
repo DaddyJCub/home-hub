@@ -104,6 +104,7 @@ function AppContent() {
       ? tabParam
       : 'dashboard'
   })
+  const [viewRecipeId, setViewRecipeId] = useState<string | null>(null)
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
   const [currentThemeId, setCurrentThemeId] = useKV<string>('theme-id', 'warm-home')
@@ -187,6 +188,12 @@ function AppContent() {
       }
     }
   }, [currentThemeId, isDarkMode])
+
+  // Handle viewing a recipe from another section (e.g., Dashboard)
+  const handleViewRecipe = (recipeId: string) => {
+    setViewRecipeId(recipeId)
+    setActiveTab('recipes')
+  }
 
   if (!isAuthenticated) {
     return <AuthPage />
@@ -295,7 +302,7 @@ function AppContent() {
           )}
 
           <TabsContent value="dashboard" className="mt-0">
-            <DashboardSection onNavigate={setActiveTab} />
+            <DashboardSection onNavigate={setActiveTab} onViewRecipe={handleViewRecipe} />
           </TabsContent>
 
           <TabsContent value="chores" className="mt-0">
@@ -315,7 +322,10 @@ function AppContent() {
           </TabsContent>
 
           <TabsContent value="recipes" className="mt-0">
-            <RecipesSection />
+            <RecipesSection 
+              initialRecipeId={viewRecipeId} 
+              onRecipeViewed={() => setViewRecipeId(null)} 
+            />
           </TabsContent>
 
           <TabsContent value="settings" className="mt-0">
