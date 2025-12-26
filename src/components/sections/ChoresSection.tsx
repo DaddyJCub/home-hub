@@ -117,13 +117,12 @@ export default function ChoresSection() {
     }
 
     if (editingChore) {
-      setChores((current) =>
-        (current ?? []).map((chore) =>
-          chore.id === editingChore.id
-            ? { ...chore, ...choreData }
-            : chore
-        )
+      const updated = chores.map((chore) =>
+        chore.id === editingChore.id
+          ? { ...chore, ...choreData }
+          : chore
       )
+      setChores(updated)
       toast.success('Chore updated')
     } else {
       const newChore: Chore = {
@@ -133,7 +132,8 @@ export default function ChoresSection() {
         completed: false,
         createdAt: Date.now()
       }
-      setChores((current) => [...(current ?? []), newChore])
+      const updated = [...chores, newChore]
+      setChores(updated)
       toast.success('Chore added')
     }
 
@@ -157,46 +157,46 @@ export default function ChoresSection() {
   }
 
   const handleToggleChore = (id: string) => {
-    setChores((current) =>
-      (current ?? []).map((chore) => {
-        if (chore.id !== id) return chore
+    const updated = chores.map((chore) => {
+      if (chore.id !== id) return chore
+      
+      const newCompleted = !chore.completed
+      
+      if (newCompleted && chore.frequency !== 'once') {
+        const now = Date.now()
+        let nextDue = now
         
-        const newCompleted = !chore.completed
-        
-        if (newCompleted && chore.frequency !== 'once') {
-          const now = Date.now()
-          let nextDue = now
-          
-          switch (chore.frequency) {
-            case 'daily':
-              nextDue = now + 24 * 60 * 60 * 1000
-              break
-            case 'weekly':
-              nextDue = now + 7 * 24 * 60 * 60 * 1000
-              break
-            case 'biweekly':
-              nextDue = now + 14 * 24 * 60 * 60 * 1000
-              break
-            case 'monthly':
-              nextDue = now + 30 * 24 * 60 * 60 * 1000
-              break
-          }
-          
-          return {
-            ...chore,
-            completed: false,
-            lastCompleted: now,
-            nextDue
-          }
+        switch (chore.frequency) {
+          case 'daily':
+            nextDue = now + 24 * 60 * 60 * 1000
+            break
+          case 'weekly':
+            nextDue = now + 7 * 24 * 60 * 60 * 1000
+            break
+          case 'biweekly':
+            nextDue = now + 14 * 24 * 60 * 60 * 1000
+            break
+          case 'monthly':
+            nextDue = now + 30 * 24 * 60 * 60 * 1000
+            break
         }
         
-        return { ...chore, completed: newCompleted }
-      })
-    )
+        return {
+          ...chore,
+          completed: false,
+          lastCompleted: now,
+          nextDue
+        }
+      }
+      
+      return { ...chore, completed: newCompleted }
+    })
+    setChores(updated)
   }
 
   const handleDeleteChore = (id: string) => {
-    setChores((current) => (current ?? []).filter((chore) => chore.id !== id))
+    const updated = chores.filter((chore) => chore.id !== id)
+    setChores(updated)
     toast.success('Chore deleted')
   }
 
@@ -667,7 +667,8 @@ export default function ChoresSection() {
                   onClick={() => {
                     const confirmed = window.confirm('Clear all completed chores? This cannot be undone.')
                     if (confirmed) {
-                      setChores((current) => (current ?? []).filter((c) => !c.completed))
+                      const updated = chores.filter((c) => !c.completed)
+                      setChores(updated)
                     }
                   }}
                   className="text-xs h-8"

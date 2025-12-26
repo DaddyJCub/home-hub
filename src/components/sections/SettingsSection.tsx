@@ -127,11 +127,10 @@ export default function SettingsSection() {
   }
 
   const handleToggleWidget = (widgetId: string) => {
-    setDashboardWidgets((current) => {
-      const currentArr = current ?? []
-      const existing = currentArr.length > 0 ? currentArr : defaultWidgets
-      return existing.map((w) => (w.id === widgetId ? { ...w, enabled: !w.enabled } : w))
-    })
+    const currentArr = dashboardWidgets ?? []
+    const existing = currentArr.length > 0 ? currentArr : defaultWidgets
+    const updated = existing.map((w) => (w.id === widgetId ? { ...w, enabled: !w.enabled } : w))
+    setDashboardWidgets(updated)
     toast.success('Dashboard layout updated')
   }
 

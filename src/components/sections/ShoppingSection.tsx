@@ -73,13 +73,12 @@ export default function ShoppingSection() {
     }
 
     if (editingItem) {
-      setItems((current) =>
-        (current ?? []).map((item) =>
-          item.id === editingItem.id
-            ? { ...item, ...itemData }
-            : item
-        )
+      const updated = items.map((item) =>
+        item.id === editingItem.id
+          ? { ...item, ...itemData }
+          : item
       )
+      setItems(updated)
       toast.success('Item updated')
     } else {
       if (!currentHousehold) {
@@ -95,7 +94,8 @@ export default function ShoppingSection() {
         createdAt: Date.now()
       }
 
-      setItems((current) => [...(current ?? []), newItem])
+      const updated = [...items, newItem]
+      setItems(updated)
       toast.success('Item added to list')
     }
 
@@ -105,15 +105,15 @@ export default function ShoppingSection() {
   }
 
   const handleToggleItem = (id: string) => {
-    setItems((current) =>
-      (current ?? []).map((item) =>
-        item.id === id ? { ...item, purchased: !item.purchased } : item
-      )
+    const updated = items.map((item) =>
+      item.id === id ? { ...item, purchased: !item.purchased } : item
     )
+    setItems(updated)
   }
 
   const handleDeleteItem = (id: string) => {
-    setItems((current) => (current ?? []).filter((item) => item.id !== id))
+    const updated = items.filter((item) => item.id !== id)
+    setItems(updated)
     toast.success('Item deleted')
   }
 
@@ -133,7 +133,8 @@ export default function ShoppingSection() {
   const clearPurchased = () => {
     const confirmed = window.confirm('Clear all purchased items? This cannot be undone.')
     if (confirmed) {
-      setItems((current) => (current ?? []).filter((item) => !item.purchased))
+      const updated = items.filter((item) => !item.purchased)
+      setItems(updated)
       toast.success('Purchased items cleared')
     }
   }
@@ -187,7 +188,8 @@ export default function ShoppingSection() {
       createdAt: Date.now()
     }))
 
-    setItems((current) => [...(current ?? []), ...newItems])
+    const updated = [...items, ...newItems]
+    setItems(updated)
     setGenerateDialogOpen(false)
     toast.success(`Added ${newItems.length} items from meal plan`)
   }

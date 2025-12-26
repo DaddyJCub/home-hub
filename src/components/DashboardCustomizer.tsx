@@ -278,26 +278,24 @@ export default function DashboardCustomizer() {
   )
 
   const toggleWidget = (widgetId: string) => {
-    setWidgets((currentWidgets) => {
-      const current = (currentWidgets && currentWidgets.length > 0) ? currentWidgets : defaultWidgets
-      return current.map((w) =>
-        w.id === widgetId ? { ...w, enabled: !w.enabled } : w
-      )
-    })
+    const current = (widgets && widgets.length > 0) ? widgets : defaultWidgets
+    const updated = current.map((w) =>
+      w.id === widgetId ? { ...w, enabled: !w.enabled } : w
+    )
+    setWidgets(updated)
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
 
     if (over && active.id !== over.id) {
-      setWidgets((currentWidgets) => {
-        const current = (currentWidgets && currentWidgets.length > 0) ? currentWidgets : defaultWidgets
-        const oldIndex = current.findIndex((w) => w.id === active.id)
-        const newIndex = current.findIndex((w) => w.id === over.id)
-        
-        const reordered = arrayMove(current, oldIndex, newIndex)
-        return reordered.map((w, i) => ({ ...w, order: i }))
-      })
+      const current = (widgets && widgets.length > 0) ? widgets : defaultWidgets
+      const oldIndex = current.findIndex((w) => w.id === active.id)
+      const newIndex = current.findIndex((w) => w.id === over.id)
+      
+      const reordered = arrayMove(current, oldIndex, newIndex)
+      const updated = reordered.map((w, i) => ({ ...w, order: i }))
+      setWidgets(updated)
       toast.success('Widget order updated')
     }
   }
@@ -306,13 +304,12 @@ export default function DashboardCustomizer() {
     const preset = presets.find((p) => p.id === presetId)
     if (!preset) return
 
-    setWidgets((currentWidgets) => {
-      const current = (currentWidgets && currentWidgets.length > 0) ? currentWidgets : defaultWidgets
-      return current.map((w) => ({
-        ...w,
-        enabled: preset.widgets.includes(w.id),
-      }))
-    })
+    const current = (widgets && widgets.length > 0) ? widgets : defaultWidgets
+    const updated = current.map((w) => ({
+      ...w,
+      enabled: preset.widgets.includes(w.id),
+    }))
+    setWidgets(updated)
     toast.success(`Applied "${preset.name}" preset`)
   }
 

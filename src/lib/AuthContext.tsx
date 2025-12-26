@@ -138,8 +138,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (memberships.length === 0) {
         const newHousehold = await createHousehold(`${user.displayName || 'My'} Household`, user.id)
         const newMember = createHouseholdMember(newHousehold.id, user.id, user.displayName || 'Owner', 'owner')
-        setHouseholds((current) => [...(current ?? []), newHousehold])
-        setHouseholdMembers((current) => [...(current ?? []), newMember])
+        const updatedHouseholds = [...households, newHousehold]
+        const updatedMembers = [...householdMembers, newMember]
+        setHouseholds(updatedHouseholds)
+        setHouseholdMembers(updatedMembers)
         setCurrentHouseholdId(newHousehold.id)
       } else if (!currentHouseholdId) {
         setCurrentHouseholdId(memberships[0].householdId)
@@ -191,13 +193,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       const newUser = await createUser(normalizedEmail, password, normalizedName)
-      setUsers((currentUsers) => [...(currentUsers || []), newUser])
+      const updatedUsers = [...users, newUser]
+      setUsers(updatedUsers)
       
       const newHousehold = await createHousehold(`${normalizedName}'s Household`, newUser.id)
-      setHouseholds((currentHouseholds) => [...(currentHouseholds || []), newHousehold])
+      const updatedHouseholds = [...households, newHousehold]
+      setHouseholds(updatedHouseholds)
       
       const newMember = createHouseholdMember(newHousehold.id, newUser.id, normalizedName, 'owner')
-      setHouseholdMembers((currentMembers) => [...(currentMembers || []), newMember])
+      const updatedMembers = [...householdMembers, newMember]
+      setHouseholdMembers(updatedMembers)
       
       setCurrentUserId(newUser.id)
       setCurrentHouseholdId(newHousehold.id)

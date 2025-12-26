@@ -38,8 +38,10 @@ export default function HouseholdSwitcher() {
 
     const newMember = createHouseholdMember(newHousehold.id, currentUser.id, currentUser.displayName, 'owner')
 
-    setHouseholds((current: Household[]) => [...current, newHousehold])
-    setHouseholdMembers((current: HouseholdMember[]) => [...current, newMember])
+    const updatedHouseholds = [...households, newHousehold]
+    const updatedMembers = [...householdMembers, newMember]
+    setHouseholds(updatedHouseholds)
+    setHouseholdMembers(updatedMembers)
 
     switchHousehold(newHousehold.id)
     setNewHouseholdName('')
@@ -69,7 +71,8 @@ export default function HouseholdSwitcher() {
     }
 
     const newMember = createHouseholdMember(household.id, currentUser.id, currentUser.displayName, 'member')
-    setHouseholdMembers((current: HouseholdMember[]) => [...current, newMember])
+    const updatedMembers = [...householdMembers, newMember]
+    setHouseholdMembers(updatedMembers)
 
     switchHousehold(household.id)
     setInviteCode('')
