@@ -33,9 +33,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [lastAuthError, setLastAuthError] = useState<string | null>(null)
   
   // Null-safe fallbacks - useKV may return null instead of undefined
-  const users = usersRaw ?? []
-  const households = householdsRaw ?? []
-  const householdMembers = householdMembersRaw ?? []
+  const users = Array.isArray(usersRaw) ? usersRaw : []
+  const households = Array.isArray(householdsRaw) ? householdsRaw : []
+  const householdMembers = Array.isArray(householdMembersRaw) ? householdMembersRaw : []
   
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [currentHousehold, setCurrentHousehold] = useState<Household | null>(null)
@@ -45,6 +45,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     ensureClientKvDefaults()
   }, [])
+
+  // Heal corrupted KV data (non-array values)
+  useEffect(() => {
+    if (usersRaw && !Array.isArray(usersRaw)) {
+      const fallback: User[] = []
+      setUsers(fallback)
+      window.spark?.kv?.set?.('users', fallback)
+    }
+  }, [usersRaw, setUsers])
+
+  useEffect(() => {
+    if (householdsRaw && !Array.isArray(householdsRaw)) {
+      const fallback: Household[] = []
+      setHouseholds(fallback)
+      window.spark?.kv?.set?.('households', fallback)
+    }
+  }, [householdsRaw, setHouseholds])
+
+  useEffect(() => {
+    if (householdMembersRaw && !Array.isArray(householdMembersRaw)) {
+      const fallback: HouseholdMember[] = []
+      setHouseholdMembers(fallback)
+      window.spark?.kv?.set?.('household-members-v2', fallback)
+    }
+  }, [householdMembersRaw, setHouseholdMembers])
+
+  const persistKv = async (key: string, value: any) => {
+    try {
+      if (typeof window !== 'undefined' && window.spark?.kv?.set) {
+        await window.spark.kv.set(key, value)
+      }
+    } catch {
+      // best-effort; ignore
+    }
+  }
 
   const logAuthEvent = async (event: string, message: string, context?: Record<string, unknown>) => {
     try {
@@ -132,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setCurrentUserId(user.id)
+      persistKv('current-user-id', user.id)
       setLastAuthError(null)
 
       const memberships = householdMembers.filter(m => m.userId === user.id)
@@ -143,8 +179,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setHouseholds(updatedHouseholds)
         setHouseholdMembers(updatedMembers)
         setCurrentHouseholdId(newHousehold.id)
+        persistKv('households', updatedHouseholds)
+        persistKv('household-members-v2', updatedMembers)
+        persistKv('current-household-id', newHousehold.id)
       } else if (!currentHouseholdId) {
         setCurrentHouseholdId(memberships[0].householdId)
+        persistKv('current-household-id', memberships[0].householdId)
       }
 
       await logAuthEvent('login_success', 'User logged in', { email: normalizedEmail })
@@ -195,17 +235,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const newUser = await createUser(normalizedEmail, password, normalizedName)
       const updatedUsers = [...users, newUser]
       setUsers(updatedUsers)
+      persistKv('users', updatedUsers)
       
       const newHousehold = await createHousehold(`${normalizedName}'s Household`, newUser.id)
       const updatedHouseholds = [...households, newHousehold]
       setHouseholds(updatedHouseholds)
+      persistKv('households', updatedHouseholds)
       
       const newMember = createHouseholdMember(newHousehold.id, newUser.id, normalizedName, 'owner')
       const updatedMembers = [...householdMembers, newMember]
       setHouseholdMembers(updatedMembers)
+      persistKv('household-members-v2', updatedMembers)
       
       setCurrentUserId(newUser.id)
       setCurrentHouseholdId(newHousehold.id)
+      persistKv('current-user-id', newUser.id)
+      persistKv('current-household-id', newHousehold.id)
       setLastAuthError(null)
       await logAuthEvent('signup_success', 'User created', { email: normalizedEmail })
       
