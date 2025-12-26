@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/lib/AuthContext'
-import { ensureClientKvDefaults } from '@/lib/kv-defaults'
 
 interface SparkStatus {
   ok: boolean
@@ -19,26 +18,18 @@ interface SparkStatus {
 export function DiagnosticsPanel() {
   const { currentUser, currentHousehold, userHouseholds, lastAuthError } = useAuth()
   const [kvStatus, setKvStatus] = useState<SparkStatus | null>(null)
-  const [clientCheck, setClientCheck] = useState<{ available: boolean; missing: string[]; seeded: string[]; error?: string } | null>(null)
   const [loading, setLoading] = useState(false)
 
   const refresh = async () => {
     setLoading(true)
-    try {
-      const response = await fetch('/_spark/status')
-      if (response.ok) {
-        const data = await response.json()
-        setKvStatus(data)
-      } else {
-        setKvStatus({ ok: false, keys: [], missing: [], error: `Status ${response.status}` })
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to reach Spark'
-      setKvStatus({ ok: false, keys: [], missing: [], error: message })
-    }
+    const keys =
+      typeof window !== 'undefined'
+        ? Object.keys(window.localStorage)
+            .filter(k => k.startsWith('hh_'))
+            .map(k => k.replace('hh_', ''))
+        : []
+    setKvStatus({ ok: true, keys, missing: [] })
 
-    const clientResult = await ensureClientKvDefaults()
-    setClientCheck(clientResult)
     setLoading(false)
   }
 
@@ -46,7 +37,7 @@ export function DiagnosticsPanel() {
     refresh()
   }, [])
 
-  const missingKeys = kvStatus?.missing?.length ? kvStatus.missing : clientCheck?.missing || []
+  const missingKeys = kvStatus?.missing ?? []
 
   return (
     <Card>
@@ -67,8 +58,8 @@ export function DiagnosticsPanel() {
               Server status + client kv key access
             </p>
           </div>
-          <Badge variant={(kvStatus?.ok ?? false) && (clientCheck?.available ?? false) ? 'default' : 'destructive'}>
-            {(kvStatus?.ok ?? false) && (clientCheck?.available ?? false) ? 'Healthy' : 'Attention'}
+          <Badge variant={kvStatus?.ok ? 'default' : 'destructive'}>
+            {kvStatus?.ok ? 'Healthy' : 'Attention'}
           </Badge>
         </div>
 
@@ -83,11 +74,6 @@ export function DiagnosticsPanel() {
               ))}
             </div>
           )}
-          {clientCheck?.seeded && clientCheck.seeded.length > 0 && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Seeded defaults: {clientCheck.seeded.join(', ')}
-            </p>
-          )}
           {kvStatus?.defaultsSeeded !== undefined && (
             <p className="text-xs text-muted-foreground">
               Server seeded on boot: {kvStatus.defaultsSeeded}
@@ -95,9 +81,6 @@ export function DiagnosticsPanel() {
           )}
           {kvStatus?.error && (
             <p className="text-xs text-destructive">Server check error: {kvStatus.error}</p>
-          )}
-          {clientCheck?.error && (
-            <p className="text-xs text-destructive">Client check error: {clientCheck.error}</p>
           )}
         </div>
 

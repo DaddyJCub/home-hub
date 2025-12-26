@@ -158,18 +158,10 @@ function AppContent() {
   })
 
   useEffect(() => {
-    const initTheme = async () => {
-      const storedDarkMode = await window.spark.kv.get<boolean>('dark-mode')
-      if (storedDarkMode === true) {
-        await window.spark.kv.set('dark-mode', false)
-        setIsDarkMode(false)
-      }
-      const theme = getThemeById(currentThemeId)
-      if (theme) {
-        applyTheme(theme, false)
-      }
+    const theme = getThemeById(currentThemeId)
+    if (theme) {
+      applyTheme(theme, isDarkMode)
     }
-    initTheme()
   }, [])
 
   useEffect(() => {

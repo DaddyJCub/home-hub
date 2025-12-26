@@ -1,7 +1,7 @@
-import { createContext, useContext, ReactNode, useEffect, useState } from 'react'
-import { useKV } from '@github/spark/hooks'
-import { ensureClientKvDefaults } from '@/lib/kv-defaults'
+import { createContext, useContext, ReactNode, useEffect, useMemo, useState } from 'react'
 import type { User, Household, HouseholdMember } from '@/lib/types'
+import { loadJson, saveJson } from '@/lib/localStore'
+import { generateId, generateInviteCode } from '@/lib/auth'
 
 interface AuthResult {
   success: boolean
@@ -18,159 +18,101 @@ interface AuthContextType {
   logout: () => void
   signup: (email: string, password: string, displayName: string) => Promise<AuthResult>
   switchHousehold: (householdId: string) => void
+  createHousehold: (name: string) => Household | null
+  joinHousehold: (inviteCode: string) => AuthResult
   currentUserRole: 'owner' | 'admin' | 'member' | null
   lastAuthError: string | null
 }
 
+const USERS_KEY = 'hh_users'
+const HOUSEHOLDS_KEY = 'hh_households'
+const MEMBERS_KEY = 'hh_members'
+const CURRENT_USER_KEY = 'hh_current_user'
+const CURRENT_HOUSEHOLD_KEY = 'hh_current_household'
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [usersRaw, setUsers] = useKV<User[]>('users', [])
-  const [currentUserId, setCurrentUserId] = useKV<string | null>('current-user-id', null)
-  const [householdsRaw, setHouseholds] = useKV<Household[]>('households', [])
-  const [householdMembersRaw, setHouseholdMembers] = useKV<HouseholdMember[]>('household-members-v2', [])
-  const [currentHouseholdId, setCurrentHouseholdId] = useKV<string | null>('current-household-id', null)
+  const [users, setUsers] = useState<User[]>(() => loadJson<User[]>(USERS_KEY, []))
+  const [households, setHouseholds] = useState<Household[]>(() => loadJson<Household[]>(HOUSEHOLDS_KEY, []))
+  const [householdMembers, setHouseholdMembers] = useState<HouseholdMember[]>(() => loadJson<HouseholdMember[]>(MEMBERS_KEY, []))
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => loadJson<string | null>(CURRENT_USER_KEY, null))
+  const [currentHouseholdId, setCurrentHouseholdId] = useState<string | null>(() => loadJson<string | null>(CURRENT_HOUSEHOLD_KEY, null))
   const [lastAuthError, setLastAuthError] = useState<string | null>(null)
-  
-  // Null-safe fallbacks - useKV may return null instead of undefined
-  const users = Array.isArray(usersRaw) ? usersRaw : []
-  const households = Array.isArray(householdsRaw) ? householdsRaw : []
-  const householdMembers = Array.isArray(householdMembersRaw) ? householdMembersRaw : []
-  
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [currentHousehold, setCurrentHousehold] = useState<Household | null>(null)
-  const [userHouseholds, setUserHouseholds] = useState<Household[]>([])
-  const [currentHouseholdMembers, setCurrentHouseholdMembers] = useState<HouseholdMember[]>([])
 
-  useEffect(() => {
-    ensureClientKvDefaults()
-  }, [])
+  // Persist on change
+  useEffect(() => saveJson(USERS_KEY, users), [users])
+  useEffect(() => saveJson(HOUSEHOLDS_KEY, households), [households])
+  useEffect(() => saveJson(MEMBERS_KEY, householdMembers), [householdMembers])
+  useEffect(() => saveJson(CURRENT_USER_KEY, currentUserId), [currentUserId])
+  useEffect(() => saveJson(CURRENT_HOUSEHOLD_KEY, currentHouseholdId), [currentHouseholdId])
 
-  // Heal corrupted KV data (non-array values)
-  const persistKv = async (key: string, value: any) => {
-    try {
-      if (typeof window !== 'undefined' && window.spark?.kv?.set) {
-        await window.spark.kv.set(key, value)
-      }
-    } catch {
-      // best-effort; ignore
-    }
-  }
+  const currentUser = useMemo(
+    () => (currentUserId ? users.find(u => u.id === currentUserId) || null : null),
+    [currentUserId, users]
+  )
 
-  const logAuthEvent = async (event: string, message: string, context?: Record<string, unknown>) => {
-    try {
-      await fetch('/_debug/auth-log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event, message, context }),
-      })
-    } catch {
-      // Best-effort logging; ignore failures
-    }
-  }
+  const currentHousehold = useMemo(
+    () => (currentHouseholdId ? households.find(h => h.id === currentHouseholdId) || null : null),
+    [currentHouseholdId, households]
+  )
 
-  useEffect(() => {
-    if (currentUserId && Array.isArray(users)) {
-      const user = users.find(u => u.id === currentUserId)
-      setCurrentUser(user || null)
-      
-      if (Array.isArray(householdMembers) && Array.isArray(households)) {
-        const userMemberships = householdMembers.filter(m => m.userId === currentUserId)
-        const userHouseholdIds = userMemberships.map(m => m.householdId)
-        const userHouseholdsList = households.filter(h => userHouseholdIds.includes(h.id))
-        setUserHouseholds(userHouseholdsList)
-        
-        if (!currentHouseholdId && userHouseholdsList.length > 0) {
-          setCurrentHouseholdId(userHouseholdsList[0].id)
-        }
-      }
-    } else {
-      setCurrentUser(null)
-      setUserHouseholds([])
-    }
-  }, [currentUserId, users, households, householdMembers, currentHouseholdId, setCurrentHouseholdId])
+  const userHouseholds = useMemo(() => {
+    if (!currentUserId) return []
+    const membershipIds = householdMembers.filter(m => m.userId === currentUserId).map(m => m.householdId)
+    return households.filter(h => membershipIds.includes(h.id))
+  }, [currentUserId, householdMembers, households])
 
-  useEffect(() => {
-    if (currentHouseholdId && Array.isArray(households) && Array.isArray(householdMembers)) {
-      const household = households.find(h => h.id === currentHouseholdId)
-      setCurrentHousehold(household || null)
-      
-      const members = householdMembers.filter(m => m.householdId === currentHouseholdId)
-      setCurrentHouseholdMembers(members)
-    } else {
-      setCurrentHousehold(null)
-      setCurrentHouseholdMembers([])
-    }
-  }, [currentHouseholdId, households, householdMembers])
+  const currentHouseholdMembers = useMemo(() => {
+    if (!currentHouseholdId) return []
+    return householdMembers.filter(m => m.householdId === currentHouseholdId)
+  }, [currentHouseholdId, householdMembers])
 
-  const currentUserRole = currentUser && currentHousehold && currentHouseholdMembers.length > 0
-    ? currentHouseholdMembers.find(m => m.userId === currentUser.id)?.role || null
-    : null
+  const currentUserRole =
+    currentUser && currentHousehold
+      ? currentHouseholdMembers.find(m => m.userId === currentUser.id)?.role || null
+      : null
 
   const login = async (email: string, password: string): Promise<AuthResult> => {
-    try {
-      const normalizedEmail = email.toLowerCase().trim()
-      if (!normalizedEmail || !password) {
-        const error = 'Email and password are required'
-        setLastAuthError(error)
-        await logAuthEvent('login_error', error, { email: normalizedEmail })
-        return { success: false, error }
-      }
-
-      const { verifyPassword, createHousehold, createHouseholdMember } = await import('@/lib/auth')
-
-      if (!Array.isArray(users)) {
-        const error = 'User storage is not ready yet'
-        setLastAuthError(error)
-        await logAuthEvent('login_error', error)
-        return { success: false, error }
-      }
-
-      const user = users.find(u => u.email === normalizedEmail)
-      if (!user) {
-        const error = 'Account not found'
-        setLastAuthError(error)
-        await logAuthEvent('login_error', error, { email: normalizedEmail })
-        return { success: false, error }
-      }
-      
-      const isValid = await verifyPassword(password, user.passwordHash)
-      if (!isValid) {
-        const error = 'Invalid email or password'
-        setLastAuthError(error)
-        await logAuthEvent('login_error', error, { email: normalizedEmail })
-        return { success: false, error }
-      }
-
-      setCurrentUserId(user.id)
-      persistKv('current-user-id', user.id)
-      setLastAuthError(null)
-
-      const memberships = householdMembers.filter(m => m.userId === user.id)
-      if (memberships.length === 0) {
-        const newHousehold = await createHousehold(`${user.displayName || 'My'} Household`, user.id)
-        const newMember = createHouseholdMember(newHousehold.id, user.id, user.displayName || 'Owner', 'owner')
-        const updatedHouseholds = [...households, newHousehold]
-        const updatedMembers = [...householdMembers, newMember]
-        setHouseholds(updatedHouseholds)
-        setHouseholdMembers(updatedMembers)
-        setCurrentHouseholdId(newHousehold.id)
-        persistKv('households', updatedHouseholds)
-        persistKv('household-members-v2', updatedMembers)
-        persistKv('current-household-id', newHousehold.id)
-      } else if (!currentHouseholdId) {
-        setCurrentHouseholdId(memberships[0].householdId)
-        persistKv('current-household-id', memberships[0].householdId)
-      }
-
-      await logAuthEvent('login_success', 'User logged in', { email: normalizedEmail })
-      return { success: true }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Login failed'
-      setLastAuthError(message)
-      await logAuthEvent('login_error', message, { email })
-      return { success: false, error: 'Unexpected error during login' }
+    const normalizedEmail = email.toLowerCase().trim()
+    const pwd = password || ''
+    if (!normalizedEmail || !pwd) {
+      const error = 'Email and password are required'
+      setLastAuthError(error)
+      return { success: false, error }
     }
+
+    const { verifyPassword, createHousehold, createHouseholdMember } = await import('@/lib/auth')
+
+    const user = users.find(u => u.email === normalizedEmail)
+    if (!user) {
+      const error = 'Account not found'
+      setLastAuthError(error)
+      return { success: false, error }
+    }
+
+    const isValid = await verifyPassword(password, user.passwordHash)
+    if (!isValid) {
+      const error = 'Invalid email or password'
+      setLastAuthError(error)
+      return { success: false, error }
+    }
+
+    setCurrentUserId(user.id)
+    setLastAuthError(null)
+
+    const memberships = householdMembers.filter(m => m.userId === user.id)
+    if (memberships.length === 0) {
+      const newHousehold = await createHousehold(`${user.displayName || 'My'} Household`, user.id)
+      const newMember = createHouseholdMember(newHousehold.id, user.id, user.displayName || 'Owner', 'owner')
+      setHouseholds(prev => [...prev, newHousehold])
+      setHouseholdMembers(prev => [...prev, newMember])
+      setCurrentHouseholdId(newHousehold.id)
+    } else if (!currentHouseholdId) {
+      setCurrentHouseholdId(memberships[0].householdId)
+    }
+
+    return { success: true }
   }
 
   const logout = () => {
@@ -180,67 +122,87 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signup = async (email: string, password: string, displayName: string): Promise<AuthResult> => {
-    try {
-      const normalizedEmail = email.toLowerCase().trim()
-      const normalizedName = displayName.trim()
+    const normalizedEmail = email.toLowerCase().trim()
+    const normalizedName = displayName.trim()
 
-      if (!normalizedName || !normalizedEmail) {
-        const error = 'Name and email are required'
-        setLastAuthError(error)
-        await logAuthEvent('signup_error', error, { email: normalizedEmail })
-        return { success: false, error }
-      }
-
-      const { createUser, createHousehold, createHouseholdMember } = await import('@/lib/auth')
-      
-      if (!Array.isArray(users) || !Array.isArray(households) || !Array.isArray(householdMembers)) {
-        const error = 'Storage not initialized yet'
-        setLastAuthError(error)
-        await logAuthEvent('signup_error', error)
-        return { success: false, error }
-      }
-      
-      const existingUser = users.find(u => u.email === normalizedEmail)
-      if (existingUser) {
-        const error = 'Email already in use'
-        setLastAuthError(error)
-        await logAuthEvent('signup_error', error, { email: normalizedEmail })
-        return { success: false, error }
-      }
-      
-      const newUser = await createUser(normalizedEmail, password, normalizedName)
-      const updatedUsers = [...users, newUser]
-      setUsers(updatedUsers)
-      persistKv('users', updatedUsers)
-      
-      const newHousehold = await createHousehold(`${normalizedName}'s Household`, newUser.id)
-      const updatedHouseholds = [...households, newHousehold]
-      setHouseholds(updatedHouseholds)
-      persistKv('households', updatedHouseholds)
-      
-      const newMember = createHouseholdMember(newHousehold.id, newUser.id, normalizedName, 'owner')
-      const updatedMembers = [...householdMembers, newMember]
-      setHouseholdMembers(updatedMembers)
-      persistKv('household-members-v2', updatedMembers)
-      
-      setCurrentUserId(newUser.id)
-      setCurrentHouseholdId(newHousehold.id)
-      persistKv('current-user-id', newUser.id)
-      persistKv('current-household-id', newHousehold.id)
-      setLastAuthError(null)
-      await logAuthEvent('signup_success', 'User created', { email: normalizedEmail })
-      
-      return { success: true }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Signup failed'
-      setLastAuthError(message)
-      await logAuthEvent('signup_error', message, { email })
-      return { success: false, error: 'Signup failed. Please try again.' }
+    if (!normalizedName || !normalizedEmail) {
+      const error = 'Name and email are required'
+      setLastAuthError(error)
+      return { success: false, error }
     }
+
+    const { createUser, createHousehold, createHouseholdMember } = await import('@/lib/auth')
+
+    const existingUser = users.find(u => u.email === normalizedEmail)
+    if (existingUser) {
+      const error = 'Email already in use'
+      setLastAuthError(error)
+      return { success: false, error }
+    }
+
+    const newUser = await createUser(normalizedEmail, password, normalizedName)
+    const newHousehold = await createHousehold(`${normalizedName}'s Household`, newUser.id)
+    const newMember = createHouseholdMember(newHousehold.id, newUser.id, normalizedName, 'owner')
+
+    setUsers(prev => [...prev, newUser])
+    setHouseholds(prev => [...prev, newHousehold])
+    setHouseholdMembers(prev => [...prev, newMember])
+    setCurrentUserId(newUser.id)
+    setCurrentHouseholdId(newHousehold.id)
+    setLastAuthError(null)
+
+    return { success: true }
   }
 
   const switchHousehold = (householdId: string) => {
     setCurrentHouseholdId(householdId)
+  }
+
+  const createHousehold = (name: string): Household | null => {
+    if (!currentUser) return null
+    const newHousehold: Household = {
+      id: generateId(),
+      name: name.trim(),
+      ownerId: currentUser.id,
+      createdAt: Date.now(),
+      inviteCode: generateInviteCode()
+    }
+    const newMember: HouseholdMember = {
+      id: generateId(),
+      householdId: newHousehold.id,
+      userId: currentUser.id,
+      displayName: currentUser.displayName,
+      role: 'owner',
+      joinedAt: Date.now()
+    }
+    setHouseholds(prev => [...prev, newHousehold])
+    setHouseholdMembers(prev => [...prev, newMember])
+    setCurrentHouseholdId(newHousehold.id)
+    return newHousehold
+  }
+
+  const joinHousehold = (inviteCode: string): AuthResult => {
+    if (!currentUser) return { success: false, error: 'Not logged in' }
+    const target = households.find(h => h.inviteCode?.toUpperCase() === inviteCode.toUpperCase().trim())
+    if (!target) return { success: false, error: 'Invalid invite code' }
+
+    const already = householdMembers.some(m => m.householdId === target.id && m.userId === currentUser.id)
+    if (already) {
+      setCurrentHouseholdId(target.id)
+      return { success: true }
+    }
+
+    const newMember: HouseholdMember = {
+      id: generateId(),
+      householdId: target.id,
+      userId: currentUser.id,
+      displayName: currentUser.displayName,
+      role: 'member',
+      joinedAt: Date.now()
+    }
+    setHouseholdMembers(prev => [...prev, newMember])
+    setCurrentHouseholdId(target.id)
+    return { success: true }
   }
 
   return (
@@ -255,6 +217,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         signup,
         switchHousehold,
+        createHousehold,
+        joinHousehold,
         currentUserRole,
         lastAuthError
       }}

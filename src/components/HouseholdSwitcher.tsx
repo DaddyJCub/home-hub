@@ -8,76 +8,38 @@ import { Badge } from '@/components/ui/badge'
 import { House, SignOut, Plus, UserPlus } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { useKV } from '@github/spark/hooks'
-import { generateInviteCode, generateId, createHouseholdMember } from '@/lib/auth'
-import type { Household, HouseholdMember } from '@/lib/types'
 
 export default function HouseholdSwitcher() {
-  const { currentHousehold, userHouseholds, switchHousehold, logout, currentUser, currentUserRole } = useAuth()
+  const { currentHousehold, userHouseholds, switchHousehold, logout, currentUser, currentUserRole, createHousehold: createHouseholdCtx, joinHousehold } = useAuth()
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [joinDialogOpen, setJoinDialogOpen] = useState(false)
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
   const [newHouseholdName, setNewHouseholdName] = useState('')
   const [inviteCode, setInviteCode] = useState('')
-  
-  const [householdsRaw, setHouseholds] = useKV<Household[]>('households', [])
-  const [householdMembersRaw, setHouseholdMembers] = useKV<HouseholdMember[]>('household-members-v2', [])
-  const households = householdsRaw ?? []
-  const householdMembers = householdMembersRaw ?? []
 
   const handleCreateHousehold = async () => {
     if (!newHouseholdName.trim() || !currentUser) return
 
-    const newHousehold: Household = {
-      id: generateId(),
-      name: newHouseholdName.trim(),
-      ownerId: currentUser.id,
-      createdAt: Date.now(),
-      inviteCode: generateInviteCode()
+    const created = createHouseholdCtx(newHouseholdName.trim())
+    if (created) {
+      switchHousehold(created.id)
+      toast.success(`${created.name} created!`)
     }
-
-    const newMember = createHouseholdMember(newHousehold.id, currentUser.id, currentUser.displayName, 'owner')
-
-    const updatedHouseholds = [...households, newHousehold]
-    const updatedMembers = [...householdMembers, newMember]
-    setHouseholds(updatedHouseholds)
-    setHouseholdMembers(updatedMembers)
-
-    switchHousehold(newHousehold.id)
     setNewHouseholdName('')
     setCreateDialogOpen(false)
-    toast.success(`${newHousehold.name} created!`)
   }
 
   const handleJoinHousehold = () => {
     if (!inviteCode.trim() || !currentUser) return
 
-    const household = households.find(h => h.inviteCode?.toUpperCase() === inviteCode.toUpperCase().trim())
-    
-    if (!household) {
-      toast.error('Invalid invite code')
-      return
-    }
-
-    const alreadyMember = householdMembers.some(
-      m => m.householdId === household.id && m.userId === currentUser.id
-    )
-
-    if (alreadyMember) {
-      toast.error('You are already a member of this household')
-      switchHousehold(household.id)
+    const result = joinHousehold(inviteCode)
+    if (result.success) {
+      setInviteCode('')
       setJoinDialogOpen(false)
-      return
+      toast.success('Joined household!')
+    } else {
+      toast.error(result.error || 'Invalid invite code')
     }
-
-    const newMember = createHouseholdMember(household.id, currentUser.id, currentUser.displayName, 'member')
-    const updatedMembers = [...householdMembers, newMember]
-    setHouseholdMembers(updatedMembers)
-
-    switchHousehold(household.id)
-    setInviteCode('')
-    setJoinDialogOpen(false)
-    toast.success(`Joined ${household.name}!`)
   }
 
   const canInvite = currentUserRole === 'owner' || currentUserRole === 'admin'

@@ -1,5 +1,5 @@
-import { useKV } from '@github/spark/hooks'
 import { useState } from 'react'
+import { useKV } from '@github/spark/hooks'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,9 +43,10 @@ import { MobileNavCustomizer } from '@/components/MobileNavCustomizer'
 import { MobileEnhancements } from '@/components/MobileEnhancements'
 import { NotificationSettings } from '@/components/NotificationSettings'
 import { useIsMobile } from '@/hooks/use-mobile'
-import type { HouseholdMember, Chore, ShoppingItem, Meal, Recipe, CalendarEvent } from '@/lib/types'
+import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent } from '@/lib/types'
 import { PWADiagnostics } from '@/components/PWADiagnostics'
 import { PushDiagnostics } from '@/components/PushDiagnostics'
+import { useAuth } from '@/lib/AuthContext'
 import DiagnosticsPanel from '@/components/DiagnosticsPanel'
 
 interface DashboardWidget {
@@ -55,22 +56,19 @@ interface DashboardWidget {
 }
 
 export default function SettingsSection() {
+  const { householdMembers } = useAuth()
   const [currentThemeId, setCurrentThemeId] = useKV<string>('theme-id', 'warm-home')
   const [isDarkMode, setIsDarkMode] = useKV<boolean>('dark-mode', false)
-  const [membersRaw, setMembers] = useKV<HouseholdMember[]>('household-members', [])
-  const [dashboardWidgetsRaw, setDashboardWidgets] = useKV<DashboardWidget[]>(
-    'dashboard-widgets',
-    []
-  )
+  const [dashboardWidgetsRaw, setDashboardWidgets] = useKV<DashboardWidget[]>('dashboard-widgets', [])
   const isMobile = useIsMobile()
 
-  const [choresRaw] = useKV<Chore[]>('chores', [])
-  const [shoppingItemsRaw] = useKV<ShoppingItem[]>('shopping-items', [])
-  const [mealsRaw] = useKV<Meal[]>('meals', [])
-  const [recipesRaw] = useKV<Recipe[]>('recipes', [])
-  const [eventsRaw] = useKV<CalendarEvent[]>('calendar-events', [])
+  const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
+  const [shoppingItemsRaw, setShoppingItems] = useKV<ShoppingItem[]>('shopping-items', [])
+  const [mealsRaw, setMeals] = useKV<Meal[]>('meals', [])
+  const [recipesRaw, setRecipes] = useKV<Recipe[]>('recipes', [])
+  const [eventsRaw, setEvents] = useKV<CalendarEvent[]>('calendar-events', [])
   
-  const members = membersRaw ?? []
+  const members = householdMembers ?? []
   const dashboardWidgets = dashboardWidgetsRaw ?? []
   const chores = choresRaw ?? []
   const shoppingItems = shoppingItemsRaw ?? []
@@ -137,31 +135,31 @@ export default function SettingsSection() {
   const handleDeleteData = async () => {
     switch (deleteTarget) {
       case 'all':
-        await window.spark.kv.delete('chores')
-        await window.spark.kv.delete('shopping-items')
-        await window.spark.kv.delete('meals')
-        await window.spark.kv.delete('recipes')
-        await window.spark.kv.delete('calendar-events')
+        setChores([])
+        setShoppingItems([])
+        setMeals([])
+        setRecipes([])
+        setEvents([])
         toast.success('All data deleted')
         break
       case 'chores':
-        await window.spark.kv.delete('chores')
+        setChores([])
         toast.success('All chores deleted')
         break
       case 'shopping':
-        await window.spark.kv.delete('shopping-items')
+        setShoppingItems([])
         toast.success('All shopping items deleted')
         break
       case 'meals':
-        await window.spark.kv.delete('meals')
+        setMeals([])
         toast.success('All meal plans deleted')
         break
       case 'recipes':
-        await window.spark.kv.delete('recipes')
+        setRecipes([])
         toast.success('All recipes deleted')
         break
       case 'events':
-        await window.spark.kv.delete('calendar-events')
+        setEvents([])
         toast.success('All calendar events deleted')
         break
     }

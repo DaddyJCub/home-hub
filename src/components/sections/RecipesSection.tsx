@@ -58,6 +58,12 @@ export default function RecipesSection() {
       }
       const htmlContent = await htmlResponse.text()
 
+      if (!window.spark?.llmPrompt || !window.spark?.llm) {
+        toast.error('AI extraction is unavailable offline. Please enter recipes manually.')
+        setIsParsingUrl(false)
+        return
+      }
+
       const prompt = window.spark.llmPrompt(
         [
           'You are a recipe extraction assistant. Extract recipe information from the following HTML content.\n\nHTML Content:\n',
