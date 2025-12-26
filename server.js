@@ -2,11 +2,101 @@ import express from 'express';
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
-import { KV_DEFAULTS, REQUIRED_KV_KEYS, cloneDefaultValue } from './kv-defaults.mjs';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const FALLBACK_KV_DEFAULTS = {
+  'theme-id': 'warm-home',
+  'dark-mode': false,
+  'enabled-tabs': ['dashboard', 'chores', 'shopping', 'meals'],
+  'mobile-nav-items': [
+    { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', iconName: 'House', enabled: true },
+    { id: 'chores', label: 'Chores', shortLabel: 'Chores', iconName: 'Broom', enabled: true },
+    { id: 'shopping', label: 'Shopping', shortLabel: 'Shop', iconName: 'ShoppingCart', enabled: true },
+    { id: 'meals', label: 'Meals', shortLabel: 'Meals', iconName: 'CookingPot', enabled: true },
+    { id: 'settings', label: 'Settings', shortLabel: 'More', iconName: 'Gear', enabled: true },
+    { id: 'calendar', label: 'Calendar', shortLabel: 'Calendar', iconName: 'CalendarBlank', enabled: false },
+    { id: 'recipes', label: 'Recipes', shortLabel: 'Recipes', iconName: 'BookOpen', enabled: false }
+  ],
+  'notification-preferences': {
+    enabled: false,
+    choresEnabled: true,
+    eventsEnabled: true,
+    shoppingEnabled: false,
+    mealsEnabled: true,
+    choreReminderMinutes: 60,
+    eventReminderMinutes: 30,
+    shoppingReminderMinutes: 1440,
+    mealReminderMinutes: 120,
+    quietHoursEnabled: false,
+    quietHoursStart: '22:00',
+    quietHoursEnd: '08:00',
+    soundEnabled: true,
+    vibrationEnabled: true,
+    dailySummaryEnabled: false,
+    dailySummaryTime: '08:00',
+    weeklyReviewEnabled: false,
+    weeklyReviewDay: 1,
+    weeklyReviewTime: '18:00'
+  },
+  'mobile-preferences': {
+    hapticFeedback: true,
+    reduceMotion: false,
+    compactView: false,
+    swipeGestures: true,
+    pullToRefresh: true,
+    quickActions: true,
+    fontSize: 'medium'
+  },
+  'quick-actions-config': {
+    enabled: true,
+    longPressDuration: 500
+  },
+  users: [],
+  households: [],
+  'household-members': [],
+  'household-members-v2': [],
+  chores: [],
+  'calendar-events': [],
+  'shopping-items': [],
+  meals: [],
+  recipes: [],
+  'dashboard-widgets': [],
+  'notification-history': [],
+  'meal-day-constraints': [],
+  'meal-daypart-configs': [],
+  'selected-member-filter': 'all',
+  'current-user-id': null,
+  'current-household-id': null
+};
+
+let KV_DEFAULTS = FALLBACK_KV_DEFAULTS;
+let REQUIRED_KV_KEYS = Object.keys(FALLBACK_KV_DEFAULTS);
+let cloneDefaultValue = (key) => {
+  if (Object.prototype.hasOwnProperty.call(KV_DEFAULTS, key)) {
+    return JSON.parse(JSON.stringify(KV_DEFAULTS[key]));
+  }
+  return undefined;
+};
+
+// Attempt to load external kv-defaults.mjs if present
+try {
+  const kvDefaultsPath = path.join(__dirname, 'kv-defaults.mjs');
+  if (fs.existsSync(kvDefaultsPath)) {
+    const moduleUrl = pathToFileURL(kvDefaultsPath).href;
+    const module = await import(moduleUrl);
+    KV_DEFAULTS = module.KV_DEFAULTS ?? KV_DEFAULTS;
+    REQUIRED_KV_KEYS = module.REQUIRED_KV_KEYS ?? Object.keys(KV_DEFAULTS);
+    cloneDefaultValue = module.cloneDefaultValue ?? cloneDefaultValue;
+    log('INFO', 'Loaded KV defaults from kv-defaults.mjs');
+  } else {
+    log('WARN', 'kv-defaults.mjs not found; using built-in defaults');
+  }
+} catch (err) {
+  log('WARN', 'Failed to load kv-defaults.mjs; using built-in defaults', { error: err.message });
+}
 
 const app = express();
 const PORT = process.env.PORT || 4173;
