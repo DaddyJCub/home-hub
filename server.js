@@ -341,31 +341,35 @@ app.get('/_spark/kv/:key', (req, res) => {
 // KV Store API - PUT/POST
 app.put('/_spark/kv/:key', (req, res) => {
   const { key } = req.params;
+  let payload = unwrapPayload(req.body);
   
   // Validate: array keys must receive arrays, reject empty objects
   if (ARRAY_KEYS.includes(key)) {
-    if (!Array.isArray(req.body)) {
-      log('WARN', `PUT /_spark/kv/${key} rejected - expected array`, { received: typeof req.body, isArray: false });
-      // Return empty array instead of saving corrupted data
-      res.json([]);
+    if (!Array.isArray(payload)) {
+      const fallback = buildFallbackValue(key) ?? [];
+      log('WARN', `PUT /_spark/kv/${key} rejected - expected array, persisting fallback`, { received: typeof payload, isArray: Array.isArray(payload) });
+      persistKvValue(key, fallback);
+      res.json(fallback);
       return;
     }
   }
   
   // Reject completely empty objects (likely empty request body)
-  if (typeof req.body === 'object' && req.body !== null && !Array.isArray(req.body) && Object.keys(req.body).length === 0) {
-    log('WARN', `PUT /_spark/kv/${key} rejected - empty object`);
-    res.json(null);
+  if (typeof payload === 'object' && payload !== null && !Array.isArray(payload) && Object.keys(payload).length === 0) {
+    const fallback = buildFallbackValue(key);
+    log('WARN', `PUT /_spark/kv/${key} rejected - empty object, persisting fallback`);
+    persistKvValue(key, fallback);
+    res.json(fallback);
     return;
   }
   
-  const value = JSON.stringify(req.body);
-  log('DEBUG', `PUT /_spark/kv/${key}`, { bodyType: typeof req.body, isArray: Array.isArray(req.body), storedValue: value.substring(0, 200) });
+  const value = JSON.stringify(payload);
+  log('DEBUG', `PUT /_spark/kv/${key}`, { bodyType: typeof payload, isArray: Array.isArray(payload), storedValue: value.substring(0, 200) });
   try {
-    persistKvValue(key, req.body);
+    persistKvValue(key, payload);
     log('DEBUG', `PUT /_spark/kv/${key} saved successfully`);
     // Return the saved value - Spark uses this to update its state
-    res.json(req.body);
+    res.json(payload);
   } catch (err) {
     log('ERROR', `PUT /_spark/kv/${key} failed`, { error: err.message });
     res.status(500).json({ error: 'Failed to save' });
@@ -374,31 +378,35 @@ app.put('/_spark/kv/:key', (req, res) => {
 
 app.post('/_spark/kv/:key', (req, res) => {
   const { key } = req.params;
+  let payload = unwrapPayload(req.body);
   
   // Validate: array keys must receive arrays, reject empty objects
   if (ARRAY_KEYS.includes(key)) {
-    if (!Array.isArray(req.body)) {
-      log('WARN', `POST /_spark/kv/${key} rejected - expected array`, { received: typeof req.body, isArray: false });
-      // Return empty array instead of saving corrupted data
-      res.json([]);
+    if (!Array.isArray(payload)) {
+      const fallback = buildFallbackValue(key) ?? [];
+      log('WARN', `POST /_spark/kv/${key} rejected - expected array, persisting fallback`, { received: typeof payload, isArray: Array.isArray(payload) });
+      persistKvValue(key, fallback);
+      res.json(fallback);
       return;
     }
   }
   
   // Reject completely empty objects (likely empty request body)
-  if (typeof req.body === 'object' && req.body !== null && !Array.isArray(req.body) && Object.keys(req.body).length === 0) {
-    log('WARN', `POST /_spark/kv/${key} rejected - empty object`);
-    res.json(null);
+  if (typeof payload === 'object' && payload !== null && !Array.isArray(payload) && Object.keys(payload).length === 0) {
+    const fallback = buildFallbackValue(key);
+    log('WARN', `POST /_spark/kv/${key} rejected - empty object, persisting fallback`);
+    persistKvValue(key, fallback);
+    res.json(fallback);
     return;
   }
   
-  const value = JSON.stringify(req.body);
-  log('DEBUG', `POST /_spark/kv/${key}`, { bodyType: typeof req.body, isArray: Array.isArray(req.body), storedValue: value.substring(0, 200) });
+  const value = JSON.stringify(payload);
+  log('DEBUG', `POST /_spark/kv/${key}`, { bodyType: typeof payload, isArray: Array.isArray(payload), storedValue: value.substring(0, 200) });
   try {
-    persistKvValue(key, req.body);
+    persistKvValue(key, payload);
     log('DEBUG', `POST /_spark/kv/${key} saved successfully`);
     // Return the saved value - Spark uses this to update its state
-    res.json(req.body);
+    res.json(payload);
   } catch (err) {
     log('ERROR', `POST /_spark/kv/${key} failed`, { error: err.message });
     res.status(500).json({ error: 'Failed to save' });
@@ -515,3 +523,10 @@ app.listen(PORT, HOST, () => {
   log('INFO', `HomeHub server running at http://${HOST}:${PORT}`);
   log('INFO', `Database: ${dbPath}`);
 });
+const unwrapPayload = (body) => {
+  // Spark may wrap values as { value: ... }
+  if (body && typeof body === 'object' && !Array.isArray(body) && 'value' in body && Object.keys(body).length === 1) {
+    return body.value;
+  }
+  return body;
+};

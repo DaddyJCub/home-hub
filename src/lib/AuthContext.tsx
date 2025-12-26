@@ -47,30 +47,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Heal corrupted KV data (non-array values)
-  useEffect(() => {
-    if (usersRaw && !Array.isArray(usersRaw)) {
-      const fallback: User[] = []
-      setUsers(fallback)
-      window.spark?.kv?.set?.('users', fallback)
-    }
-  }, [usersRaw, setUsers])
-
-  useEffect(() => {
-    if (householdsRaw && !Array.isArray(householdsRaw)) {
-      const fallback: Household[] = []
-      setHouseholds(fallback)
-      window.spark?.kv?.set?.('households', fallback)
-    }
-  }, [householdsRaw, setHouseholds])
-
-  useEffect(() => {
-    if (householdMembersRaw && !Array.isArray(householdMembersRaw)) {
-      const fallback: HouseholdMember[] = []
-      setHouseholdMembers(fallback)
-      window.spark?.kv?.set?.('household-members-v2', fallback)
-    }
-  }, [householdMembersRaw, setHouseholdMembers])
-
   const persistKv = async (key: string, value: any) => {
     try {
       if (typeof window !== 'undefined' && window.spark?.kv?.set) {
