@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useSyncExternalStore } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 
 const STORAGE_PREFIX = 'hh_kv_'
 
@@ -26,55 +26,24 @@ const writeValue = (key: string, value: any) => {
   try {
     window.localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value))
     // Dispatch custom event for same-tab synchronization
-    window.dispatchEvent(new CustomEvent('kv-change', { detail: { key, value } }))
+    window.dispatchEvent(new CustomEvent('hh-kv-change', { detail: { key } }))
   } catch {
     // ignore storage write errors
   }
 }
 
-// Subscribers for each key
-const subscribers = new Map<string, Set<() => void>>()
-
-const subscribe = (key: string, callback: () => void) => {
-  if (!subscribers.has(key)) {
-    subscribers.set(key, new Set())
-  }
-  subscribers.get(key)!.add(callback)
-  
-  return () => {
-    subscribers.get(key)?.delete(callback)
-  }
-}
-
-// Listen for storage changes (cross-tab) and custom events (same-tab)
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key?.startsWith(STORAGE_PREFIX)) {
-      const key = e.key.replace(STORAGE_PREFIX, '')
-      subscribers.get(key)?.forEach(cb => cb())
-    }
+export function useKV<T>(key: string, defaultValue?: T): [T | undefined, (next: T | ((prev: T | undefined) => T)) => void] {
+  const [value, setValue] = useState<T | undefined>(() => {
+    const stored = readValue<T | undefined>(key, undefined)
+    if (stored !== undefined) return stored
+    return clone(defaultValue)
   })
   
-  window.addEventListener('kv-change', ((e: CustomEvent) => {
-    const { key } = e.detail
-    subscribers.get(key)?.forEach(cb => cb())
-  }) as EventListener)
-}
-
-export function useKV<T>(key: string, defaultValue?: T) {
-  const getSnapshot = useCallback(() => {
-    return readValue<T | undefined>(key, clone(defaultValue))
-  }, [key, defaultValue])
+  const keyRef = useRef(key)
+  keyRef.current = key
   
-  const subscribeToKey = useCallback((callback: () => void) => {
-    return subscribe(key, callback)
-  }, [key])
-
-  const value = useSyncExternalStore(
-    subscribeToKey,
-    getSnapshot,
-    () => clone(defaultValue) // Server snapshot
-  )
+  const defaultRef = useRef(defaultValue)
+  defaultRef.current = defaultValue
 
   // Initialize localStorage with default if not set
   useEffect(() => {
@@ -85,15 +54,46 @@ export function useKV<T>(key: string, defaultValue?: T) {
     }
   }, [key, defaultValue])
 
-  const setter = useCallback((next: T | ((prev: T | undefined) => T)) => {
-    const currentValue = readValue<T | undefined>(key, clone(defaultValue))
-    const resolved = typeof next === 'function' 
-      ? (next as (prev: T | undefined) => T)(currentValue) 
-      : next
-    writeValue(key, resolved)
-  }, [key, defaultValue])
+  // Listen for changes from other components or tabs
+  useEffect(() => {
+    if (typeof window === 'undefined') return
 
-  return [value, setter] as [T | undefined, (next: T | ((prev: T | undefined) => T)) => void]
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_PREFIX + keyRef.current) {
+        const newValue = readValue<T | undefined>(keyRef.current, clone(defaultRef.current))
+        setValue(newValue)
+      }
+    }
+
+    const handleKvChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ key: string }>
+      if (customEvent.detail.key === keyRef.current) {
+        const newValue = readValue<T | undefined>(keyRef.current, clone(defaultRef.current))
+        setValue(newValue)
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('hh-kv-change', handleKvChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('hh-kv-change', handleKvChange)
+    }
+  }, [])
+
+  const setter = useCallback((next: T | ((prev: T | undefined) => T)) => {
+    setValue(prev => {
+      const currentValue = prev ?? clone(defaultRef.current)
+      const resolved = typeof next === 'function' 
+        ? (next as (prev: T | undefined) => T)(currentValue) 
+        : next
+      writeValue(keyRef.current, resolved)
+      return resolved
+    })
+  }, [])
+
+  return [value, setter]
 }
 
 export default { useKV }
