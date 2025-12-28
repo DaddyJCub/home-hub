@@ -1,4 +1,5 @@
 import type { Chore, CalendarEvent } from './types'
+import { normalizeChore, getChoreStatus } from './chore-utils'
 import { startOfDay, isSameDay, differenceInDays } from 'date-fns'
 
 export interface NotificationPreferences {
@@ -124,9 +125,10 @@ export function showNotification(title: string, options?: NotificationOptions, p
 }
 
 export function scheduleChoreNotification(chore: Chore, reminderMinutes: number, preferences?: NotificationPreferences): void {
-  if (!chore.nextDue) return
+  const dueMs = chore.dueAt || chore.nextDue
+  if (!dueMs) return
 
-  const dueTime = new Date(chore.nextDue)
+  const dueTime = new Date(dueMs)
   const notificationTime = new Date(dueTime.getTime() - reminderMinutes * 60 * 1000)
   const now = new Date()
 
@@ -196,8 +198,9 @@ export function getUpcomingChores(chores: Chore[], hours: number = 24): Chore[] 
   const cutoff = now + hours * 60 * 60 * 1000
 
   return chores.filter(chore => {
-    if (chore.completed || !chore.nextDue) return false
-    return chore.nextDue > now && chore.nextDue <= cutoff
+    const due = chore.dueAt || chore.nextDue
+    if (chore.completed || !due) return false
+    return due > now && due <= cutoff
   })
 }
 
@@ -259,25 +262,25 @@ export function getChoresNeedingAttention(chores: Chore[]): {
   const highPriority: Chore[] = []
 
   chores.forEach(chore => {
-    if (chore.completed) return
+    const normalized = normalizeChore(chore)
+    if (normalized.completed) return
 
-    // Check if already completed today (for recurring chores)
-    if (chore.lastCompleted) {
-      const lastCompletedDate = startOfDay(new Date(chore.lastCompleted))
+    if (normalized.lastCompletedAt) {
+      const lastCompletedDate = startOfDay(new Date(normalized.lastCompletedAt))
       if (isSameDay(lastCompletedDate, today)) return
     }
 
-    const nextDue = chore.nextDue ? new Date(chore.nextDue) : null
-
-    if (nextDue) {
+    const dueMs = normalized.dueAt
+    if (dueMs) {
+      const nextDue = new Date(dueMs)
       if (nextDue < today) {
-        overdue.push(chore)
-        if (chore.priority === 'high') highPriority.push(chore)
+        overdue.push(normalized)
+        if (normalized.priority === 'high') highPriority.push(normalized)
       } else if (isSameDay(nextDue, today)) {
-        dueToday.push(chore)
-        if (chore.priority === 'high') highPriority.push(chore)
+        dueToday.push(normalized)
+        if (normalized.priority === 'high') highPriority.push(normalized)
       } else if (nextDue < tomorrow) {
-        dueSoon.push(chore)
+        dueSoon.push(normalized)
       }
     }
   })
@@ -341,7 +344,7 @@ export function scheduleSmartMorningReminder(
   if (msUntilReminder > 24 * 60 * 60 * 1000) return null
 
   return setTimeout(() => {
-    const { overdue, dueToday, highPriority } = getChoresNeedingAttention(chores)
+    const { overdue, dueToday, highPriority } = getChoresNeedingAttention(chores.map(normalizeChore))
     const totalPending = overdue.length + dueToday.length
 
     if (totalPending === 0) return
@@ -417,7 +420,7 @@ export function scheduleEveningFollowUp(
 
     // Build follow-up notification
     const urgentCount = overdue.filter(c => 
-      differenceInDays(Date.now(), c.nextDue || Date.now()) >= preferences.urgentOverdueThreshold
+      differenceInDays(Date.now(), c.dueAt || c.nextDue || Date.now()) >= preferences.urgentOverdueThreshold
     ).length
 
     let title = incomplete.length === 1 
@@ -457,8 +460,9 @@ export function checkUrgentOverdueChores(
   if (!shouldSendNotification(preferences, 'chore')) return
 
   const urgentChores = chores.filter(chore => {
-    if (chore.completed || !chore.nextDue) return false
-    const daysOverdue = differenceInDays(Date.now(), chore.nextDue)
+    const due = chore.dueAt || chore.nextDue
+    if (chore.completed || !due) return false
+    const daysOverdue = differenceInDays(Date.now(), due)
     return daysOverdue >= preferences.urgentOverdueThreshold
   })
 
@@ -472,8 +476,8 @@ export function checkUrgentOverdueChores(
     sessionStorage.setItem(sessionKey, 'true')
   }
 
-  const mostOverdue = urgentChores.sort((a, b) => (a.nextDue || 0) - (b.nextDue || 0))[0]
-  const daysOverdue = differenceInDays(Date.now(), mostOverdue.nextDue || Date.now())
+  const mostOverdue = urgentChores.sort((a, b) => (a.dueAt || a.nextDue || 0) - (b.dueAt || b.nextDue || 0))[0]
+  const daysOverdue = differenceInDays(Date.now(), mostOverdue.dueAt || mostOverdue.nextDue || Date.now())
 
   showNotification('⚠️ Urgent: Overdue Chores', {
     body: `${urgentChores.length} chore${urgentChores.length > 1 ? 's are' : ' is'} ${daysOverdue}+ days overdue!\nMost urgent: ${mostOverdue.title}`,
@@ -499,7 +503,3 @@ export function initSmartChoreNotifications(
 
   return { morningTimer, eveningTimer }
 }
-
-
-
-

@@ -32,8 +32,13 @@ export function NotificationSummary({ className }: NotificationSummaryProps) {
   const today = new Date().setHours(0, 0, 0, 0)
   const tomorrow = today + 24 * 60 * 60 * 1000
 
-  const overdueChores = chores.filter(c => !c.completed && c.nextDue && c.nextDue < now)
-  const todayChores = chores.filter(c => !c.completed && c.nextDue && c.nextDue >= today && c.nextDue < tomorrow)
+  const dueValue = (c: Chore) => c.dueAt || (c as any).nextDue || 0
+  const overdueChores = chores.filter(c => !c.completed && dueValue(c) && dueValue(c) < now)
+  const todayChores = chores.filter(c => {
+    const due = dueValue(c)
+    if (!due || c.completed) return false
+    return due >= today && due < tomorrow
+  })
   const completedChoresCount = chores.filter(c => c.completed).length
   const choreProgress = chores.length > 0 ? (completedChoresCount / chores.length) * 100 : 0
 

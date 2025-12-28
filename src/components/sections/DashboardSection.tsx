@@ -10,11 +10,12 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent, ChoreCompletion } from '@/lib/types'
-import { format, isToday, isAfter, isSameDay, startOfDay, addDays, parseISO, isTomorrow, differenceInDays } from 'date-fns'
+import { format, isToday, isAfter, isSameDay, startOfDay, addDays, parseISO, isTomorrow, formatDistanceToNow } from 'date-fns'
 import { useState, useMemo, useCallback } from 'react'
 import { NotificationSummary } from '@/components/NotificationSummary'
 import { useAuth } from '@/lib/AuthContext'
 import { toast } from 'sonner'
+import { computeNextDueAt, getChoreStatus, normalizeChore } from '@/lib/chore-utils'
 
 interface DashboardSectionProps {
   onNavigate?: (tab: string) => void
@@ -56,7 +57,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
 
   // Filter all data by current household
   const chores = useMemo(() => {
-    return currentHousehold ? allChores.filter(c => c.householdId === currentHousehold.id) : []
+    return currentHousehold ? allChores.filter(c => c.householdId === currentHousehold.id).map(normalizeChore) : []
   }, [allChores, currentHousehold])
 
   const shoppingItems = useMemo(() => {
@@ -81,41 +82,13 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
 
   const members = householdMembers ?? []
 
-  // Helper to calculate next due date
-  const calculateNextDue = useCallback((frequency: string, customDays?: number, lastCompleted?: number): number => {
-    const base = lastCompleted || Date.now()
-    const msPerDay = 24 * 60 * 60 * 1000
-    switch (frequency) {
-      case 'daily': return base + msPerDay
-      case 'weekly': return base + 7 * msPerDay
-      case 'biweekly': return base + 14 * msPerDay
-      case 'monthly': return base + 30 * msPerDay
-      case 'quarterly': return base + 90 * msPerDay
-      case 'yearly': return base + 365 * msPerDay
-      case 'custom': return base + (customDays || 7) * msPerDay
-      default: return 0
-    }
-  }, [])
-
-  // Helper to check if chore is overdue
-  const isChoreOverdue = useCallback((chore: Chore): boolean => {
-    if (chore.completed || chore.frequency === 'once') {
-      if (chore.dueDate) {
-        const dueDate = new Date(chore.dueDate)
-        return differenceInDays(startOfDay(new Date()), dueDate) > 0
-      }
-      return false
-    }
-    const nextDue = chore.nextDue || calculateNextDue(chore.frequency, chore.customIntervalDays, chore.lastCompleted)
-    return Date.now() > nextDue
-  }, [calculateNextDue])
-
   // Complete chore handler
   const handleCompleteChore = useCallback((chore: Chore) => {
     if (!currentHousehold) return
     
     const now = Date.now()
-    const wasOnTime = !isChoreOverdue(chore)
+    const normalized = normalizeChore(chore)
+    const wasOnTime = !getChoreStatus(normalized, now).isOverdue
     
     // Create completion record
     const completion: ChoreCompletion = {
@@ -128,8 +101,8 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
     setCompletions([...allCompletions, completion])
     
     // Update chore
-    const updatedChore: Chore = { ...chore }
-    updatedChore.lastCompleted = now
+    const updatedChore: Chore = { ...normalized }
+    updatedChore.lastCompletedAt = now
     updatedChore.lastCompletedBy = chore.assignedTo
     updatedChore.totalCompletions = (chore.totalCompletions || 0) + 1
     
@@ -148,7 +121,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
       updatedChore.completed = true
     } else {
       updatedChore.completed = false
-      updatedChore.nextDue = calculateNextDue(chore.frequency, chore.customIntervalDays, now)
+      updatedChore.dueAt = computeNextDueAt(updatedChore, now)
       
       // Handle rotation
       if (chore.rotation === 'rotate' && chore.rotationOrder && chore.rotationOrder.length > 0) {
@@ -178,8 +151,17 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
     : events.filter(e => e.bookedBy === selectedMember || e.attendees?.includes(selectedMember))
 
   // Computed values
-  const pendingChores = filteredChores.filter(c => !c.completed)
+  const pendingChoresWithStatus = useMemo(() => {
+    return filteredChores
+      .filter(c => !c.completed)
+      .map(chore => ({ chore, status: getChoreStatus(chore) }))
+  }, [filteredChores])
+
+  const pendingChores = pendingChoresWithStatus.map(p => p.chore)
   const highPriorityChores = pendingChores.filter(c => c.priority === 'high')
+  const overdueChores = pendingChoresWithStatus.filter(p => p.status.isOverdue)
+  const dueTodayChores = pendingChoresWithStatus.filter(p => p.status.isDueToday && !p.status.isOverdue)
+  const upcomingChores = pendingChoresWithStatus.filter(p => !p.status.isOverdue && !p.status.isDueToday)
   const unpurchasedItems = shoppingItems.filter(i => !i.purchased)
   
   const todayStr = format(new Date(), 'yyyy-MM-dd')
@@ -214,6 +196,21 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
   const completionRate = chores.length > 0 
     ? Math.round(((chores.length - pendingChores.length) / chores.length) * 100)
     : 0
+
+  const choreById = useMemo(() => {
+    const map: Record<string, Chore> = {}
+    chores.forEach(c => { map[c.id] = c })
+    return map
+  }, [chores])
+
+  const recentCompletions = useMemo(() => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000
+    return completions
+      .filter(c => c.completedAt >= cutoff && !c.skipped)
+      .map(c => ({ completion: c, chore: choreById[c.choreId] }))
+      .filter(item => !!item.chore)
+      .sort((a, b) => b.completion.completedAt - a.completion.completedAt)
+  }, [completions, choreById])
 
   const greeting = getGreeting()
   const GreetingIcon = greeting.icon
@@ -427,18 +424,42 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
               </CardTitle>
             </CardHeader>
           </CollapsibleTrigger>
-          <CardContent className="px-4 pb-3">
-            {pendingChores.length > 0 ? (
-              <div className="space-y-2">
-                {pendingChores.slice(0, 3).map(chore => (
-                  <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} />
-                ))}
-                <CollapsibleContent className="space-y-2">
-                  {pendingChores.slice(3).map(chore => (
-                    <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} />
-                  ))}
-                </CollapsibleContent>
-              </div>
+          <CardContent className="px-4 pb-3 space-y-3">
+            {(overdueChores.length + dueTodayChores.length + upcomingChores.length) > 0 ? (
+              <>
+                {overdueChores.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-red-600 mb-1 flex items-center gap-1">
+                      <Warning size={12} /> Overdue
+                    </p>
+                    <div className="space-y-1.5">
+                      {overdueChores.map(({ chore }) => (
+                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {dueTodayChores.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-primary mb-1">Due Today</p>
+                    <div className="space-y-1.5">
+                      {dueTodayChores.map(({ chore }) => (
+                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {upcomingChores.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-1">Upcoming</p>
+                    <div className="space-y-1.5">
+                      {upcomingChores.map(({ chore }) => (
+                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-4">
                 <Sparkle size={24} className="mx-auto text-primary mb-2" />
@@ -456,6 +477,31 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
           </CardContent>
         </Card>
       </Collapsible>
+
+      {/* Completed Recently */}
+      {recentCompletions.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle size={18} className="text-green-500" />
+              Completed Recently
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3 space-y-2">
+            {recentCompletions.slice(0, 5).map(({ completion, chore }) => (
+              <div key={completion.id} className="flex items-center justify-between p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{chore!.title}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Done {formatDistanceToNow(completion.completedAt, { addSuffix: true })}
+                    {completion.completedBy && ` by ${completion.completedBy}`}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Shopping List - Compact */}
       {unpurchasedItems.length > 0 && (
@@ -660,6 +706,7 @@ interface ChoreItemProps {
 }
 
 function ChoreItem({ chore, onComplete }: ChoreItemProps) {
+  const status = getChoreStatus(chore)
   return (
     <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group">
       {/* Complete Button */}
@@ -676,7 +723,12 @@ function ChoreItem({ chore, onComplete }: ChoreItemProps) {
         chore.priority === 'high' ? 'bg-red-500' :
         chore.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
       }`} />
-      <span className="text-sm flex-1 truncate">{chore.title}</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{chore.title}</p>
+        <p className="text-[11px] text-muted-foreground truncate">
+          {status.label}
+        </p>
+      </div>
       {chore.streak && chore.streak >= 2 && (
         <Badge className="text-[10px] px-1 py-0 gap-0.5 bg-orange-500">
           <Fire size={8} />

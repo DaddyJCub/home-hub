@@ -45,6 +45,8 @@ export type ChoreFrequency = 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly
 
 export type ChoreRotation = 'none' | 'rotate' | 'anyone' // none = fixed assignee, rotate = auto-rotate, anyone = whoever does it
 
+export type ChoreScheduleType = 'fixed' | 'after_completion'
+
 export interface Chore {
   id: string
   householdId: string
@@ -53,10 +55,11 @@ export interface Chore {
   assignedTo: string
   frequency: ChoreFrequency
   customIntervalDays?: number // for custom frequency
+  scheduleType?: ChoreScheduleType // fixed time vs after completion
   completed: boolean
-  lastCompleted?: number
+  dueAt?: number // next/current occurrence timestamp
+  lastCompletedAt?: number
   lastCompletedBy?: string
-  nextDue?: number
   createdAt: number
   room?: string
   priority?: 'low' | 'medium' | 'high'

@@ -22,8 +22,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import type { Chore, ChoreCompletion, ChoreFrequency, ChoreRotation } from '@/lib/types'
 import { toast } from 'sonner'
-import { format, formatDistanceToNow, isPast, isToday, addDays, startOfDay, differenceInDays } from 'date-fns'
+import { format, formatDistanceToNow, isPast, isToday, addDays, startOfDay, differenceInDays, isWithinInterval } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
+import { computeNextDueAt, frequencyToMs, getChoreStatus, isCompletedForToday, normalizeChore } from '@/lib/chore-utils'
 
 const ROOMS = [
   'Kitchen', 'Living Room', 'Bedroom', 'Bathroom', 'Garage', 
@@ -53,68 +54,7 @@ const priorityConfig = {
   low: { color: 'bg-green-500', text: 'text-green-700 dark:text-green-300', bg: 'bg-green-500/10', border: 'border-green-300' }
 }
 
-// Calculate next due date based on frequency
-function calculateNextDue(frequency: ChoreFrequency, customDays?: number, lastCompleted?: number): number {
-  const base = lastCompleted || Date.now()
-  const msPerDay = 24 * 60 * 60 * 1000
-  
-  switch (frequency) {
-    case 'daily': return base + msPerDay
-    case 'weekly': return base + 7 * msPerDay
-    case 'biweekly': return base + 14 * msPerDay
-    case 'monthly': return base + 30 * msPerDay
-    case 'quarterly': return base + 90 * msPerDay
-    case 'yearly': return base + 365 * msPerDay
-    case 'custom': return base + (customDays || 7) * msPerDay
-    default: return 0
-  }
-}
-
-// Check if chore was completed today (for recurring chores)
-function wasCompletedToday(chore: Chore): boolean {
-  if (!chore.lastCompleted) return false
-  const lastCompletedDate = startOfDay(new Date(chore.lastCompleted))
-  const today = startOfDay(new Date())
-  return lastCompletedDate.getTime() === today.getTime()
-}
-
-// Get overdue status
-function getOverdueStatus(chore: Chore): { isOverdue: boolean; isDueToday: boolean; isDueSoon: boolean; daysOverdue: number; isCompletedToday: boolean } {
-  const isCompletedToday = wasCompletedToday(chore)
-  
-  // For recurring chores that were completed today, they're "done" for today
-  if (chore.frequency !== 'once' && isCompletedToday) {
-    return { isOverdue: false, isDueToday: false, isDueSoon: false, daysOverdue: 0, isCompletedToday: true }
-  }
-  
-  if (chore.completed || chore.frequency === 'once') {
-    if (chore.dueDate) {
-      const dueDate = new Date(chore.dueDate)
-      const today = startOfDay(new Date())
-      const daysOverdue = differenceInDays(today, dueDate)
-      return {
-        isOverdue: !chore.completed && daysOverdue > 0,
-        isDueToday: !chore.completed && daysOverdue === 0,
-        isDueSoon: !chore.completed && daysOverdue >= -2 && daysOverdue < 0,
-        daysOverdue,
-        isCompletedToday: false
-      }
-    }
-    return { isOverdue: false, isDueToday: false, isDueSoon: false, daysOverdue: 0, isCompletedToday: false }
-  }
-  
-  const nextDue = chore.nextDue || calculateNextDue(chore.frequency, chore.customIntervalDays, chore.lastCompleted)
-  const now = Date.now()
-  const daysOverdue = Math.floor((now - nextDue) / (24 * 60 * 60 * 1000))
-  
-  return {
-    isOverdue: daysOverdue > 0,
-    isDueToday: daysOverdue === 0,
-    isDueSoon: daysOverdue >= -2 && daysOverdue < 0,
-    daysOverdue,
-    isCompletedToday: false
-  }
-}
+const COMPLETED_RECENT_WINDOW_HOURS = 24
 
 export default function ChoresSection() {
   const { currentHousehold, householdMembers } = useAuth()
@@ -149,10 +89,11 @@ export default function ChoresSection() {
     description: '',
     assignedTo: '',
     frequency: 'once' as ChoreFrequency,
+    scheduleType: 'fixed' as 'fixed' | 'after_completion',
     customIntervalDays: 7,
     room: '',
     priority: 'medium' as 'low' | 'medium' | 'high',
-    dueDate: '',
+    dueDateTime: '',
     notes: '',
     daysOfWeek: [] as number[],
     estimatedMinutes: '',
@@ -164,8 +105,8 @@ export default function ChoresSection() {
   // Reset form
   const resetForm = useCallback(() => {
     setChoreForm({
-      title: '', description: '', assignedTo: '', frequency: 'once',
-      customIntervalDays: 7, room: '', priority: 'medium', dueDate: '',
+      title: '', description: '', assignedTo: '', frequency: 'once', scheduleType: 'fixed',
+      customIntervalDays: 7, room: '', priority: 'medium', dueDateTime: '',
       notes: '', daysOfWeek: [], estimatedMinutes: '', rotation: 'none',
       rotationOrder: [], trackTime: false
     })
@@ -192,15 +133,22 @@ export default function ChoresSection() {
       return
     }
 
+    const initialDue =
+      choreForm.dueDateTime && !Number.isNaN(new Date(choreForm.dueDateTime).getTime())
+        ? new Date(choreForm.dueDateTime).getTime()
+        : Date.now() + frequencyToMs(choreForm.frequency as ChoreFrequency, choreForm.customIntervalDays || 1)
+
     const choreData: Partial<Chore> = {
       title: choreForm.title.trim(),
       description: choreForm.description.trim() || undefined,
       assignedTo: choreForm.assignedTo,
       frequency: choreForm.frequency,
+      scheduleType: choreForm.scheduleType,
       customIntervalDays: choreForm.frequency === 'custom' ? choreForm.customIntervalDays : undefined,
       room: choreForm.room || undefined,
       priority: choreForm.priority,
-      dueDate: choreForm.frequency === 'once' ? choreForm.dueDate || undefined : undefined,
+      dueAt: initialDue,
+      dueDate: choreForm.frequency === 'once' ? choreForm.dueDateTime || undefined : undefined,
       notes: choreForm.notes.trim() || undefined,
       daysOfWeek: choreForm.daysOfWeek.length > 0 ? choreForm.daysOfWeek : undefined,
       estimatedMinutes: choreForm.estimatedMinutes ? parseInt(choreForm.estimatedMinutes) : undefined,
@@ -210,7 +158,7 @@ export default function ChoresSection() {
     }
 
     if (editingChore) {
-      setChores(allChores.map(c => c.id === editingChore.id ? { ...c, ...choreData } : c))
+      setChores(allChores.map(c => c.id === editingChore.id ? normalizeChore({ ...c, ...choreData } as Chore) : c))
       toast.success('Chore updated')
     } else {
       const newChore: Chore = {
@@ -223,13 +171,8 @@ export default function ChoresSection() {
         bestStreak: 0,
         totalCompletions: 0
       } as Chore
-      
-      // Calculate initial next due
-      if (newChore.frequency !== 'once') {
-        newChore.nextDue = calculateNextDue(newChore.frequency, newChore.customIntervalDays)
-      }
-      
-      setChores([...allChores, newChore])
+
+      setChores([...allChores, normalizeChore(newChore)])
       toast.success('Chore added')
     }
 
@@ -243,9 +186,9 @@ export default function ChoresSection() {
     const now = Date.now()
     const completer = completedBy || chore.assignedTo
     
-    // Check if completed on time for streak
-    const { isOverdue } = getOverdueStatus(chore)
-    const wasOnTime = !isOverdue
+    const normalized = normalizeChore(chore)
+    const status = getChoreStatus(normalized, now)
+    const wasOnTime = !status.isOverdue
     
     // Create completion record
     const completion: ChoreCompletion = {
@@ -259,8 +202,8 @@ export default function ChoresSection() {
     setCompletions([...allCompletions, completion])
     
     // Update chore
-    const updatedChore: Chore = { ...chore }
-    updatedChore.lastCompleted = now
+    const updatedChore: Chore = { ...normalized }
+    updatedChore.lastCompletedAt = now
     updatedChore.lastCompletedBy = completer
     updatedChore.totalCompletions = (chore.totalCompletions || 0) + 1
     
@@ -286,7 +229,7 @@ export default function ChoresSection() {
       updatedChore.completed = true
     } else {
       updatedChore.completed = false
-      updatedChore.nextDue = calculateNextDue(chore.frequency, chore.customIntervalDays, now)
+      updatedChore.dueAt = computeNextDueAt(updatedChore, now)
       
       // Handle rotation
       if (chore.rotation === 'rotate' && chore.rotationOrder && chore.rotationOrder.length > 0) {
@@ -331,7 +274,8 @@ export default function ChoresSection() {
     const updatedChore: Chore = {
       ...chore,
       lastSkipped: now,
-      nextDue: calculateNextDue(chore.frequency, chore.customIntervalDays, now),
+      dueAt: computeNextDueAt(chore, now),
+      scheduleType: chore.scheduleType || 'after_completion',
       streak: 0 // Reset streak on skip
     }
     
@@ -349,15 +293,18 @@ export default function ChoresSection() {
   // Open edit dialog
   const openEditDialog = (chore: Chore) => {
     setEditingChore(chore)
+    const normalized = normalizeChore(chore)
+    const dueDateTime = normalized.dueAt ? new Date(normalized.dueAt).toISOString().slice(0,16) : ''
     setChoreForm({
       title: chore.title,
       description: chore.description || '',
       assignedTo: chore.assignedTo,
       frequency: chore.frequency,
+      scheduleType: chore.scheduleType || 'fixed',
       customIntervalDays: chore.customIntervalDays || 7,
       room: chore.room || '',
       priority: chore.priority || 'medium',
-      dueDate: chore.dueDate || '',
+      dueDateTime,
       notes: chore.notes || '',
       daysOfWeek: chore.daysOfWeek || [],
       estimatedMinutes: chore.estimatedMinutes?.toString() || '',
@@ -392,11 +339,11 @@ export default function ChoresSection() {
       return true
     })
 
-    // Add overdue status
-    const withStatus = filtered.map(chore => ({
-      chore,
-      status: getOverdueStatus(chore)
-    }))
+    const withStatus = filtered.map(chore => {
+      const normalized = normalizeChore(chore)
+      const status = getChoreStatus(normalized)
+      return { chore: normalized, status }
+    })
 
     // Sort
     withStatus.sort((a, b) => {
@@ -409,8 +356,8 @@ export default function ChoresSection() {
           // Overdue first, then due today, then due soon
           if (a.status.isOverdue !== b.status.isOverdue) return a.status.isOverdue ? -1 : 1
           if (a.status.isDueToday !== b.status.isDueToday) return a.status.isDueToday ? -1 : 1
-          const aDue = a.chore.nextDue || (a.chore.dueDate ? new Date(a.chore.dueDate).getTime() : 0)
-          const bDue = b.chore.nextDue || (b.chore.dueDate ? new Date(b.chore.dueDate).getTime() : 0)
+          const aDue = a.chore.dueAt || 0
+          const bDue = b.chore.dueAt || 0
           return aDue - bDue
         }
         case 'room':
@@ -424,12 +371,8 @@ export default function ChoresSection() {
   }, [chores, selectedMember, filterRoom, filterPriority, sortBy])
 
   // Separate recurring chores completed today from actually pending chores
-  const completedTodayChores = processedChores.filter(({ chore, status }) => 
-    !chore.completed && status.isCompletedToday
-  )
-  const pendingChores = processedChores.filter(({ chore, status }) => 
-    !chore.completed && !status.isCompletedToday
-  )
+  const completedTodayChores = processedChores.filter(({ chore }) => !chore.completed && isCompletedForToday(chore))
+  const pendingChores = processedChores.filter(({ chore }) => !chore.completed && !isCompletedForToday(chore))
   const completedChores = processedChores.filter(({ chore }) => chore.completed)
   const overdueChores = pendingChores.filter(({ status }) => status.isOverdue)
   const dueTodayChores = pendingChores.filter(({ status }) => status.isDueToday && !status.isOverdue)
@@ -516,6 +459,10 @@ export default function ChoresSection() {
           </DropdownMenu>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open)
+            if (open && !editingChore) {
+              const defaultDue = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0,16)
+              setChoreForm(prev => ({ ...prev, dueDateTime: prev.dueDateTime || defaultDue }))
+            }
             if (!open) { setEditingChore(null); resetForm() }
           }}>
             <DialogTrigger asChild>
@@ -591,6 +538,20 @@ export default function ChoresSection() {
                     </Select>
                   </div>
                 </div>
+
+                {/* Schedule type */}
+                {choreForm.frequency !== 'once' && (
+                  <div className="space-y-1.5">
+                    <Label>Schedule Type</Label>
+                    <Select value={choreForm.scheduleType} onValueChange={(v) => setChoreForm({ ...choreForm, scheduleType: v as any })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">Fixed (next occurrence is fixed cadence)</SelectItem>
+                        <SelectItem value="after_completion">After Completion (next due shifts from completion time)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 
                 {/* Custom interval */}
                 {choreForm.frequency === 'custom' && (
@@ -605,6 +566,17 @@ export default function ChoresSection() {
                   </div>
                 )}
                 
+                {/* Next due date/time */}
+                <div className="space-y-1.5">
+                  <Label>Next Due</Label>
+                  <Input
+                    type="datetime-local"
+                    value={choreForm.dueDateTime}
+                    onChange={(e) => setChoreForm({ ...choreForm, dueDateTime: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">This sets the upcoming occurrence; recurring chores will auto-advance after completion.</p>
+                </div>
+
                 {/* Days of week for weekly */}
                 {(choreForm.frequency === 'weekly' || choreForm.frequency === 'biweekly') && (
                   <div className="space-y-1.5">
@@ -873,8 +845,8 @@ export default function ChoresSection() {
                         <div className="flex-1 min-w-0">
                           <h3 className="font-medium text-green-700 dark:text-green-400">{chore.title}</h3>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                            {chore.lastCompleted && (
-                              <span>Done {formatDistanceToNow(chore.lastCompleted, { addSuffix: true })}</span>
+                            {chore.lastCompletedAt && (
+                              <span>Done {formatDistanceToNow(chore.lastCompletedAt, { addSuffix: true })}</span>
                             )}
                             {chore.lastCompletedBy && (
                               <span>by {chore.lastCompletedBy}</span>
@@ -1115,9 +1087,9 @@ function ChoreCard({ chore, status, members, isTracking, onComplete, onSkip, onE
                   {status.isDueToday && !status.isOverdue && (
                     <span className="text-primary font-medium">Due today</span>
                   )}
-                  {chore.lastCompleted && (
+                  {chore.lastCompletedAt && (
                     <span className="text-muted-foreground">
-                      Last done {formatDistanceToNow(chore.lastCompleted, { addSuffix: true })}
+                      Last done {formatDistanceToNow(chore.lastCompletedAt, { addSuffix: true })}
                       {chore.lastCompletedBy && ` by ${chore.lastCompletedBy}`}
                     </span>
                   )}
@@ -1271,7 +1243,8 @@ interface ChoreDetailViewProps {
 
 function ChoreDetailView({ chore, completions, members, onComplete, onSkip, onEdit, onDelete, onClose }: ChoreDetailViewProps) {
   const priorityCfg = priorityConfig[chore.priority || 'medium']
-  const status = getOverdueStatus(chore)
+  const normalized = normalizeChore(chore)
+  const status = getChoreStatus(normalized)
   const recentCompletions = completions.sort((a, b) => b.completedAt - a.completedAt).slice(0, 10)
   
   return (
@@ -1358,12 +1331,12 @@ function ChoreDetailView({ chore, completions, members, onComplete, onSkip, onEd
             </p>
           </div>
         )}
-        {chore.nextDue && chore.frequency !== 'once' && (
+        {chore.dueAt && chore.frequency !== 'once' && (
           <div className="p-3 rounded-lg bg-muted/50">
             <p className="text-xs text-muted-foreground mb-1">Next Due</p>
             <p className="font-medium flex items-center gap-1">
               <Calendar size={14} />
-              {format(chore.nextDue, 'MMM d, yyyy')}
+              {format(chore.dueAt, 'MMM d, yyyy h:mm a')}
             </p>
           </div>
         )}
@@ -1415,12 +1388,12 @@ function ChoreDetailView({ chore, completions, members, onComplete, onSkip, onEd
       )}
 
       {/* Last Completed */}
-      {chore.lastCompleted && (
+      {chore.lastCompletedAt && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-200 dark:border-green-900">
           <CheckCircle size={18} className="text-green-600" />
           <div className="flex-1">
             <p className="text-sm font-medium text-green-700 dark:text-green-300">
-              Last completed {formatDistanceToNow(chore.lastCompleted, { addSuffix: true })}
+              Last completed {formatDistanceToNow(chore.lastCompletedAt, { addSuffix: true })}
             </p>
             {chore.lastCompletedBy && (
               <p className="text-xs text-green-600/80 dark:text-green-400/80">by {chore.lastCompletedBy}</p>
