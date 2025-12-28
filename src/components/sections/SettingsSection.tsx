@@ -112,13 +112,13 @@ export default function SettingsSection() {
     toast.success(`${checked ? 'Dark' : 'Light'} mode enabled`)
   }
 
-  const handleAddMember = () => {
+  const handleAddMember = async () => {
     if (!newMemberName.trim()) {
       toast.error('Please enter a name')
       return
     }
 
-    const newMember = addHouseholdMember(newMemberName.trim())
+    const newMember = await addHouseholdMember(newMemberName.trim())
     if (newMember) {
       toast.success(`${newMemberName.trim()} added to household`)
       setNewMemberName('')
@@ -128,8 +128,8 @@ export default function SettingsSection() {
     }
   }
 
-  const handleRemoveMember = (memberId: string) => {
-    const success = removeHouseholdMember(memberId)
+  const handleRemoveMember = async (memberId: string) => {
+    const success = await removeHouseholdMember(memberId)
     if (success) {
       toast.success('Member removed from household')
     } else {
@@ -378,7 +378,7 @@ export default function SettingsSection() {
               <Badge key={member.id} variant="secondary" className="text-sm pl-3 pr-2 py-2">
                 {member.displayName}
                 <button
-                  onClick={() => handleRemoveMember(member.id)}
+                  onClick={() => void handleRemoveMember(member.id)}
                   className="ml-2 hover:text-destructive transition-colors"
                 >
                   <X size={14} />
@@ -412,7 +412,7 @@ export default function SettingsSection() {
                     onChange={(e) => setNewMemberName(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
-                        handleAddMember()
+                        void handleAddMember()
                       }
                     }}
                   />
@@ -422,7 +422,7 @@ export default function SettingsSection() {
                 <Button variant="outline" onClick={() => setIsAddMemberOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleAddMember}>Add Member</Button>
+                <Button onClick={() => void handleAddMember()}>Add Member</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

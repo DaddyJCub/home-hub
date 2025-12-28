@@ -10,7 +10,16 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 
 export default function HouseholdSwitcher() {
-  const { currentHousehold, userHouseholds, switchHousehold, logout, currentUser, currentUserRole, createHousehold: createHouseholdCtx, joinHousehold } = useAuth()
+  const {
+    currentHousehold,
+    userHouseholds,
+    switchHousehold,
+    logout,
+    currentUser,
+    currentUserRole,
+    createHousehold: createHouseholdCtx,
+    joinHousehold
+  } = useAuth()
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [joinDialogOpen, setJoinDialogOpen] = useState(false)
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
@@ -20,19 +29,21 @@ export default function HouseholdSwitcher() {
   const handleCreateHousehold = async () => {
     if (!newHouseholdName.trim() || !currentUser) return
 
-    const created = createHouseholdCtx(newHouseholdName.trim())
+    const created = await createHouseholdCtx(newHouseholdName.trim())
     if (created) {
-      switchHousehold(created.id)
+      await switchHousehold(created.id)
       toast.success(`${created.name} created!`)
+    } else {
+      toast.error('Could not create household')
     }
     setNewHouseholdName('')
     setCreateDialogOpen(false)
   }
 
-  const handleJoinHousehold = () => {
+  const handleJoinHousehold = async () => {
     if (!inviteCode.trim() || !currentUser) return
 
-    const result = joinHousehold(inviteCode)
+    const result = await joinHousehold(inviteCode)
     if (result.success) {
       setInviteCode('')
       setJoinDialogOpen(false)
@@ -49,10 +60,7 @@ export default function HouseholdSwitcher() {
       <div className="flex items-center gap-1.5 md:gap-2 bg-secondary/50 px-2 md:px-3 py-1.5 md:py-2 rounded-lg border text-xs md:text-sm">
         <House size={16} className="text-primary flex-shrink-0 hidden md:block" />
         {userHouseholds.length > 1 ? (
-          <Select
-            value={currentHousehold?.id || ''}
-            onValueChange={switchHousehold}
-          >
+          <Select value={currentHousehold?.id || ''} onValueChange={(value) => void switchHousehold(value)}>
             <SelectTrigger className="w-28 md:w-48 h-7 md:h-8 border-0 bg-background/80 text-xs md:text-sm">
               <SelectValue placeholder="Select household" />
             </SelectTrigger>
@@ -171,7 +179,7 @@ export default function HouseholdSwitcher() {
         </Dialog>
       )}
 
-      <Button variant="ghost" size="sm" onClick={logout} className="gap-1 md:gap-2 h-7 md:h-9 px-2 md:px-3 text-xs md:text-sm">
+      <Button variant="ghost" size="sm" onClick={() => void logout()} className="gap-1 md:gap-2 h-7 md:h-9 px-2 md:px-3 text-xs md:text-sm">
         <SignOut size={14} />
         <span className="hidden md:inline">Sign Out</span>
       </Button>

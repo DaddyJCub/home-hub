@@ -3,7 +3,6 @@ export type UserRole = 'owner' | 'admin' | 'member'
 export interface User {
   id: string
   email: string
-  passwordHash: string
   displayName: string
   createdAt: number
 }
@@ -23,6 +22,7 @@ export interface HouseholdMember {
   displayName: string
   role: UserRole
   joinedAt: number
+  isLocal?: boolean
 }
 
 export interface HouseholdMemberLegacy {

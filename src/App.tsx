@@ -120,7 +120,7 @@ function AppContent() {
   const allChores = choresRaw ?? []
   const allEvents = eventsRaw ?? []
   
-  const { isAuthenticated, currentHousehold, logout } = useAuth()
+  const { isAuthenticated, currentHousehold, isLoading } = useAuth()
   
   // Filter by current household for notifications
   const chores = currentHousehold ? allChores.filter(c => c.householdId === currentHousehold.id) : []
@@ -193,6 +193,14 @@ function AppContent() {
   const handleViewRecipe = (recipeId: string) => {
     setViewRecipeId(recipeId)
     setActiveTab('recipes')
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
+        Restoring your HomeHub session...
+      </div>
+    )
   }
 
   if (!isAuthenticated) {

@@ -22,7 +22,7 @@ export default function ErrorBoundary() {
           <p className="text-sm text-muted-foreground">
             To use the new features, please sign out and create a new account. Your existing data will be migrated automatically.
           </p>
-          <Button onClick={logout} className="w-full">
+          <Button onClick={() => void logout()} className="w-full">
             Sign Out & Get Started
           </Button>
         </CardContent>
