@@ -167,7 +167,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
   const overdueChores = pendingChoresWithStatus.filter(p => p.status.isOverdue)
   const dueSoonChores = pendingChoresWithStatus.filter(p => {
     const delta = (p.status.dueAt || Date.now()) - Date.now()
-    return !p.status.isOverdue && delta > 0 && delta <= 24 * 60 * 60 * 1000
+    return !p.status.isOverdue && !p.status.isDueToday && delta > 0 && delta <= 24 * 60 * 60 * 1000
   })
   const dueTodayChores = pendingChoresWithStatus.filter(p => p.status.isDueToday && !p.status.isOverdue)
   const upcomingChores = pendingChoresWithStatus.filter(p => !p.status.isOverdue && !p.status.isDueToday && !dueSoonChores.includes(p))
