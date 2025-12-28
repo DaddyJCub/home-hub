@@ -96,6 +96,12 @@ export default function RecipesSection({ initialRecipeId, onRecipeViewed }: Reci
       return
     }
 
+    if (!window.spark?.llmPrompt || !window.spark?.llm) {
+      toast.error('Automatic parsing is not available in this mode. Please paste details manually.')
+      setAddMode('manual')
+      return
+    }
+
     setIsParsingUrl(true)
     try {
       const url = recipeForm.sourceUrl
@@ -106,12 +112,6 @@ export default function RecipesSection({ initialRecipeId, onRecipeViewed }: Reci
       }
       const htmlContent = await htmlResponse.text()
 
-      if (!window.spark?.llmPrompt || !window.spark?.llm) {
-        toast.error('AI extraction is unavailable offline. Please enter recipes manually.')
-        setIsParsingUrl(false)
-        return
-      }
-
       const prompt = window.spark.llmPrompt(
         [
           'You are a recipe extraction assistant. Extract recipe information from the following HTML content.\n\nHTML Content:\n',
@@ -121,29 +121,35 @@ export default function RecipesSection({ initialRecipeId, onRecipeViewed }: Reci
       )
 
       const response = await window.spark.llm(prompt, 'gpt-4o', true)
-      const parsed = JSON.parse(response)
+      let parsed: any = {}
+      try {
+        parsed = JSON.parse(response || '{}')
+      } catch (err) {
+        console.error('Recipe parse JSON error', { err, response })
+        throw new Error('Parser returned invalid JSON')
+      }
 
       setRecipeForm({
         name: parsed.name || '',
         ingredients: Array.isArray(parsed.ingredients) 
           ? parsed.ingredients.join('\n') 
-          : parsed.ingredients || '',
+          : (parsed.ingredients || ''),
         instructions: parsed.instructions || '',
         prepTime: parsed.prepTime || '',
         cookTime: parsed.cookTime || '',
         servings: parsed.servings || '',
         tags: Array.isArray(parsed.tags) 
           ? parsed.tags.join(', ') 
-          : parsed.tags || '',
+          : (parsed.tags || ''),
         sourceUrl: recipeForm.sourceUrl,
         imageUrl: parsed.imageUrl || ''
       })
 
       toast.success('Recipe parsed! Please review and adjust as needed.')
       setAddMode('manual')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to parse recipe:', error)
-      toast.error('Failed to parse recipe from URL. Please try adding manually.')
+      toast.error(error?.message || 'Failed to parse recipe from URL. Please try adding manually.')
     } finally {
       setIsParsingUrl(false)
     }

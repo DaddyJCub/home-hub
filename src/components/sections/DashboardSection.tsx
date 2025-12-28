@@ -139,7 +139,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
     } else {
       toast.success('Chore completed!', { description: chore.title })
     }
-  }, [currentHousehold, allChores, allCompletions, setChores, setCompletions, calculateNextDue, isChoreOverdue])
+  }, [currentHousehold, allChores, allCompletions, setChores, setCompletions, computeNextDueAt])
 
   // Filtered data based on selected member
   const filteredChores = selectedMember === 'all' 
