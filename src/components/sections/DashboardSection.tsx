@@ -54,6 +54,9 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
 
   const allChores = choresRaw ?? []
   const allCompletions = completionsRaw ?? []
+  const completions = useMemo(() => {
+    return currentHousehold ? allCompletions.filter(c => c.householdId === currentHousehold.id) : []
+  }, [allCompletions, currentHousehold])
 
   // Filter all data by current household
   const chores = useMemo(() => {

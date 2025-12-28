@@ -6,13 +6,14 @@ import { CheckCircle, Circle, Clock, User } from '@phosphor-icons/react'
 import type { Chore } from '@/lib/types'
 import { format, startOfWeek, addDays, isToday } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
+import { normalizeChore, computeNextDueAt } from '@/lib/chore-utils'
 
 export default function WeeklyChoreSchedule() {
   const { currentHousehold } = useAuth()
   const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
   const [selectedMember] = useKV<string>('selected-member-filter', 'all')
   const allChores = choresRaw ?? []
-  const chores = currentHousehold ? allChores.filter(c => c.householdId === currentHousehold.id) : []
+  const chores = currentHousehold ? allChores.filter(c => c.householdId === currentHousehold.id).map(normalizeChore) : []
 
   const filteredChores = selectedMember === 'all' 
     ? chores 
@@ -40,11 +41,25 @@ export default function WeeklyChoreSchedule() {
   const toggleChoreCompletion = (choreId: string) => {
     setChores((currentChores) => {
       if (!currentChores) return []
-      return currentChores.map((chore) =>
-        chore.id === choreId
-          ? { ...chore, completed: !chore.completed, lastCompleted: !chore.completed ? Date.now() : undefined }
-          : chore
-      )
+      return currentChores.map((chore) => {
+        if (chore.id !== choreId) return chore
+        const now = Date.now()
+        const normalized = normalizeChore(chore as Chore)
+        const toggled = !normalized.completed
+        const updated: any = {
+          ...normalized,
+          completed: toggled ? true : false,
+        }
+        if (toggled) {
+          updated.lastCompletedAt = now
+          if (normalized.frequency !== 'once') {
+            updated.dueAt = computeNextDueAt(updated as Chore, now)
+          }
+        } else {
+          // if unchecking, keep dueAt as-is
+        }
+        return updated
+      })
     })
   }
 
