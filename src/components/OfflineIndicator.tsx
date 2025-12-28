@@ -1,10 +1,16 @@
-import { WifiSlash, ArrowsClockwise } from '@phosphor-icons/react'
+import { WifiSlash, ArrowsClockwise, Warning, ClockCounterClockwise } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useServiceWorker } from '@/hooks/use-service-worker'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useSyncStatus } from '@/hooks/use-sync-status'
+import { formatDistanceToNow } from 'date-fns'
 
 export function OfflineIndicator() {
   const { isOnline, updateAvailable, applyUpdate } = useServiceWorker()
+  const sync = useSyncStatus()
+  const lastSync = sync.lastSuccess
+    ? `Synced ${formatDistanceToNow(sync.lastSuccess, { addSuffix: true })}`
+    : 'Not synced yet'
 
   return (
     <>
@@ -23,6 +29,43 @@ export function OfflineIndicator() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {isOnline && sync.state === 'syncing' && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-24 left-4 right-4 md:bottom-6 md:left-auto md:right-4 md:max-w-sm z-50 bg-secondary text-secondary-foreground px-4 py-3 rounded-lg shadow-lg"
+          >
+            <div className="flex items-center gap-2 text-sm">
+              <ArrowsClockwise size={16} className="animate-spin" />
+              <span>Syncing changes…</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isOnline && sync.state === 'error' && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-24 left-4 right-4 md:bottom-6 md:left-auto md:right-4 md:max-w-sm z-50 bg-amber-100 text-amber-900 px-4 py-3 rounded-lg shadow-lg dark:bg-amber-900/30 dark:text-amber-50"
+          >
+            <div className="flex items-center gap-2 text-sm">
+              <Warning size={16} />
+              <span>Sync failed. Will retry when possible.</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="fixed bottom-4 left-4 md:left-6 z-40 flex items-center gap-2 bg-muted/80 backdrop-blur px-3 py-2 rounded-full text-xs text-muted-foreground shadow-sm">
+        <ClockCounterClockwise size={14} />
+        <span>{lastSync}</span>
+      </div>
 
       <AnimatePresence>
         {updateAvailable && (

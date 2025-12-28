@@ -97,5 +97,5 @@ export async function sendTestPush(): Promise<{ success: boolean; message: strin
 }
 
 export function recordLocalPush(title: string, body: string, data?: Record<string, unknown>) {
-  showNotification(title, { body, data }, DEFAULT_NOTIFICATION_PREFERENCES)
+  showNotification(title, { body, data, reason: 'push-local', type: 'system' }, DEFAULT_NOTIFICATION_PREFERENCES)
 }

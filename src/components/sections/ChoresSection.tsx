@@ -51,7 +51,7 @@ const priorityConfig = {
 
 const COMPLETED_RECENT_WINDOW_HOURS = 24
 
-export default function ChoresSection() {
+export default function ChoresSection({ highlightChoreId }: { highlightChoreId?: string | null }) {
   const { currentHousehold, householdMembers } = useAuth()
   const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
   const [completionsRaw, setCompletions] = useKV<ChoreCompletion[]>('chore-completions', [])
@@ -204,6 +204,7 @@ export default function ChoresSection() {
       completedAt: now,
       notes: notes || undefined
     }
+    const prevCompletions = [...allCompletions]
     setCompletions([...allCompletions, completion])
     
     // Update chore
@@ -244,14 +245,24 @@ export default function ChoresSection() {
       }
     }
     
+    const prevChores = [...allChores]
     setChores(allChores.map(c => c.id === chore.id ? updatedChore : c))
     
     // Show streak toast if relevant
-    if (updatedChore.streak && updatedChore.streak >= 3) {
-      toast.success(`🔥 ${updatedChore.streak} day streak!`, { description: 'Keep it up!' })
-    } else {
-      toast.success('Chore completed!')
-    }
+    const description = updatedChore.streak && updatedChore.streak >= 3
+      ? `🔥 ${updatedChore.streak} day streak!`
+      : 'Marked complete'
+
+    toast.success('Chore completed', {
+      description,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          setChores(prevChores)
+          setCompletions(prevCompletions)
+        }
+      }
+    })
     
     setCompleteDialogChore(null)
     setTrackingChoreId(null)
@@ -290,9 +301,19 @@ export default function ChoresSection() {
 
   // Delete chore
   const handleDeleteChore = (id: string) => {
+    const prevChores = [...allChores]
+    const prevCompletions = [...allCompletions]
     setChores(allChores.filter(c => c.id !== id))
     setCompletions(allCompletions.filter(c => c.choreId !== id))
-    toast.success('Chore deleted')
+    toast.success('Chore deleted', {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          setChores(prevChores)
+          setCompletions(prevCompletions)
+        }
+      }
+    })
   }
 
   // Open edit dialog
@@ -875,6 +896,7 @@ export default function ChoresSection() {
                     onStartTracking={() => startTracking(chore.id)}
                     onStopTracking={() => stopTracking(chore)}
                     onClick={() => setDetailChore(chore)}
+                    highlight={highlightChoreId === chore.id}
                   />
                 ))}
               </div>
@@ -901,6 +923,7 @@ export default function ChoresSection() {
                   onStartTracking={() => startTracking(chore.id)}
                   onStopTracking={() => stopTracking(chore)}
                   onClick={() => setDetailChore(chore)}
+                  highlight={highlightChoreId === chore.id}
                 />
               ))}
             </div>
@@ -950,13 +973,18 @@ export default function ChoresSection() {
             </Collapsible>
           )}
           
-          {pendingChores.length === 0 && (
-            <div className="text-center py-12">
-              <Sparkle size={40} className="mx-auto text-primary mb-3" />
-              <h3 className="font-semibold mb-1">All caught up!</h3>
-              <p className="text-sm text-muted-foreground">No pending chores</p>
-            </div>
-          )}
+      {pendingChores.length === 0 && (
+        <div className="text-center py-12">
+          <Sparkle size={40} className="mx-auto text-primary mb-3" />
+          <h3 className="font-semibold mb-1">All caught up!</h3>
+          <p className="text-sm text-muted-foreground">No pending chores. Add a quick win to keep momentum.</p>
+          <div className="flex justify-center mt-3">
+            <Button size="sm" onClick={() => setDialogOpen(true)}>
+              Add a chore
+            </Button>
+          </div>
+        </div>
+      )}
         </TabsContent>
 
         <TabsContent value="completed" className="space-y-2 mt-4">
@@ -974,6 +1002,7 @@ export default function ChoresSection() {
               onStartTracking={() => {}}
               onStopTracking={() => {}}
               onClick={() => setDetailChore(chore)}
+              highlight={highlightChoreId === chore.id}
             />
           ))}
           {completedChores.length === 0 && (
@@ -999,6 +1028,7 @@ export default function ChoresSection() {
               onStartTracking={() => startTracking(chore.id)}
               onStopTracking={() => stopTracking(chore)}
               onClick={() => setDetailChore(chore)}
+              highlight={highlightChoreId === chore.id}
             />
           ))}
         </TabsContent>
@@ -1085,9 +1115,10 @@ interface ChoreCardProps {
   onStartTracking: () => void
   onStopTracking: () => void
   onClick: () => void
+  highlight?: boolean
 }
 
-function ChoreCard({ chore, status, members, isTracking, onComplete, onSkip, onEdit, onDelete, onStartTracking, onStopTracking, onClick }: ChoreCardProps) {
+function ChoreCard({ chore, status, members, isTracking, onComplete, onSkip, onEdit, onDelete, onStartTracking, onStopTracking, onClick, highlight }: ChoreCardProps) {
   const priorityCfg = priorityConfig[chore.priority || 'medium']
   
   return (
@@ -1096,7 +1127,8 @@ function ChoreCard({ chore, status, members, isTracking, onComplete, onSkip, onE
         cursor-pointer transition-all hover:shadow-md
         ${status.isOverdue ? 'border-red-300 bg-red-50/50 dark:bg-red-950/10' : ''}
         ${status.isDueToday && !status.isOverdue ? 'border-primary/50 bg-primary/5' : ''}
-        ${chore.completed ? 'opacity-60' : ''}
+        ${chore.completed ? 'opacity-60 scale-[0.99]' : ''}
+        ${highlight ? 'ring-2 ring-primary' : ''}
       `}
       onClick={onClick}
     >

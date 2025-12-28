@@ -3,6 +3,10 @@ import { apiRequest, ApiError } from '@/lib/api'
 import { useAuth } from '@/lib/AuthContext'
 
 const STORAGE_PREFIX = 'hh_kv_'
+const SYNC_QUEUE_KEY = 'hh_sync_queue'
+const LAST_SUCCESS_KEY = 'hh_sync_last_success'
+const LAST_ERROR_KEY = 'hh_sync_last_error'
+const SYNC_EVENT = 'hh-sync-status'
 
 const USER_SCOPED_KEYS = new Set([
   'theme-id',
@@ -28,7 +32,8 @@ const readValue = <T>(key: string, fallback: T): T => {
   try {
     const raw = window.localStorage.getItem(STORAGE_PREFIX + key)
     if (raw === null || raw === undefined) return fallback
-    return JSON.parse(raw) as T
+    const parsed = JSON.parse(raw)
+    return parsed === null || parsed === undefined ? fallback : (parsed as T)
   } catch {
     return fallback
   }
@@ -40,6 +45,98 @@ const writeValue = (key: string, value: any) => {
     window.localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value))
   } catch {
     // ignore storage write errors
+  }
+}
+
+type SyncQueueItem = {
+  key: string
+  scope: 'user' | 'household'
+  payload: any
+  householdId?: string
+}
+
+const readQueue = (): SyncQueueItem[] => {
+  if (typeof window === 'undefined') return []
+  try {
+    return JSON.parse(window.localStorage.getItem(SYNC_QUEUE_KEY) || '[]') as SyncQueueItem[]
+  } catch {
+    return []
+  }
+}
+
+const writeQueue = (queue: SyncQueueItem[]) => {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue))
+  } catch {
+    // ignore
+  }
+}
+
+const emitSyncStatus = (detail: any) => {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(SYNC_EVENT, { detail }))
+}
+
+const markSyncSuccess = () => {
+  const ts = Date.now()
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(LAST_SUCCESS_KEY, String(ts))
+  }
+  emitSyncStatus({ state: 'idle', lastSuccess: ts })
+}
+
+const markSyncError = (message: string) => {
+  const ts = Date.now()
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(LAST_ERROR_KEY, JSON.stringify({ message, timestamp: ts }))
+  }
+  emitSyncStatus({ state: 'error', lastError: { message, timestamp: ts } })
+}
+
+const enqueueSync = (item: SyncQueueItem) => {
+  const queue = readQueue()
+  const idx = queue.findIndex((q) => q.key === item.key && q.scope === item.scope)
+  if (idx >= 0) {
+    queue[idx] = item
+  } else {
+    queue.push(item)
+  }
+  writeQueue(queue)
+  emitSyncStatus({ state: 'queued', queueSize: queue.length })
+}
+
+const processQueue = async () => {
+  const queue = readQueue()
+  if (queue.length === 0) return
+  emitSyncStatus({ state: 'syncing', queueSize: queue.length })
+  const remaining: SyncQueueItem[] = []
+  for (const item of queue) {
+    try {
+      await apiRequest(`/api/data/${item.scope}/${encodeURIComponent(item.key)}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          value: item.payload,
+          householdId: item.scope === 'household' ? item.householdId : undefined
+        })
+      })
+      markSyncSuccess()
+    } catch (err: any) {
+      const message = err?.message || 'Sync failed'
+      markSyncError(message)
+      remaining.push(item)
+    }
+  }
+  writeQueue(remaining)
+  emitSyncStatus({ state: remaining.length > 0 ? 'error' : 'idle', queueSize: remaining.length })
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    void processQueue()
+  })
+  if (window.navigator.onLine) {
+    void processQueue()
   }
 }
 
@@ -98,6 +195,7 @@ export function useKV<T>(
         if (!cancelled) {
           setValue(resolved)
           writeValue(cacheKey, resolved)
+          markSyncSuccess()
         }
 
         // Migrate any legacy local-only data up to the server if no value was stored yet
@@ -110,11 +208,12 @@ export function useKV<T>(
             })
           })
         }
-      } catch (err) {
+      } catch (err: any) {
         if (err instanceof ApiError && err.status === 401) {
           // not authenticated yet; rely on local cache
           return
         }
+        markSyncError(err?.message || 'Sync failed')
         if (!cancelled) {
           const fallback = readValue<T | undefined>(cacheKey, clone(defaultValue))
           setValue(fallback !== undefined ? fallback : clone(defaultValue))
@@ -142,9 +241,17 @@ export function useKV<T>(
               value: resolved,
               householdId: scope === 'household' ? currentHousehold?.id : undefined
             })
-          }).catch(() => {
-            // swallow sync errors to keep UI responsive
           })
+            .then(() => markSyncSuccess())
+            .catch((err: any) => {
+              enqueueSync({
+                key,
+                scope,
+                payload: resolved,
+                householdId: scope === 'household' ? currentHousehold?.id : undefined
+              })
+              markSyncError(err?.message || 'Sync failed')
+            })
         }
 
         return resolved

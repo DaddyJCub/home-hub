@@ -1,6 +1,82 @@
 import type { Chore, CalendarEvent } from './types'
-import { normalizeChore, getChoreStatus } from './chore-utils'
-import { startOfDay, isSameDay, differenceInDays } from 'date-fns'
+import { normalizeChore } from './chore-utils'
+import { startOfDay, isSameDay, differenceInDays, format, formatDistanceToNow } from 'date-fns'
+import { addSoftLog } from './softLog'
+
+type NotificationKind = 'chore' | 'event' | 'shopping' | 'system'
+
+export interface NotificationLogEntry {
+  id: string
+  title: string
+  body?: string
+  tag?: string
+  type?: NotificationKind
+  timestamp: number
+  reason?: string
+  data?: Record<string, any>
+}
+
+const SENT_CACHE_KEY = 'hh_notification_sent'
+const LOG_KEY = 'hh_notification_log'
+
+const MAX_LOG = 20
+const scheduledTimers = new Map<string, number>()
+
+function readSentCache(): Record<string, number> {
+  if (typeof localStorage === 'undefined') return {}
+  try {
+    return JSON.parse(localStorage.getItem(SENT_CACHE_KEY) || '{}')
+  } catch (err) {
+    console.warn('Failed to read notification sent cache', err)
+    return {}
+  }
+}
+
+function writeSentCache(cache: Record<string, number>) {
+  if (typeof localStorage === 'undefined') return
+  localStorage.setItem(SENT_CACHE_KEY, JSON.stringify(cache))
+}
+
+function canSendTag(tag?: string): boolean {
+  if (!tag) return true
+  const cache = readSentCache()
+  const last = cache[tag]
+  const now = Date.now()
+  // expire entries after 3 days
+  Object.keys(cache).forEach(k => {
+    if (now - (cache[k] || 0) > 3 * 24 * 60 * 60 * 1000) {
+      delete cache[k]
+    }
+  })
+  if (last) {
+    writeSentCache(cache)
+    return false
+  }
+  cache[tag] = now
+  writeSentCache(cache)
+  return true
+}
+
+function appendNotificationLog(entry: NotificationLogEntry) {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const existing: NotificationLogEntry[] = JSON.parse(localStorage.getItem(LOG_KEY) || '[]')
+    const next = [{ ...entry, id: entry.id || `${entry.tag || 'log'}-${entry.timestamp}` }, ...existing]
+      .slice(0, MAX_LOG)
+    localStorage.setItem(LOG_KEY, JSON.stringify(next))
+  } catch (err) {
+    console.warn('Failed to append notification log', err)
+  }
+}
+
+export function getNotificationLog(): NotificationLogEntry[] {
+  if (typeof localStorage === 'undefined') return []
+  try {
+    return JSON.parse(localStorage.getItem(LOG_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
 
 export interface NotificationPreferences {
   enabled: boolean
@@ -59,6 +135,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
 export async function requestNotificationPermission(): Promise<boolean> {
   if (!('Notification' in window)) {
     console.warn('This browser does not support notifications')
+    addSoftLog('Notifications not supported')
     return false
   }
 
@@ -68,9 +145,13 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
   if (Notification.permission !== 'denied') {
     const permission = await Notification.requestPermission()
+    if (permission !== 'granted') {
+      addSoftLog('Notification permission denied')
+    }
     return permission === 'granted'
   }
 
+  addSoftLog('Notification permission blocked')
   return false
 }
 
@@ -90,61 +171,108 @@ export function isInQuietHours(preferences: NotificationPreferences): boolean {
   }
 }
 
-export function shouldSendNotification(preferences: NotificationPreferences, type: 'chore' | 'event'): boolean {
+export function shouldSendNotification(preferences: NotificationPreferences, type: NotificationKind): boolean {
   if (!preferences.enabled) return false
   if (isInQuietHours(preferences)) return false
   if (type === 'chore' && !preferences.choresEnabled) return false
   if (type === 'event' && !preferences.eventsEnabled) return false
+  if (type === 'shopping' && !preferences.shoppingEnabled) return false
   return true
 }
 
-export function showNotification(title: string, options?: NotificationOptions, preferences?: NotificationPreferences): void {
+export function showNotification(
+  title: string,
+  options?: (NotificationOptions & { reason?: string; type?: NotificationKind }),
+  preferences?: NotificationPreferences
+): void {
   if (Notification.permission === 'granted') {
     const prefs = preferences || DEFAULT_NOTIFICATION_PREFERENCES
+    const { reason, type, ...restOptions } = options || {}
+    const tag = (restOptions as any)?.tag as string | undefined
+
+    if (tag && !canSendTag(tag)) {
+      return
+    }
+
     const defaultOptions: NotificationOptions = {
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       requireInteraction: false,
       silent: !prefs.soundEnabled,
-      ...options,
+      ...restOptions,
     }
 
     const vibrationPattern = prefs.vibrationEnabled ? [200, 100, 200] : undefined
+    const timestamp = Date.now()
 
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.ready.then(registration => {
         registration.showNotification(title, {
           ...defaultOptions,
+          data: {
+            version: 1,
+            ...(defaultOptions as any).data
+          },
           vibrate: vibrationPattern,
         } as any)
       })
     } else {
-      new Notification(title, defaultOptions)
+      new Notification(title, {
+        ...defaultOptions,
+        data: {
+          version: 1,
+          ...(defaultOptions as any).data
+        }
+      })
     }
+
+    appendNotificationLog({
+      id: tag ? `${tag}-${timestamp}` : `log-${timestamp}`,
+      title,
+      body: restOptions?.body,
+      tag,
+      timestamp,
+      type,
+      reason,
+      data: (restOptions as any)?.data || undefined
+    })
+  } else {
+    addSoftLog('Notification dropped: permission not granted', { title })
   }
 }
 
 export function scheduleChoreNotification(chore: Chore, reminderMinutes: number, preferences?: NotificationPreferences): void {
-  const dueMs = chore.dueAt || chore.nextDue
+  const dueMs = chore.dueAt || (chore as any).nextDue
   if (!dueMs) return
 
   const dueTime = new Date(dueMs)
   const notificationTime = new Date(dueTime.getTime() - reminderMinutes * 60 * 1000)
   const now = new Date()
+  const tag = `chore-${chore.id}-${dueMs}`
 
   if (notificationTime <= now) return
 
   const timeUntilNotification = notificationTime.getTime() - now.getTime()
+  if (timeUntilNotification <= 0 || timeUntilNotification > 24 * 60 * 60 * 1000) return
 
-  if (timeUntilNotification > 0 && timeUntilNotification < 24 * 60 * 60 * 1000) {
-    setTimeout(() => {
-      showNotification(`Chore Reminder: ${chore.title}`, {
-        body: `Due ${formatRelativeTime(dueTime)}${chore.assignedTo ? ` • Assigned to ${chore.assignedTo}` : ''}`,
-        tag: `chore-${chore.id}`,
-        data: { type: 'chore', choreId: chore.id },
-      }, preferences)
-    }, timeUntilNotification)
-  }
+  if (scheduledTimers.has(tag)) return
+
+  const timerId = window.setTimeout(() => {
+    scheduledTimers.delete(tag)
+    showNotification(
+      `Chore due: ${chore.title}`,
+      {
+        body: `${chore.assignedTo ? `${chore.assignedTo} • ` : ''}${format(dueTime, 'eee, h:mm a')} (${formatDistanceToNow(dueTime, { addSuffix: true })})`,
+        tag,
+        data: { type: 'chore', choreId: chore.id, url: '/?tab=chores&highlight=' + chore.id },
+        reason: 'chore-upcoming',
+        type: 'chore'
+      },
+      preferences
+    )
+  }, timeUntilNotification)
+
+  scheduledTimers.set(tag, timerId)
 }
 
 export function scheduleEventNotification(event: CalendarEvent, reminderMinutes: number, preferences?: NotificationPreferences): void {
@@ -153,19 +281,25 @@ export function scheduleEventNotification(event: CalendarEvent, reminderMinutes:
 
   const notificationTime = new Date(eventDateTime.getTime() - reminderMinutes * 60 * 1000)
   const now = new Date()
+  const tag = `event-${event.id}-${eventDateTime.getTime()}`
 
   if (notificationTime <= now) return
 
   const timeUntilNotification = notificationTime.getTime() - now.getTime()
 
   if (timeUntilNotification > 0 && timeUntilNotification < 24 * 60 * 60 * 1000) {
-    setTimeout(() => {
-      showNotification(`Event Reminder: ${event.title}`, {
-        body: `${formatRelativeTime(eventDateTime)}${event.location ? ` • ${event.location}` : ''}`,
-        tag: `event-${event.id}`,
-        data: { type: 'event', eventId: event.id },
+    if (scheduledTimers.has(tag)) return
+    const timerId = window.setTimeout(() => {
+      scheduledTimers.delete(tag)
+      showNotification(`Event reminder: ${event.title}`, {
+        body: `${format(eventDateTime, 'eee, h:mm a')} (${formatDistanceToNow(eventDateTime, { addSuffix: true })})${event.location ? ` • ${event.location}` : ''}`,
+        tag,
+        data: { type: 'event', eventId: event.id, url: '/?tab=calendar&highlight=' + event.id },
+        reason: 'event-upcoming',
+        type: 'event'
       }, preferences)
     }, timeUntilNotification)
+    scheduledTimers.set(tag, timerId)
   }
 }
 
@@ -294,7 +428,7 @@ export function getChoresNeedingAttention(chores: Chore[]): {
 function getChoreUrgency(chore: Chore): number {
   let score = 0
   const now = Date.now()
-  const nextDue = chore.nextDue || now
+  const nextDue = chore.dueAt || (chore as any).nextDue || now
 
   // Base score from how overdue
   const daysOverdue = Math.max(0, differenceInDays(now, nextDue))
@@ -344,6 +478,7 @@ export function scheduleSmartMorningReminder(
   if (msUntilReminder > 24 * 60 * 60 * 1000) return null
 
   return setTimeout(() => {
+    const todayKey = startOfDay(new Date()).toDateString()
     const { overdue, dueToday, highPriority } = getChoresNeedingAttention(chores.map(normalizeChore))
     const totalPending = overdue.length + dueToday.length
 
@@ -368,12 +503,18 @@ export function scheduleSmartMorningReminder(
       body += `\nTop priority: ${allUrgent[0].title}`
     }
 
-    showNotification(title, {
-      body,
-      tag: 'smart-morning-reminder',
-      data: { type: 'smart-morning', choreCount: totalPending },
-      requireInteraction: highPriority.length > 0,
-    }, preferences)
+    showNotification(
+      title,
+      {
+        body,
+        tag: `smart-morning-${todayKey}`,
+        data: { type: 'chore', choreCount: totalPending, url: '/?tab=chores' },
+        requireInteraction: highPriority.length > 0,
+        reason: 'morning-summary',
+        type: 'chore'
+      },
+      preferences
+    )
   }, msUntilReminder)
 }
 
@@ -410,8 +551,10 @@ export function scheduleEveningFollowUp(
       // All done! Send congratulatory message
       showNotification('🎉 All Chores Complete!', {
         body: 'Great job! You\'ve finished all your chores for today.',
-        tag: 'smart-evening-complete',
-        data: { type: 'smart-evening-complete' },
+        tag: `smart-evening-complete-${targetTime.toDateString()}`,
+        data: { type: 'chore', url: '/?tab=chores' },
+        reason: 'evening-summary',
+        type: 'chore'
       }, preferences)
       return
     }
@@ -442,9 +585,11 @@ export function scheduleEveningFollowUp(
 
     showNotification(title, {
       body,
-      tag: 'smart-evening-followup',
-      data: { type: 'smart-evening', choreCount: incomplete.length },
+      tag: `smart-evening-${targetTime.toDateString()}`,
+      data: { type: 'chore', choreCount: incomplete.length, url: '/?tab=chores' },
       requireInteraction: urgentCount > 0,
+      reason: 'evening-followup',
+      type: 'chore'
     }, preferences)
   }, msUntilReminder)
 }
@@ -482,8 +627,10 @@ export function checkUrgentOverdueChores(
   showNotification('⚠️ Urgent: Overdue Chores', {
     body: `${urgentChores.length} chore${urgentChores.length > 1 ? 's are' : ' is'} ${daysOverdue}+ days overdue!\nMost urgent: ${mostOverdue.title}`,
     tag: 'urgent-overdue',
-    data: { type: 'urgent-overdue', choreIds: urgentChores.map(c => c.id) },
+    data: { type: 'chore', url: '/?tab=chores', choreIds: urgentChores.map(c => c.id) },
     requireInteraction: true,
+    reason: 'urgent-overdue',
+    type: 'chore'
   }, preferences)
 }
 

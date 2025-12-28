@@ -1,16 +1,16 @@
 # Planning Guide
 
-A collaborative household management application that helps households coordinate chores, shopping, meal planning, and recipes in one unified space with real user accounts and multi-household support.
+A collaborative household management application that helps households coordinate chores, shopping, meal planning, and recipes in one unified space with real user accounts. Current release operates in **Single Household / Personal Mode**; multi-household support remains forward-compatible for future expansion.
 
 **Experience Qualities**:
-1. **Secure & Personal** - Each user has their own account and can belong to multiple households with role-based permissions.
+1. **Secure & Personal** - Each user has their own account and is automatically placed into one default household (role-based permissions kept for forward compatibility).
 2. **Collaborative** - Household members can work together with real-time visibility into contributions and shared data.
 3. **Organized** - Information is logically grouped by household, reducing mental overhead of coordination.
 4. **Practical** - Quick access to daily needs like shopping lists and upcoming meals without unnecessary complexity.
 5. **Reliable** - Data persists across sessions with proper state synchronization between components.
 
 **Complexity Level**: Complex Application (advanced functionality with multiple views and user management)
-This is a multi-feature application with user authentication, household management, role-based access control, and distinct but related sections (chores, shopping, meals, recipes, calendar) that are scoped to households. The state management includes user sessions, household switching, permission-based feature access, and synchronized localStorage persistence.
+This is a multi-feature application with user authentication, role-based access control (kept for forward compatibility), and distinct but related sections (chores, shopping, meals, recipes, calendar) scoped to the user’s default household. State management includes user sessions, household scoping, and synchronized localStorage persistence. Household switching UI is hidden in this release.
 
 ## Essential Features
 
@@ -21,12 +21,11 @@ This is a multi-feature application with user authentication, household manageme
 - **Progression**: View login screen → Enter email and password → Sign in → Access household dashboard OR Create new account → Enter display name, email, password → Automatically create first household → Access dashboard
 - **Success criteria**: Users can create accounts, sign in, sign out, and maintain sessions. Passwords are securely hashed. First household is automatically created on signup.
 
-### Household Management
-- **Functionality**: Create multiple households, join existing households via invite codes, switch between households
-- **Purpose**: Allow users to manage separate household spaces (e.g., family home, shared apartment, vacation property)
-- **Trigger**: User clicks household switcher or create/join buttons
-- **Progression**: Create: Click "New" → Enter household name → Household created with user as owner → Invite code generated | Join: Click "Join" → Enter 8-character invite code → Join household as member | Switch: Select household from dropdown → All data filtered to selected household
-- **Success criteria**: Users can create unlimited households, join via invite codes, switch between them seamlessly, and see only data for the active household
+### Household Management (current mode: Single Household / Personal)
+- **Functionality**: Auto-create and use a single default household per user; no visible household switching or invite code flows in the UI. (Internal model remains compatible with future multi-household.)
+- **Purpose**: Remove setup friction and ensure all data is available immediately after signup.
+- **Trigger**: On signup, a default household is created and selected automatically.
+- **Success criteria**: Users sign up and immediately see the dashboard with no extra setup; all data is scoped to the default household; no empty-household confusion.
 
 ### Role-Based Access Control
 - **Functionality**: Three role levels - Owner (full control), Admin (manage members/settings), Member (normal use)
@@ -46,16 +45,18 @@ This is a multi-feature application with user authentication, household manageme
 - **Functionality**: Comprehensive chore tracking system inspired by Grocy with completion history, streak tracking, rotation assignments, time tracking, skip/reschedule options, overdue indicators, and detailed statistics
 - **Purpose**: Ensure fair distribution of household tasks with gamification (streaks), accountability (completion history), flexible scheduling, and insights into household contribution patterns
 - **Trigger**: User navigates to chores section, selects member filter, or views weekly chore schedule widget on dashboard
-- **Progression**: View chore list with tabs (Pending/Completed/All) → Add/edit chore → Assign to person or set rotation → Set room/location → Set priority level → Set frequency (once/daily/weekly/biweekly/monthly/quarterly/yearly/custom interval) → Select days of week for weekly tasks → Enable time tracking (optional) → Mark complete with optional notes → View completion history and streaks → Skip recurring chores (reschedules to next due) → Track statistics by member
+- **Progression**: View chore list with tabs (Pending/Completed/All) → Add/edit chore → Assign to person or set rotation → Set room/location (customizable list; add/rename/delete) → Set priority level → Set frequency (once/daily/weekly/biweekly/monthly/quarterly/yearly/custom interval) → Select days of week for weekly tasks → Choose schedule type (Fixed cadence vs After Completion) → Set next due date/time → Enable time tracking (optional) → Mark complete with optional notes → View completion history and streaks → Skip recurring chores (reschedules to next due) → Track statistics by member
 - **Key Features**:
   - **Completion Tracking**: Full history of who completed each chore and when, with optional notes
   - **Streak Tracking**: Visual streak counter (🔥) for recurring chores completed on time, best streak tracking, streak resets on skip or overdue
-  - **Overdue Indicators**: Red highlighting, "X days overdue" display, overdue alert banner, Due Today section
+  - **Overdue Indicators**: Red highlighting, "X days overdue" display, overdue alert banner, Due Today and Due Soon groupings on dashboard/chores list
   - **Chore Rotation**: Fixed (one person), Rotate (cycles through members automatically), Anyone (whoever does it)
   - **Time Tracking**: Optional start/stop timer, track actual vs estimated time, average completion time calculation
   - **Skip/Reschedule**: Skip button for recurring chores, logs skip in history, reschedules to next due date
+  - **Recurrence Modes**: `scheduleType` supports **Fixed** (advance from scheduled `dueAt`) and **After Completion** (advance from completion time); chores track `dueAt` and `lastCompletedAt` for current cycle
   - **Statistics Dashboard**: This week's completions, total completions, average streak, overdue count, completions by member
   - **Advanced Filtering**: Filter by room, priority; sort by due date, priority, room, or created date
+  - **Rooms Management**: Room list is user-manageable (add/rename/delete) and used for filtering, progress bars, and grouping on dashboard
 - **Success criteria**: Chores track full completion history with streaks, rotation works automatically, time tracking captures actual effort, statistics provide insights into household contributions, overdue chores are prominently highlighted, and skip functionality allows flexibility without losing data
 
 ### Shopping List
@@ -111,10 +112,11 @@ This is a multi-feature application with user authentication, household manageme
   - **Mobile-First Design**: Optimized layout to reduce scrolling, touch-friendly interactions
   - **Time-Based Greeting**: "Good morning/afternoon/evening" with current date
   - **Horizontal Quick Stats**: Scrollable stat cards showing pending tasks, today's events, shopping items, planned meals
-  - **High-Priority Alerts**: Prominent display of overdue chores and immediate attention items
-  - **Collapsible Sections**: Expand/collapse Today's Schedule, Chores, Shopping Preview to manage information density
+  - **High-Priority Alerts**: Prominent display of overdue chores and immediate attention items; chores section grouped into Overdue, Due Today, Due Soon (next 24h), and Upcoming with recent completions
+  - **Collapsible Sections**: Expand/collapse Today's Schedule, Chores, Shopping Preview to manage information density; chore items are clickable for detail/quick complete
   - **Progressive Disclosure**: Show summary counts by default, details on demand
   - **Combined Schedule**: Today's meals and events merged into unified timeline view
+  - **Room Progress**: Progress bars by room using customizable rooms list; highlights which areas need attention
   - **Member Filtering**: All dashboard data filters when specific member selected
 - **Success criteria**: Dashboard loads quickly on mobile, reduces scrolling through collapsible sections, highlights urgent items prominently, provides quick stats at a glance, and maintains full functionality while being more compact
 
@@ -196,7 +198,7 @@ This is a multi-feature application with user authentication, household manageme
 
 ### Data Model
 All data entities include a `householdId` field for multi-household support:
-- **Chore**: id, householdId, title, description, assignedTo, frequency (once/daily/weekly/biweekly/monthly/quarterly/yearly/custom), customIntervalDays, room, priority, dueDate, notes, daysOfWeek, estimatedMinutes, completed, createdAt, lastCompleted, lastCompletedBy, nextDue, rotation (none/rotate/anyone), rotationOrder[], currentRotationIndex, streak, bestStreak, totalCompletions, averageCompletionTime, lastSkipped, trackTime
+- **Chore**: id, householdId, title, description, assignedTo, frequency (once/daily/weekly/biweekly/monthly/quarterly/yearly/custom), customIntervalDays, room, priority, **scheduleType (fixed|after_completion), dueAt (timestamp), lastCompletedAt, lastCompletedBy**, dueDate (one-time), notes, daysOfWeek, estimatedMinutes, completed, createdAt, rotation (none/rotate/anyone), rotationOrder[], currentRotationIndex, streak, bestStreak, totalCompletions, averageCompletionTime, lastSkipped, trackTime
 - **ChoreCompletion**: id, choreId, householdId, completedBy, completedAt, scheduledFor, notes, skipped
 - **ShoppingItem**: id, householdId, name, category, quantity, priority, store, notes, purchased, createdAt
 - **Meal**: id, householdId, date, type (breakfast/lunch/dinner), name, recipeId

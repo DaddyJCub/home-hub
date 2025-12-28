@@ -26,7 +26,6 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-homehub-session-secret
 const SESSION_MAX_AGE_SECONDS =
   Number(process.env.SESSION_MAX_AGE_SECONDS) ||
   Number(process.env.SESSION_MAX_AGE_DAYS || 14) * 24 * 60 * 60;
-const DEV_ALLOW_DB_RESET = process.env.ALLOW_DEV_DB_RESET === 'true';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Ensure data directory exists
@@ -114,86 +113,114 @@ const clearSessionCookie = (res) => {
   );
 };
 
-const ensureTables = () => {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      email TEXT NOT NULL,
-      password_hash TEXT NOT NULL,
-      password_algo TEXT NOT NULL DEFAULT 'bcrypt',
-      display_name TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_ci ON users(lower(email));
+const MIGRATIONS = [
+  {
+    version: 1,
+    name: 'baseline-schema',
+    up: (database) => {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS schema_version (
+          version INTEGER PRIMARY KEY,
+          name TEXT NOT NULL,
+          applied_at INTEGER NOT NULL
+        );
 
-    CREATE TABLE IF NOT EXISTS households (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      owner_id TEXT NOT NULL,
-      invite_code TEXT,
-      created_at INTEGER NOT NULL
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_households_invite ON households(invite_code);
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          email TEXT NOT NULL,
+          password_hash TEXT NOT NULL,
+          password_algo TEXT NOT NULL DEFAULT 'bcrypt',
+          display_name TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_ci ON users(lower(email));
 
-    CREATE TABLE IF NOT EXISTS household_members (
-      id TEXT PRIMARY KEY,
-      household_id TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      display_name TEXT NOT NULL,
-      role TEXT NOT NULL,
-      joined_at INTEGER NOT NULL,
-      is_local INTEGER NOT NULL DEFAULT 0,
-      UNIQUE(household_id, user_id)
-    );
+        CREATE TABLE IF NOT EXISTS households (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          owner_id TEXT NOT NULL,
+          invite_code TEXT,
+          created_at INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_households_invite ON households(invite_code);
 
-    CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      household_id TEXT,
-      created_at INTEGER NOT NULL,
-      last_seen INTEGER NOT NULL,
-      expires_at INTEGER NOT NULL
-    );
+        CREATE TABLE IF NOT EXISTS household_members (
+          id TEXT PRIMARY KEY,
+          household_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          display_name TEXT NOT NULL,
+          role TEXT NOT NULL,
+          joined_at INTEGER NOT NULL,
+          is_local INTEGER NOT NULL DEFAULT 0,
+          UNIQUE(household_id, user_id)
+        );
 
-    CREATE TABLE IF NOT EXISTS user_preferences (
-      user_id TEXT NOT NULL,
-      key TEXT NOT NULL,
-      value TEXT,
-      updated_at INTEGER NOT NULL,
-      PRIMARY KEY (user_id, key)
-    );
+        CREATE TABLE IF NOT EXISTS sessions (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          household_id TEXT,
+          created_at INTEGER NOT NULL,
+          last_seen INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL
+        );
 
-    CREATE TABLE IF NOT EXISTS household_data (
-      household_id TEXT NOT NULL,
-      key TEXT NOT NULL,
-      value TEXT,
-      updated_at INTEGER NOT NULL,
-      PRIMARY KEY (household_id, key)
-    );
+        CREATE TABLE IF NOT EXISTS user_preferences (
+          user_id TEXT NOT NULL,
+          key TEXT NOT NULL,
+          value TEXT,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (user_id, key)
+        );
 
-    -- Legacy KV table retained for migration only
-    CREATE TABLE IF NOT EXISTS kv_store (
-      key TEXT PRIMARY KEY,
-      value TEXT,
-      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-  `);
+        CREATE TABLE IF NOT EXISTS household_data (
+          household_id TEXT NOT NULL,
+          key TEXT NOT NULL,
+          value TEXT,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (household_id, key)
+        );
+
+        CREATE TABLE IF NOT EXISTS kv_store (
+          key TEXT PRIMARY KEY,
+          value TEXT,
+          updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+        );
+      `);
+    }
+  }
+];
+
+const getAppliedVersions = () => {
+  db.exec(`CREATE TABLE IF NOT EXISTS schema_version (
+    version INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    applied_at INTEGER NOT NULL
+  );`);
+  try {
+    return db.prepare('SELECT version FROM schema_version').all().map((r) => r.version);
+  } catch {
+    return [];
+  }
 };
 
-ensureTables();
+const runMigrations = () => {
+  const applied = new Set(getAppliedVersions());
+  for (const migration of MIGRATIONS) {
+    if (applied.has(migration.version)) continue;
+    log('INFO', `Applying migration ${migration.version} - ${migration.name}`);
+    db.transaction(() => {
+      migration.up(db);
+      db.prepare('INSERT OR REPLACE INTO schema_version (version, name, applied_at) VALUES (?, ?, ?)').run(
+        migration.version,
+        migration.name,
+        nowSeconds()
+      );
+    })();
+    log('INFO', `Migration ${migration.version} applied`);
+  }
+};
 
-// Dev-only reset gated behind explicit flag
-if (DEV_ALLOW_DB_RESET && NODE_ENV !== 'production') {
-  log('WARN', 'ALLOW_DEV_DB_RESET is enabled - clearing all auth/data tables');
-  db.exec(`
-    DELETE FROM sessions;
-    DELETE FROM user_preferences;
-    DELETE FROM household_data;
-    DELETE FROM household_members;
-    DELETE FROM households;
-    DELETE FROM users;
-  `);
-}
+runMigrations();
 
 const cleanupExpiredSessions = () => {
   const deleted = db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(nowSeconds());
@@ -549,6 +576,40 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, time: new Date().toISOString() });
+});
+
+app.get('/api/migrations', (_req, res) => {
+  try {
+    const versions = db
+      .prepare('SELECT version, name, applied_at FROM schema_version ORDER BY version ASC')
+      .all();
+    res.json({ versions });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to read migration state' });
+  }
+});
+
+app.get('/api/backup', requireAuth, (req, res) => {
+  try {
+    const tables = ['users', 'households', 'household_members', 'sessions', 'user_preferences', 'household_data', 'kv_store'];
+    const payload = {};
+    tables.forEach((table) => {
+      try {
+        payload[table] = db.prepare(`SELECT * FROM ${table}`).all();
+      } catch {
+        payload[table] = [];
+      }
+    });
+    log('INFO', 'Backup export created', { user: req.auth?.userId, household: req.auth?.householdId });
+    res.json({ exported_at: new Date().toISOString(), data: payload });
+  } catch (err) {
+    log('ERROR', 'Backup export failed', { error: err.message });
+    res.status(500).json({ error: 'Failed to export data' });
+  }
+});
+
 const requireAuth = (req, res, next) => {
   if (!req.auth?.userId) {
     return res.status(401).json({ error: 'Not authenticated' });
@@ -882,19 +943,5 @@ export const stopServer = () => {
     serverInstance.close();
   }
 };
-
-export const resetStateForTests = () => {
-  if (NODE_ENV !== 'test') return;
-  db.exec(`
-    DELETE FROM sessions;
-    DELETE FROM user_preferences;
-    DELETE FROM household_data;
-    DELETE FROM household_members;
-    DELETE FROM households;
-    DELETE FROM users;
-  `);
-};
-
-export const devResetEnabled = DEV_ALLOW_DB_RESET && NODE_ENV !== 'production';
 
 export { app, db };

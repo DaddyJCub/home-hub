@@ -14,13 +14,14 @@ import { useState, useMemo, useCallback } from 'react'
 import { NotificationSummary } from '@/components/NotificationSummary'
 import { useAuth } from '@/lib/AuthContext'
 import { toast } from 'sonner'
-import { computeNextDueAt, getChoreStatus, normalizeChore } from '@/lib/chore-utils'
+import { computeNextDueAt, getChoreStatus, normalizeChore, isCompletedForToday } from '@/lib/chore-utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useKV } from '@github/spark/hooks'
 
 interface DashboardSectionProps {
   onNavigate?: (tab: string) => void
   onViewRecipe?: (recipeId: string) => void
+  highlightChoreId?: string | null
 }
 
 // Get greeting based on time of day
@@ -38,7 +39,7 @@ const priorityColors = {
   low: 'bg-green-500/20 text-green-700 border-green-300 dark:text-green-300'
 }
 
-export default function DashboardSection({ onNavigate, onViewRecipe }: DashboardSectionProps) {
+export default function DashboardSection({ onNavigate, onViewRecipe, highlightChoreId }: DashboardSectionProps) {
   const { householdMembers, currentHousehold, currentUser } = useAuth()
   const [roomsRaw] = useKV<string[]>('rooms', [])
   const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
@@ -158,19 +159,18 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
   // Computed values
   const pendingChoresWithStatus = useMemo(() => {
     return filteredChores
-      .filter(c => !c.completed)
+      .filter(c => !c.completed && !isCompletedForToday(c))
       .map(chore => ({ chore, status: getChoreStatus(chore) }))
   }, [filteredChores])
 
   const pendingChores = pendingChoresWithStatus.map(p => p.chore)
   const highPriorityChores = pendingChores.filter(c => c.priority === 'high')
   const overdueChores = pendingChoresWithStatus.filter(p => p.status.isOverdue)
-  const dueSoonChores = pendingChoresWithStatus.filter(p => {
-    const delta = (p.status.dueAt || Date.now()) - Date.now()
-    return !p.status.isOverdue && !p.status.isDueToday && delta > 0 && delta <= 24 * 60 * 60 * 1000
-  })
   const dueTodayChores = pendingChoresWithStatus.filter(p => p.status.isDueToday && !p.status.isOverdue)
-  const upcomingChores = pendingChoresWithStatus.filter(p => !p.status.isOverdue && !p.status.isDueToday && !dueSoonChores.includes(p))
+  const upcomingChores = pendingChoresWithStatus
+    .filter(p => !p.status.isOverdue && !p.status.isDueToday)
+    .sort((a, b) => (a.status.dueAt || 0) - (b.status.dueAt || 0))
+  const upcomingShort = upcomingChores.slice(0, 2)
   const unpurchasedItems = shoppingItems.filter(i => !i.purchased)
   
   const todayStr = format(new Date(), 'yyyy-MM-dd')
@@ -497,7 +497,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
             </CardHeader>
           </CollapsibleTrigger>
           <CardContent className="px-4 pb-3 space-y-3">
-            {(overdueChores.length + dueSoonChores.length + dueTodayChores.length + upcomingChores.length) > 0 ? (
+      {(overdueChores.length + dueTodayChores.length + upcomingShort.length) > 0 ? (
               <>
                 {overdueChores.length > 0 && (
                   <div>
@@ -506,17 +506,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
                     </p>
                     <div className="space-y-1.5">
                       {overdueChores.map(({ chore }) => (
-                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {dueSoonChores.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-amber-600 mb-1">Due in next 24h</p>
-                    <div className="space-y-1.5">
-                      {dueSoonChores.map(({ chore }) => (
-                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
+                        <ChoreItem key={chore.id} chore={chore} highlight={highlightChoreId === chore.id} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
                       ))}
                     </div>
                   </div>
@@ -526,19 +516,22 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
                     <p className="text-xs font-semibold text-primary mb-1">Due Today</p>
                     <div className="space-y-1.5">
                       {dueTodayChores.map(({ chore }) => (
-                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
+                        <ChoreItem key={chore.id} chore={chore} highlight={highlightChoreId === chore.id} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
                       ))}
                     </div>
                   </div>
                 )}
-                {upcomingChores.length > 0 && (
+                {upcomingShort.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground mb-1">Upcoming</p>
                     <div className="space-y-1.5">
-                      {upcomingChores.map(({ chore }) => (
-                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
+                      {upcomingShort.map(({ chore }) => (
+                        <ChoreItem key={chore.id} chore={chore} highlight={highlightChoreId === chore.id} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
                       ))}
                     </div>
+                    {upcomingChores.length > 2 && (
+                      <p className="text-[11px] text-muted-foreground mt-1">+{upcomingChores.length - 2} more later</p>
+                    )}
                   </div>
                 )}
               </>
@@ -562,27 +555,36 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
 
       {/* Completed Recently */}
       {recentCompletions.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-base flex items-center gap-2">
-              <CheckCircle size={18} className="text-green-500" />
-              Completed Recently
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3 space-y-2">
-            {recentCompletions.slice(0, 5).map(({ completion, chore }) => (
-              <div key={completion.id} className="flex items-center justify-between p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{chore!.title}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Done {formatDistanceToNow(completion.completedAt, { addSuffix: true })}
-                    {completion.completedBy && ` by ${completion.completedBy}`}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Card className="cursor-pointer">
+              <CardHeader className="pb-2 pt-3 px-4 flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CheckCircle size={18} className="text-green-500" />
+                  Completed Recently
+                </CardTitle>
+                <CaretDown size={14} className="ui-open:rotate-180 transition-transform" />
+              </CardHeader>
+            </Card>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <Card>
+              <CardContent className="px-4 pb-3 space-y-2">
+                {recentCompletions.slice(0, 5).map(({ completion, chore }) => (
+                  <div key={completion.id} className="flex items-center justify-between p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{chore!.title}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Done {formatDistanceToNow(completion.completedAt, { addSuffix: true })}
+                        {completion.completedBy && ` by ${completion.completedBy}`}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
       )}
 
       {/* Room Progress */}
@@ -810,12 +812,20 @@ function QuickStatPill({ icon: Icon, label, value, subtext, highlight, onClick }
 interface ChoreItemProps {
   chore: Chore
   onComplete: (chore: Chore) => void
+  highlight?: boolean
 }
 
-function ChoreItem({ chore, onComplete, onClick }: ChoreItemProps & { onClick?: () => void }) {
+function ChoreItem({ chore, onComplete, onClick, highlight }: ChoreItemProps & { onClick?: () => void }) {
   const status = getChoreStatus(chore)
+  const friendly = status.isOverdue
+    ? (status.daysOverdue > 0 ? `Overdue by ${status.daysOverdue} day${status.daysOverdue !== 1 ? 's' : ''}` : 'Overdue')
+    : status.isDueToday
+      ? 'Due today'
+      : status.isDueSoon
+        ? 'Due tomorrow'
+        : `Due ${formatDistanceToNow(new Date(status.dueAt || Date.now()), { addSuffix: true })}`
   return (
-    <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group cursor-pointer" onClick={onClick}>
+    <div className={`flex items-center gap-2 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group cursor-pointer min-h-[44px] ${highlight ? 'ring-2 ring-primary' : ''}`} onClick={onClick}>
       {/* Complete Button */}
       <button
         onClick={(e) => { e.stopPropagation(); onComplete(chore); }}
@@ -833,8 +843,13 @@ function ChoreItem({ chore, onComplete, onClick }: ChoreItemProps & { onClick?: 
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{chore.title}</p>
         <p className="text-[11px] text-muted-foreground truncate">
-          {status.label}
+          {friendly}
         </p>
+        <div className="flex gap-1 mt-1">
+          {status.isOverdue && <Badge variant="destructive" className="h-5 px-2 text-[11px]">Overdue</Badge>}
+          {status.isDueToday && !status.isOverdue && <Badge variant="secondary" className="h-5 px-2 text-[11px]">Today</Badge>}
+          {chore.assignedTo && <Badge variant="outline" className="h-5 px-2 text-[11px]">Assigned: {chore.assignedTo}</Badge>}
+        </div>
       </div>
       {chore.streak && chore.streak >= 2 && (
         <Badge className="text-[10px] px-1 py-0 gap-0.5 bg-orange-500">

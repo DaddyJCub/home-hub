@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,8 @@ import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   requestNotificationPermission,
   showNotification,
+  getNotificationLog,
+  type NotificationLogEntry,
 } from '@/lib/notifications'
 
 export function NotificationSettings() {
@@ -34,6 +36,11 @@ export function NotificationSettings() {
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
   )
+  const [log, setLog] = useState<NotificationLogEntry[]>([])
+
+  useEffect(() => {
+    setLog(getNotificationLog())
+  }, [])
 
   const handleEnableNotifications = async () => {
     const granted = await requestNotificationPermission()
@@ -51,6 +58,9 @@ export function NotificationSettings() {
     showNotification('HomeHub Test Notification', {
       body: 'Notifications are working! You will receive reminders for chores and events.',
       tag: 'test-notification',
+      reason: 'manual-test',
+      type: 'system',
+      data: { url: '/?tab=dashboard' }
     }, preferences)
     toast.success('Test notification sent')
   }
@@ -167,6 +177,32 @@ export function NotificationSettings() {
                       </Select>
                     </div>
                   )}
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-sm">Recent Notifications (debug)</h3>
+                  <div className="text-xs text-muted-foreground">
+                    Shows the last 20 notifications recorded on this device.
+                  </div>
+                  <div className="space-y-2 max-h-40 overflow-y-auto border rounded-md p-2 bg-muted/30">
+                    {log.length === 0 && <p className="text-xs text-muted-foreground">No notifications logged yet.</p>}
+                    {log.slice(0, 20).map(entry => (
+                      <div key={entry.id} className="text-xs border-b last:border-0 pb-1 mb-1 last:pb-0 last:mb-0">
+                        <div className="font-semibold">{entry.title}</div>
+                        {entry.body && <div className="text-muted-foreground">{entry.body}</div>}
+                        <div className="text-[10px] text-muted-foreground">
+                          {new Date(entry.timestamp).toLocaleString()}
+                          {entry.reason ? ` • ${entry.reason}` : ''}
+                          {entry.tag ? ` • ${entry.tag}` : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setLog(getNotificationLog())}>
+                    Refresh log
+                  </Button>
                 </div>
 
                 {/* Smart Chore Notifications */}

@@ -27,10 +27,7 @@ import {
   Palette,
   SquaresFour,
   Trash,
-  Plus,
-  User,
   ShieldCheck,
-  X,
   FloppyDisk,
   ArrowsClockwise,
   Moon,
@@ -45,10 +42,13 @@ import { NotificationSettings } from '@/components/NotificationSettings'
 import { useIsMobile } from '@/hooks/use-mobile'
 import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent } from '@/lib/types'
 import { PWADiagnostics } from '@/components/PWADiagnostics'
-import { PushDiagnostics } from '@/components/PushDiagnostics'
+import NotificationDiagnostics from '@/components/NotificationDiagnostics'
 import { useAuth } from '@/lib/AuthContext'
 import DiagnosticsPanel from '@/components/DiagnosticsPanel'
 import { BugTracker } from '@/components/BugTracker'
+import IntegrityDiagnostics from '@/components/IntegrityDiagnostics'
+import UIDiagnostics from '@/components/UIDiagnostics'
+import MigrationStatus from '@/components/MigrationStatus'
 
 interface DashboardWidget {
   id: string
@@ -57,7 +57,7 @@ interface DashboardWidget {
 }
 
 export default function SettingsSection() {
-  const { householdMembers, addHouseholdMember, removeHouseholdMember, currentHousehold } = useAuth()
+  const { currentHousehold } = useAuth()
   const [currentThemeId, setCurrentThemeId] = useKV<string>('theme-id', 'warm-home')
   const [isDarkMode, setIsDarkMode] = useKV<boolean>('dark-mode', false)
   const [dashboardWidgetsRaw, setDashboardWidgets] = useKV<DashboardWidget[]>('dashboard-widgets', [])
@@ -68,8 +68,8 @@ export default function SettingsSection() {
   const [mealsRaw, setMeals] = useKV<Meal[]>('meals', [])
   const [recipesRaw, setRecipes] = useKV<Recipe[]>('recipes', [])
   const [eventsRaw, setEvents] = useKV<CalendarEvent[]>('calendar-events', [])
+  const [showUiDiag, setShowUiDiag] = useKV<boolean>('ui-diagnostics-enabled', false)
   
-  const members = householdMembers ?? []
   const dashboardWidgets = dashboardWidgetsRaw ?? []
   const chores = choresRaw ?? []
   const shoppingItems = shoppingItemsRaw ?? []
@@ -77,8 +77,6 @@ export default function SettingsSection() {
   const recipes = recipesRaw ?? []
   const events = eventsRaw ?? []
 
-  const [newMemberName, setNewMemberName] = useState('')
-  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false)
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<'all' | 'chores' | 'shopping' | 'meals' | 'recipes' | 'events' | null>(null)
 
@@ -110,31 +108,6 @@ export default function SettingsSection() {
       applyTheme(theme, checked)
     }
     toast.success(`${checked ? 'Dark' : 'Light'} mode enabled`)
-  }
-
-  const handleAddMember = async () => {
-    if (!newMemberName.trim()) {
-      toast.error('Please enter a name')
-      return
-    }
-
-    const newMember = await addHouseholdMember(newMemberName.trim())
-    if (newMember) {
-      toast.success(`${newMemberName.trim()} added to household`)
-      setNewMemberName('')
-      setIsAddMemberOpen(false)
-    } else {
-      toast.error('Failed to add member')
-    }
-  }
-
-  const handleRemoveMember = async (memberId: string) => {
-    const success = await removeHouseholdMember(memberId)
-    if (success) {
-      toast.success('Member removed from household')
-    } else {
-      toast.error('Cannot remove this member (owner cannot be removed)')
-    }
   }
 
   const handleToggleWidget = (widgetId: string) => {
@@ -285,8 +258,24 @@ export default function SettingsSection() {
       <BugTracker />
 
       <PWADiagnostics />
-      <PushDiagnostics />
+      <NotificationDiagnostics />
       <DiagnosticsPanel />
+      <IntegrityDiagnostics />
+      <Card>
+        <CardHeader className="flex items-center justify-between">
+          <div>
+            <CardTitle>UI Diagnostics</CardTitle>
+            <CardDescription>Viewport, PWA mode, safe-area, SW.</CardDescription>
+          </div>
+          <Switch checked={!!showUiDiag} onCheckedChange={setShowUiDiag} />
+        </CardHeader>
+        {showUiDiag && (
+          <CardContent>
+            <UIDiagnostics />
+          </CardContent>
+        )}
+      </Card>
+      <MigrationStatus />
 
       <Card>
         <CardHeader>
@@ -361,71 +350,6 @@ export default function SettingsSection() {
               />
             </div>
           ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User size={24} />
-            Household Members
-          </CardTitle>
-          <CardDescription>Manage who can be assigned to chores and tasks</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {members.map((member) => (
-              <Badge key={member.id} variant="secondary" className="text-sm pl-3 pr-2 py-2">
-                {member.displayName}
-                <button
-                  onClick={() => void handleRemoveMember(member.id)}
-                  className="ml-2 hover:text-destructive transition-colors"
-                >
-                  <X size={14} />
-                </button>
-              </Badge>
-            ))}
-            {members.length === 0 && (
-              <p className="text-sm text-muted-foreground">No household members added yet</p>
-            )}
-          </div>
-
-          <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Plus />
-                Add Member
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Household Member</DialogTitle>
-                <DialogDescription>Add someone who shares household responsibilities</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="member-name">Name</Label>
-                  <Input
-                    id="member-name"
-                    placeholder="Enter name"
-                    value={newMemberName}
-                    onChange={(e) => setNewMemberName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        void handleAddMember()
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddMemberOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={() => void handleAddMember()}>Add Member</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </CardContent>
       </Card>
 

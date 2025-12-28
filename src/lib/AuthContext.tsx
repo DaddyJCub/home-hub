@@ -68,8 +68,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const currentUser = authState?.user ?? null
   const currentHousehold = useMemo(() => {
-    if (!authState?.currentHouseholdId) return null
-    return authState.households.find(h => h.id === authState.currentHouseholdId) || null
+    if (!authState) return null
+    if (authState.currentHouseholdId) {
+      const found = authState.households.find(h => h.id === authState.currentHouseholdId)
+      if (found) return found
+    }
+    return authState.households[0] || null
   }, [authState])
 
   const householdMembersAll = authState?.householdMembers ?? []

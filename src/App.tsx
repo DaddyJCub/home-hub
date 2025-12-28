@@ -18,7 +18,6 @@ import { useNotifications } from '@/hooks/use-notifications'
 import { getThemeById, applyTheme } from '@/lib/themes'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import AuthPage from '@/components/AuthPage'
-import HouseholdSwitcher from '@/components/HouseholdSwitcher'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { NotificationIndicator } from '@/components/NotificationIndicator'
 import { NotificationCenter } from '@/components/NotificationCenter'
@@ -26,6 +25,7 @@ import { RefreshIndicator } from '@/components/RefreshIndicator'
 import { BugIndicator } from '@/components/BugIndicator'
 import type { Chore, CalendarEvent } from '@/lib/types'
 import type { NavItem } from '@/components/MobileNavCustomizer'
+import { toast } from 'sonner'
 import DashboardSection from '@/components/sections/DashboardSection'
 import ChoresSection from '@/components/sections/ChoresSection'
 import ShoppingSection from '@/components/sections/ShoppingSection'
@@ -100,9 +100,20 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     const tabParam = params.get('tab')
-    return tabParam && ['dashboard', 'chores', 'shopping', 'meals', 'recipes', 'calendar', 'settings'].includes(tabParam)
-      ? tabParam
+    if (tabParam && ['dashboard', 'chores', 'shopping', 'meals', 'recipes', 'calendar', 'settings'].includes(tabParam)) {
+      return tabParam
+    }
+    const stored = window.localStorage.getItem('hh_last_tab')
+    return stored && ['dashboard', 'chores', 'shopping', 'meals', 'recipes', 'calendar', 'settings'].includes(stored)
+      ? stored
       : 'dashboard'
+  })
+  const [highlightTarget] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    const highlight = params.get('highlight')
+    const tabParam = params.get('tab') as TabId | null
+    if (highlight && tabParam) return { tab: tabParam, id: highlight }
+    return null
   })
   const [viewRecipeId, setViewRecipeId] = useState<string | null>(null)
   const isMobile = useIsMobile()
@@ -139,6 +150,16 @@ function AppContent() {
 
   const visibleTabs = TAB_CONFIGS.filter(tab => enabledTabs.includes(tab.id))
   const tabOrder = visibleTabs.map(tab => tab.id)
+
+  useEffect(() => {
+    if (highlightTarget && highlightTarget.tab !== activeTab) {
+      setActiveTab(highlightTarget.tab)
+    }
+    if (highlightTarget && highlightTarget.tab === 'calendar') {
+      toast.info('Opening event', { description: 'Highlighted event from notification' })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   
   // For mobile navigation: show first 4 enabled items in the bar, rest in More menu
   const enabledNavItems = navItems.filter(item => item.enabled && item.id !== 'settings')
@@ -189,6 +210,12 @@ function AppContent() {
     }
   }, [currentThemeId, isDarkMode])
 
+  useEffect(() => {
+    if (activeTab) {
+      window.localStorage.setItem('hh_last_tab', activeTab)
+    }
+  }, [activeTab])
+
   // Handle viewing a recipe from another section (e.g., Dashboard)
   const handleViewRecipe = (recipeId: string) => {
     setViewRecipeId(recipeId)
@@ -231,13 +258,15 @@ function AppContent() {
             <div className="flex items-center gap-2 flex-shrink-0">
               <BugIndicator onClick={() => setActiveTab('settings')} />
               <NotificationCenter chores={chores} events={events} />
-              <HouseholdSwitcher />
             </div>
           </div>
         </div>
       </header>
 
-      <main className="app-shell space-y-6 md:space-y-8">
+      <main
+        className="app-shell space-y-6 md:space-y-8"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)' }}
+      >
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {!isMobile && !isTablet && (
             <TabsList className="grid w-full grid-cols-7 mb-6 bg-card/70 backdrop-blur-sm p-1 rounded-2xl border border-border/60 shadow-md">
@@ -310,11 +339,15 @@ function AppContent() {
           )}
 
           <TabsContent value="dashboard" className="mt-0">
-            <DashboardSection onNavigate={setActiveTab} onViewRecipe={handleViewRecipe} />
+            <DashboardSection
+              onNavigate={setActiveTab}
+              onViewRecipe={handleViewRecipe}
+              highlightChoreId={highlightTarget?.tab === 'chores' ? highlightTarget.id : undefined}
+            />
           </TabsContent>
 
           <TabsContent value="chores" className="mt-0">
-            <ChoresSection />
+            <ChoresSection highlightChoreId={highlightTarget?.tab === 'chores' ? highlightTarget.id : undefined} />
           </TabsContent>
 
           <TabsContent value="shopping" className="mt-0">
@@ -343,7 +376,10 @@ function AppContent() {
       </main>
 
       {isMobile && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border shadow-2xl z-20 safe-area-inset-bottom">
+        <nav
+          className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border shadow-2xl z-20"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
           <div className="grid max-w-screen-sm mx-auto" style={{ gridTemplateColumns: `repeat(${Math.min(visibleNavItems.length + 1, 5)}, 1fr)` }}>
             {visibleNavItems.map((item) => {
               const IconComponent = getIcon(item.iconName, item.id)
@@ -352,7 +388,7 @@ function AppContent() {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
+                  className={`flex flex-col items-center gap-0.5 py-3 transition-colors min-h-[48px] ${
                     activeTab === item.id ? 'text-primary' : 'text-muted-foreground'
                   }`}
                 >
@@ -361,10 +397,10 @@ function AppContent() {
                 </button>
               )
             })}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={`flex flex-col items-center gap-0.5 py-3 transition-colors min-h-[48px] ${
                     moreMenuItems.some(item => item.id === activeTab) || activeTab === 'settings' 
                       ? 'text-primary' 
                       : 'text-muted-foreground'

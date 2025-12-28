@@ -89,7 +89,7 @@ self.addEventListener('push', (event) => {
     body: payload.body || 'You have a new notification',
     icon: payload.icon || '/icon-192.png',
     badge: payload.badge || '/icon-192.png',
-    data: payload.data || {},
+    data: { version: payload.version || 1, ...(payload.data || {}) },
     tag: payload.tag || `push-${Date.now()}`,
   };
 
@@ -100,33 +100,17 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
-
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url === self.location.origin + targetUrl && 'focus' in client) {
-          return client.focus();
-        }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
-      }
-    })
-  );
-});
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
 
   const data = event.notification.data;
-  let url = '/';
+  let url = (data && data.url) || '/';
 
   if (data) {
     if (data.type === 'chore') {
-      url = '/?tab=chores';
+      url = url || '/?tab=chores';
     } else if (data.type === 'event') {
-      url = '/?tab=calendar';
+      url = url || '/?tab=calendar';
+    } else if (data.type === 'dashboard') {
+      url = url || '/?tab=dashboard';
     }
   }
 
