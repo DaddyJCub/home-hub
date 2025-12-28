@@ -4,11 +4,11 @@ import {
   Plus, Check, Trash, Repeat, Broom, Funnel, CaretDown, MapPin, Clock, Flag,
   CheckCircle, Circle, Lightning, Fire, Trophy, ArrowsClockwise, SkipForward,
   Timer, User, Users, CalendarCheck, Warning, Sparkle, CaretUp, Play, Stop,
-  ChartBar, Eye, Pencil, X, ArrowRight, House, Calendar
+  ChartBar, Eye, Pencil, X, ArrowRight, House, Calendar, Gear
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -25,11 +25,6 @@ import { toast } from 'sonner'
 import { format, formatDistanceToNow, isPast, isToday, addDays, startOfDay, differenceInDays, isWithinInterval } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
 import { computeNextDueAt, frequencyToMs, getChoreStatus, isCompletedForToday, normalizeChore } from '@/lib/chore-utils'
-
-const ROOMS = [
-  'Kitchen', 'Living Room', 'Bedroom', 'Bathroom', 'Garage', 
-  'Yard', 'Office', 'Laundry', 'Dining Room', 'Basement', 'Attic', 'Other'
-]
 
 const DAYS_OF_WEEK = [
   { value: 0, label: 'Sun' }, { value: 1, label: 'Mon' }, { value: 2, label: 'Tue' },
@@ -61,6 +56,10 @@ export default function ChoresSection() {
   const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
   const [completionsRaw, setCompletions] = useKV<ChoreCompletion[]>('chore-completions', [])
   const [selectedMember] = useKV<string>('selected-member-filter', 'all')
+  const [rooms, setRooms] = useKV<string[]>('rooms', [
+    'Kitchen', 'Living Room', 'Bedroom', 'Bathroom', 'Garage', 
+    'Yard', 'Office', 'Laundry', 'Dining Room', 'Basement', 'Attic', 'Other'
+  ])
   
   const allChores = choresRaw ?? []
   const allCompletions = completionsRaw ?? []
@@ -77,6 +76,9 @@ export default function ChoresSection() {
   const [trackingStartTime, setTrackingStartTime] = useState<number | null>(null)
   const [completeDialogChore, setCompleteDialogChore] = useState<Chore | null>(null)
   const [detailChore, setDetailChore] = useState<Chore | null>(null)
+  const [manageRoomsOpen, setManageRoomsOpen] = useState(false)
+  const [newRoomName, setNewRoomName] = useState('')
+  const [roomEditIndex, setRoomEditIndex] = useState<number | null>(null)
   
   // Filters
   const [filterRoom, setFilterRoom] = useState<string>('all')
@@ -94,6 +96,7 @@ export default function ChoresSection() {
     room: '',
     priority: 'medium' as 'low' | 'medium' | 'high',
     dueDateTime: '',
+    dueDate: '',
     notes: '',
     daysOfWeek: [] as number[],
     estimatedMinutes: '',
@@ -106,7 +109,7 @@ export default function ChoresSection() {
   const resetForm = useCallback(() => {
     setChoreForm({
       title: '', description: '', assignedTo: '', frequency: 'once', scheduleType: 'fixed',
-      customIntervalDays: 7, room: '', priority: 'medium', dueDateTime: '',
+      customIntervalDays: 7, room: '', priority: 'medium', dueDateTime: '', dueDate: '',
       notes: '', daysOfWeek: [], estimatedMinutes: '', rotation: 'none',
       rotationOrder: [], trackTime: false
     })
@@ -133,9 +136,11 @@ export default function ChoresSection() {
       return
     }
 
+    const dueInput = choreForm.dueDateTime || choreForm.dueDate
+
     const initialDue =
-      choreForm.dueDateTime && !Number.isNaN(new Date(choreForm.dueDateTime).getTime())
-        ? new Date(choreForm.dueDateTime).getTime()
+      dueInput && !Number.isNaN(new Date(dueInput).getTime())
+        ? new Date(dueInput).getTime()
         : Date.now() + frequencyToMs(choreForm.frequency as ChoreFrequency, choreForm.customIntervalDays || 1)
 
     const choreData: Partial<Chore> = {
@@ -148,7 +153,7 @@ export default function ChoresSection() {
       room: choreForm.room || undefined,
       priority: choreForm.priority,
       dueAt: initialDue,
-      dueDate: choreForm.frequency === 'once' ? choreForm.dueDateTime || undefined : undefined,
+      dueDate: choreForm.frequency === 'once' ? dueInput || undefined : undefined,
       notes: choreForm.notes.trim() || undefined,
       daysOfWeek: choreForm.daysOfWeek.length > 0 ? choreForm.daysOfWeek : undefined,
       estimatedMinutes: choreForm.estimatedMinutes ? parseInt(choreForm.estimatedMinutes) : undefined,
@@ -305,6 +310,7 @@ export default function ChoresSection() {
       room: chore.room || '',
       priority: chore.priority || 'medium',
       dueDateTime,
+      dueDate: chore.dueDate || (chore.frequency === 'once' && dueDateTime ? dueDateTime.slice(0, 10) : ''),
       notes: chore.notes || '',
       daysOfWeek: chore.daysOfWeek || [],
       estimatedMinutes: chore.estimatedMinutes?.toString() || '',
@@ -435,7 +441,7 @@ export default function ChoresSection() {
               <DropdownMenuLabel className="text-xs text-muted-foreground">Room</DropdownMenuLabel>
               <DropdownMenuRadioGroup value={filterRoom} onValueChange={setFilterRoom}>
                 <DropdownMenuRadioItem value="all">All Rooms</DropdownMenuRadioItem>
-                {ROOMS.map(room => (
+                {(rooms || []).map(room => (
                   <DropdownMenuRadioItem key={room} value={room}>{room}</DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
@@ -461,7 +467,11 @@ export default function ChoresSection() {
             setDialogOpen(open)
             if (open && !editingChore) {
               const defaultDue = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0,16)
-              setChoreForm(prev => ({ ...prev, dueDateTime: prev.dueDateTime || defaultDue }))
+              setChoreForm(prev => ({ 
+                ...prev, 
+                dueDateTime: prev.dueDateTime || defaultDue,
+                dueDate: prev.dueDate || defaultDue.slice(0, 10)
+              }))
             }
             if (!open) { setEditingChore(null); resetForm() }
           }}>
@@ -505,11 +515,14 @@ export default function ChoresSection() {
                     <Select value={choreForm.room} onValueChange={(v) => setChoreForm({ ...choreForm, room: v })}>
                       <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
-                        {ROOMS.map(room => (
+                        {(rooms || []).map(room => (
                           <SelectItem key={room} value={room}>{room}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    <Button variant="ghost" size="xs" className="h-6 px-2 text-xs" onClick={() => setManageRoomsOpen(true)}>
+                      <Gear size={12} className="mr-1" /> Manage Rooms
+                    </Button>
                   </div>
                 </div>
                 
@@ -689,6 +702,77 @@ export default function ChoresSection() {
                   {editingChore ? 'Update Chore' : 'Add Chore'}
                 </Button>
               </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={manageRoomsOpen} onOpenChange={setManageRoomsOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Manage Rooms</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder={roomEditIndex !== null ? 'Rename room' : 'Add room'}
+                    value={newRoomName}
+                    onChange={(e) => setNewRoomName(e.target.value)}
+                  />
+                  <Button
+                    onClick={() => {
+                      const name = newRoomName.trim()
+                      if (!name) return
+                      if (roomEditIndex !== null) {
+                        setRooms((current) => {
+                          const next = [...(current || [])]
+                          next[roomEditIndex] = name
+                          return next
+                        })
+                      } else {
+                        setRooms((current) => {
+                          const set = new Set(current || [])
+                          set.add(name)
+                          return Array.from(set)
+                        })
+                      }
+                      setNewRoomName('')
+                      setRoomEditIndex(null)
+                    }}
+                  >
+                    {roomEditIndex !== null ? 'Save' : 'Add'}
+                  </Button>
+                </div>
+
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {(rooms || []).map((room, idx) => (
+                    <div key={room} className="flex items-center justify-between rounded border px-2 py-1 text-sm">
+                      <span>{room}</span>
+                      <div className="flex gap-1">
+                        <Button size="xs" variant="ghost" onClick={() => { setRoomEditIndex(idx); setNewRoomName(room) }}>
+                          Rename
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          onClick={() => {
+                            setRooms((current) => (current || []).filter((r) => r !== room))
+                            if (filterRoom === room) setFilterRoom('all')
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {(rooms || []).length === 0 && (
+                    <p className="text-xs text-muted-foreground">No rooms yet. Add one to get started.</p>
+                  )}
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="secondary" onClick={() => { setManageRoomsOpen(false); setRoomEditIndex(null); setNewRoomName('') }}>
+                  Close
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
@@ -991,7 +1075,7 @@ export default function ChoresSection() {
 // Chore Card Component
 interface ChoreCardProps {
   chore: Chore
-  status: { isOverdue: boolean; isDueToday: boolean; isDueSoon: boolean; daysOverdue: number; isCompletedToday: boolean }
+  status: ReturnType<typeof getChoreStatus>
   members: { id: string; displayName: string }[]
   isTracking: boolean
   onComplete: () => void

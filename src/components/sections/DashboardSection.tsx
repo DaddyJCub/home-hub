@@ -1,4 +1,3 @@
-import { useKV } from '@github/spark/hooks'
 import { 
   CalendarBlank, CheckCircle, ShoppingCart, CookingPot, Broom, 
   Clock, User, ArrowRight, CaretDown, CaretUp, House, Sparkle,
@@ -16,6 +15,8 @@ import { NotificationSummary } from '@/components/NotificationSummary'
 import { useAuth } from '@/lib/AuthContext'
 import { toast } from 'sonner'
 import { computeNextDueAt, getChoreStatus, normalizeChore } from '@/lib/chore-utils'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useKV } from '@github/spark/hooks'
 
 interface DashboardSectionProps {
   onNavigate?: (tab: string) => void
@@ -39,6 +40,7 @@ const priorityColors = {
 
 export default function DashboardSection({ onNavigate, onViewRecipe }: DashboardSectionProps) {
   const { householdMembers, currentHousehold, currentUser } = useAuth()
+  const [roomsRaw] = useKV<string[]>('rooms', [])
   const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
   const [completionsRaw, setCompletions] = useKV<ChoreCompletion[]>('chore-completions', [])
   const [shoppingItemsRaw] = useKV<ShoppingItem[]>('shopping-items', [])
@@ -163,8 +165,12 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
   const pendingChores = pendingChoresWithStatus.map(p => p.chore)
   const highPriorityChores = pendingChores.filter(c => c.priority === 'high')
   const overdueChores = pendingChoresWithStatus.filter(p => p.status.isOverdue)
+  const dueSoonChores = pendingChoresWithStatus.filter(p => {
+    const delta = (p.status.dueAt || Date.now()) - Date.now()
+    return !p.status.isOverdue && delta > 0 && delta <= 24 * 60 * 60 * 1000
+  })
   const dueTodayChores = pendingChoresWithStatus.filter(p => p.status.isDueToday && !p.status.isOverdue)
-  const upcomingChores = pendingChoresWithStatus.filter(p => !p.status.isOverdue && !p.status.isDueToday)
+  const upcomingChores = pendingChoresWithStatus.filter(p => !p.status.isOverdue && !p.status.isDueToday && !dueSoonChores.includes(p))
   const unpurchasedItems = shoppingItems.filter(i => !i.purchased)
   
   const todayStr = format(new Date(), 'yyyy-MM-dd')
@@ -214,6 +220,26 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
       .filter(item => !!item.chore)
       .sort((a, b) => b.completion.completedAt - a.completion.completedAt)
   }, [completions, choreById])
+
+  const roomProgress = useMemo(() => {
+    const byRoom: Record<string, { total: number; pending: number }> = {}
+    const roomList = roomsRaw && roomsRaw.length > 0 ? roomsRaw : ['General']
+    roomList.forEach(r => { byRoom[r] = { total: 0, pending: 0 } })
+    chores.forEach(chore => {
+      const room = chore.room || 'General'
+      if (!byRoom[room]) byRoom[room] = { total: 0, pending: 0 }
+      byRoom[room].total += 1
+      if (!chore.completed) byRoom[room].pending += 1
+    })
+    return Object.entries(byRoom).map(([room, data]) => ({
+      room,
+      total: data.total,
+      pending: data.pending,
+      completion: data.total === 0 ? 100 : Math.round(((data.total - data.pending) / data.total) * 100)
+    })).sort((a, b) => b.total - a.total)
+  }, [chores, roomsRaw])
+
+  const [detailChore, setDetailChore] = useState<Chore | null>(null)
 
   const greeting = getGreeting()
   const GreetingIcon = greeting.icon
@@ -305,6 +331,49 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={!!detailChore} onOpenChange={() => setDetailChore(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Broom size={18} className="text-primary" />
+              {detailChore?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {detailChore && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <Badge variant="outline">{detailChore.priority || 'medium'}</Badge>
+                <Badge variant="secondary">{detailChore.scheduleType === 'after_completion' ? 'After Completion' : 'Fixed'}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {getChoreStatus(detailChore).label}
+              </p>
+              <div className="text-sm space-y-1">
+                <div className="flex items-center gap-2">
+                  <User size={14} /> {detailChore.assignedTo || 'Unassigned'}
+                </div>
+                {detailChore.room && (
+                  <div className="flex items-center gap-2">
+                    <House size={14} /> {detailChore.room}
+                  </div>
+                )}
+              </div>
+              {detailChore.description && (
+                <p className="text-sm">{detailChore.description}</p>
+              )}
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => { handleCompleteChore(detailChore); setDetailChore(null) }}>
+                  Complete
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => onNavigate?.('chores')}>
+                  Open in Chores
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Today's Schedule - Combined Events & Meals */}
       {(todaysEvents.length > 0 || todaysMeals.length > 0) && (
@@ -428,7 +497,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
             </CardHeader>
           </CollapsibleTrigger>
           <CardContent className="px-4 pb-3 space-y-3">
-            {(overdueChores.length + dueTodayChores.length + upcomingChores.length) > 0 ? (
+            {(overdueChores.length + dueSoonChores.length + dueTodayChores.length + upcomingChores.length) > 0 ? (
               <>
                 {overdueChores.length > 0 && (
                   <div>
@@ -437,7 +506,17 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
                     </p>
                     <div className="space-y-1.5">
                       {overdueChores.map(({ chore }) => (
-                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} />
+                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {dueSoonChores.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-amber-600 mb-1">Due in next 24h</p>
+                    <div className="space-y-1.5">
+                      {dueSoonChores.map(({ chore }) => (
+                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
                       ))}
                     </div>
                   </div>
@@ -447,7 +526,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
                     <p className="text-xs font-semibold text-primary mb-1">Due Today</p>
                     <div className="space-y-1.5">
                       {dueTodayChores.map(({ chore }) => (
-                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} />
+                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
                       ))}
                     </div>
                   </div>
@@ -457,7 +536,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
                     <p className="text-xs font-semibold text-muted-foreground mb-1">Upcoming</p>
                     <div className="space-y-1.5">
                       {upcomingChores.map(({ chore }) => (
-                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} />
+                        <ChoreItem key={chore.id} chore={chore} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
                       ))}
                     </div>
                   </div>
@@ -500,6 +579,31 @@ export default function DashboardSection({ onNavigate, onViewRecipe }: Dashboard
                     {completion.completedBy && ` by ${completion.completedBy}`}
                   </p>
                 </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Room Progress */}
+      {roomProgress.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-base flex items-center gap-2">
+              <House size={18} className="text-primary" />
+              Room Progress
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-2">
+            {roomProgress.map(room => (
+              <div key={room.room} className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium">{room.room}</span>
+                  <span className="text-muted-foreground">
+                    {room.total - room.pending}/{room.total} done
+                  </span>
+                </div>
+                <Progress value={room.completion} />
               </div>
             ))}
           </CardContent>
@@ -708,10 +812,10 @@ interface ChoreItemProps {
   onComplete: (chore: Chore) => void
 }
 
-function ChoreItem({ chore, onComplete }: ChoreItemProps) {
+function ChoreItem({ chore, onComplete, onClick }: ChoreItemProps & { onClick?: () => void }) {
   const status = getChoreStatus(chore)
   return (
-    <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group">
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group cursor-pointer" onClick={onClick}>
       {/* Complete Button */}
       <button
         onClick={(e) => { e.stopPropagation(); onComplete(chore); }}
