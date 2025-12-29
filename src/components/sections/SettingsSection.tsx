@@ -33,6 +33,9 @@ import {
   Moon,
   Sun,
   DeviceMobile,
+  User,
+  Plus,
+  X,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { themes, applyTheme, getThemeById, type Theme } from '@/lib/themes'
@@ -57,7 +60,7 @@ interface DashboardWidget {
 }
 
 export default function SettingsSection() {
-  const { currentHousehold } = useAuth()
+  const { currentHousehold, householdMembers, joinHousehold } = useAuth()
   const [currentThemeId, setCurrentThemeId] = useKV<string>('theme-id', 'warm-home')
   const [isDarkMode, setIsDarkMode] = useKV<boolean>('dark-mode', false)
   const [dashboardWidgetsRaw, setDashboardWidgets] = useKV<DashboardWidget[]>('dashboard-widgets', [])
@@ -71,6 +74,8 @@ export default function SettingsSection() {
   const [showUiDiag, setShowUiDiag] = useKV<boolean>('ui-diagnostics-enabled', false)
   
   const dashboardWidgets = dashboardWidgetsRaw ?? []
+  const members = householdMembers ?? []
+  const [joinCode, setJoinCode] = useState('')
   const chores = choresRaw ?? []
   const shoppingItems = shoppingItemsRaw ?? []
   const meals = mealsRaw ?? []
@@ -261,6 +266,54 @@ export default function SettingsSection() {
       <NotificationDiagnostics />
       <DiagnosticsPanel />
       <IntegrityDiagnostics />
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User size={24} />
+            Household Access
+          </CardTitle>
+          <CardDescription>Share this household with another account.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Give them this one-time join code and they can sign up/login, then join your household.
+          </p>
+          <div className="flex items-center gap-2">
+            <Input
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+              placeholder="Enter join code"
+            />
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                if (!joinCode.trim()) {
+                  toast.error('Enter a join code to use')
+                  return
+                }
+                const res = await joinHousehold(joinCode.trim())
+                if (res.success) {
+                  toast.success('Joined household')
+                } else {
+                  toast.error(res.error || 'Failed to join')
+                }
+              }}
+            >
+              Join
+            </Button>
+          </div>
+          {members.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {members.map((m) => (
+                <Badge key={m.id} variant="secondary" className="text-sm pl-3 pr-2 py-2">
+                  {m.displayName}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="flex items-center justify-between">
           <div>
