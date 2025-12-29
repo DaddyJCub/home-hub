@@ -62,9 +62,9 @@ export function OfflineIndicator() {
         )}
       </AnimatePresence>
 
-      <div className="fixed bottom-4 left-4 md:left-6 z-40 flex items-center gap-2 bg-muted/80 backdrop-blur px-3 py-2 rounded-full text-xs text-muted-foreground shadow-sm">
-        <ClockCounterClockwise size={14} />
-        <span>{lastSync}</span>
+      <div className="fixed bottom-2 right-3 md:right-4 z-40 flex items-center gap-1.5 bg-muted/90 backdrop-blur px-2.5 py-1.5 rounded-full text-[11px] text-muted-foreground shadow-sm border border-border/60">
+        <ClockCounterClockwise size={12} />
+        <span className="leading-none">{lastSync}</span>
       </div>
 
       <AnimatePresence>
