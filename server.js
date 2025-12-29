@@ -576,6 +576,13 @@ app.use((req, res, next) => {
   next();
 });
 
+const requireAuth = (req, res, next) => {
+  if (!req.auth?.userId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  next();
+};
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
@@ -609,13 +616,6 @@ app.get('/api/backup', requireAuth, (req, res) => {
     res.status(500).json({ error: 'Failed to export data' });
   }
 });
-
-const requireAuth = (req, res, next) => {
-  if (!req.auth?.userId) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  next();
-};
 
 // Auth endpoints
 app.post('/api/auth/signup', async (req, res) => {
