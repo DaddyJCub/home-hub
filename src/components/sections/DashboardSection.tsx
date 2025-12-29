@@ -15,7 +15,7 @@ import { NotificationSummary } from '@/components/NotificationSummary'
 import { useAuth } from '@/lib/AuthContext'
 import { toast } from 'sonner'
 import { computeNextDueAt, getChoreStatus, normalizeChore, isCompletedForToday } from '@/lib/chore-utils'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useKV } from '@github/spark/hooks'
 
 interface DashboardSectionProps {
@@ -44,7 +44,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   const [roomsRaw] = useKV<string[]>('rooms', [])
   const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
   const [completionsRaw, setCompletions] = useKV<ChoreCompletion[]>('chore-completions', [])
-  const [shoppingItemsRaw] = useKV<ShoppingItem[]>('shopping-items', [])
+  const [shoppingItemsRaw, setShoppingItems] = useKV<ShoppingItem[]>('shopping-items', [])
   const [mealsRaw] = useKV<Meal[]>('meals', [])
   const [recipesRaw] = useKV<Recipe[]>('recipes', [])
   const [eventsRaw] = useKV<CalendarEvent[]>('calendar-events', [])
@@ -240,6 +240,8 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   }, [chores, roomsRaw])
 
   const [detailChore, setDetailChore] = useState<Chore | null>(null)
+  const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null)
+  const [detailItem, setDetailItem] = useState<ShoppingItem | null>(null)
 
   const greeting = getGreeting()
   const GreetingIcon = greeting.icon
@@ -375,6 +377,61 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!detailEvent} onOpenChange={() => setDetailEvent(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarBlank size={18} className="text-primary" />
+              {detailEvent?.title || 'Event'}
+            </DialogTitle>
+          </DialogHeader>
+          {detailEvent && (
+            <div className="space-y-3 text-sm">
+              <div className="text-muted-foreground">
+                {detailEvent.date} {detailEvent.startTime ? `• ${detailEvent.startTime}` : ''}
+              </div>
+              {detailEvent.location && <p className="text-muted-foreground">Location: {detailEvent.location}</p>}
+              {detailEvent.description && <p>{detailEvent.description}</p>}
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => { onNavigate?.('calendar'); setDetailEvent(null) }}>Open Calendar</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!detailItem} onOpenChange={() => setDetailItem(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart size={18} className="text-primary" />
+              {detailItem?.name || 'Item'}
+            </DialogTitle>
+          </DialogHeader>
+          {detailItem && (
+            <div className="space-y-3 text-sm">
+              {detailItem.quantity && <p className="text-muted-foreground">Qty: {detailItem.quantity}</p>}
+              {detailItem.store && <p className="text-muted-foreground">Store: {detailItem.store}</p>}
+              {detailItem.notes && <p>{detailItem.notes}</p>}
+              <DialogFooter className="justify-start gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setShoppingItems((prev) => (prev ?? []).map(i => i.id === detailItem.id ? { ...i, purchased: !i.purchased } : i))
+                    setDetailItem(null)
+                  }}
+                >
+                  {detailItem.purchased ? 'Mark Unpurchased' : 'Mark Purchased'}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => { onNavigate?.('shopping'); setDetailItem(null) }}>
+                  Open Shopping
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Today's Schedule - Combined Events & Meals */}
       {(todaysEvents.length > 0 || todaysMeals.length > 0) && (
         <Card>
@@ -400,7 +457,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
               <div 
                 key={event.id}
                 className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
-                onClick={() => onNavigate?.('calendar')}
+                onClick={() => setDetailEvent(event)}
               >
                 <div className="w-12 text-center flex-shrink-0">
                   {event.isAllDay ? (
@@ -571,15 +628,20 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
             <Card>
               <CardContent className="px-4 pb-3 space-y-2">
                 {recentCompletions.slice(0, 5).map(({ completion, chore }) => (
-                  <div key={completion.id} className="flex items-center justify-between p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
+                  <button
+                    key={completion.id}
+                    className="flex items-center justify-between w-full p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-left hover:bg-green-100/80 dark:hover:bg-green-900/40 transition-colors"
+                    onClick={() => chore && setDetailChore(chore)}
+                  >
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{chore!.title}</p>
+                      <p className="text-sm font-medium truncate">{chore?.title || 'Chore'}</p>
                       <p className="text-[11px] text-muted-foreground">
                         Done {formatDistanceToNow(completion.completedAt, { addSuffix: true })}
                         {completion.completedBy && ` by ${completion.completedBy}`}
                       </p>
                     </div>
-                  </div>
+                    <Badge variant="outline" className="text-[11px] px-2 py-1">Open</Badge>
+                  </button>
                 ))}
               </CardContent>
             </Card>
@@ -635,7 +697,8 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                     <Badge 
                       key={item.id} 
                       variant="outline"
-                      className="text-xs py-1"
+                      className="text-xs py-1 cursor-pointer"
+                      onClick={() => setDetailItem(item)}
                     >
                       {item.name}
                       {item.quantity && item.quantity !== '1' && (
@@ -690,7 +753,8 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                 return (
                   <div 
                     key={event.id}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => setDetailEvent(event)}
                   >
                     <div className="w-10 text-center flex-shrink-0">
                       <p className="text-xs text-muted-foreground">
