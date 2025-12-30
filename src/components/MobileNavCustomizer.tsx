@@ -22,6 +22,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { TAB_CONFIGS } from '@/App'
 
 export interface NavItem {
   id: string
@@ -124,6 +125,7 @@ function MobileNavCustomizer() {
   const [navItemsRaw, setNavItems] = useKV<NavItem[]>('mobile-nav-items', DEFAULT_NAV_ITEMS)
   const navItems = navItemsRaw ?? DEFAULT_NAV_ITEMS
   const [open, setOpen] = useState(false)
+  const tabMap = Object.fromEntries(TAB_CONFIGS.map((t) => [t.id, t]))
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -148,6 +150,15 @@ function MobileNavCustomizer() {
     })
   }
 
+  // Keep labels/icons in sync with tab config
+  const syncedItems = navItems.map((item) => {
+    const match = tabMap[item.id]
+    if (match) {
+      return { ...item, label: match.label, shortLabel: match.shortLabel, iconName: match.icon.name }
+    }
+    return item
+  })
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
 
@@ -167,7 +178,7 @@ function MobileNavCustomizer() {
     setNavItems(DEFAULT_NAV_ITEMS)
   }
 
-  const enabledCount = navItems?.filter(item => item.enabled).length ?? 0
+  const enabledCount = syncedItems?.filter(item => item.enabled).length ?? 0
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -191,11 +202,11 @@ function MobileNavCustomizer() {
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={navItems?.map(item => item.id) || []}
+              items={syncedItems?.map(item => item.id) || []}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-3">
-                {navItems?.map((item) => (
+                {syncedItems?.map((item) => (
                   <SortableNavItem
                     key={item.id}
                     item={item}

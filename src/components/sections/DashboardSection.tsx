@@ -17,6 +17,9 @@ import { toast } from 'sonner'
 import { computeNextDueAt, getChoreStatus, normalizeChore, isCompletedForToday } from '@/lib/chore-utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useKV } from '@github/spark/hooks'
+import { OnboardingChecklist } from '@/components/OnboardingChecklist'
+import { Progress } from '@/components/ui/progress'
+import { OnboardingChecklist } from '@/components/OnboardingChecklist'
 
 interface DashboardSectionProps {
   onNavigate?: (tab: string) => void
@@ -205,6 +208,15 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   const completionRate = chores.length > 0 
     ? Math.round(((chores.length - pendingChores.length) / chores.length) * 100)
     : 0
+  const challenge = useMemo(() => {
+    const goal = 10
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    const recent = completions.filter((c) => c.completedAt >= weekAgo && c.householdId === currentHousehold?.id && !c.skipped)
+    const progress = Math.min(goal, recent.length)
+    const percent = Math.round((progress / goal) * 100)
+    const done = progress >= goal
+    return { goal, progress, percent, done }
+  }, [completions, currentHousehold])
 
   const choreById = useMemo(() => {
     const map: Record<string, Chore> = {}
@@ -245,9 +257,26 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
 
   const greeting = getGreeting()
   const GreetingIcon = greeting.icon
+  const [enabledTabsRaw] = useKV<string[]>('enabled-tabs', ['dashboard', 'chores', 'shopping', 'meals', 'calendar', 'recipes'])
+  const showShopping = enabledTabsRaw?.includes('shopping') ?? true
+  const showMeals = enabledTabsRaw?.includes('meals') ?? true
+  const showCalendar = enabledTabsRaw?.includes('calendar') ?? true
+
+  const showOnboarding = useMemo(() => {
+    if (!currentHousehold) return false
+    const empty =
+      chores.length === 0 &&
+      shoppingItems.length === 0 &&
+      meals.length === 0 &&
+      recipes.length === 0 &&
+      events.length === 0
+    return empty
+  }, [currentHousehold, chores.length, shoppingItems.length, meals.length, recipes.length, events.length])
 
   return (
     <div className="space-y-4 pb-20">
+      {showOnboarding && <OnboardingChecklist />}
+
       {/* Greeting Header - Compact */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -282,29 +311,74 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
           highlight={highPriorityChores.length > 0}
           onClick={() => onNavigate?.('chores')}
         />
-        <QuickStatPill
-          icon={ShoppingCart}
-          label="Shopping"
-          value={unpurchasedItems.length}
-          subtext="items"
-          onClick={() => onNavigate?.('shopping')}
-        />
-        <QuickStatPill
-          icon={CalendarBlank}
-          label="Today"
-          value={todaysEvents.length}
-          subtext="events"
-          highlight={todaysEvents.length > 0}
-          onClick={() => onNavigate?.('calendar')}
-        />
-        <QuickStatPill
-          icon={CookingPot}
-          label="Meals"
-          value={todaysMeals.length}
-          subtext="planned"
-          onClick={() => onNavigate?.('meals')}
-        />
+        {showShopping && (
+          <QuickStatPill
+            icon={ShoppingCart}
+            label="Shopping"
+            value={unpurchasedItems.length}
+            subtext="items"
+            onClick={() => onNavigate?.('shopping')}
+          />
+        )}
+        {showCalendar && (
+          <QuickStatPill
+            icon={CalendarBlank}
+            label="Today"
+            value={todaysEvents.length}
+            subtext="events"
+            highlight={todaysEvents.length > 0}
+            onClick={() => onNavigate?.('calendar')}
+          />
+        )}
+        {showMeals && (
+          <QuickStatPill
+            icon={CookingPot}
+            label="Meals"
+            value={todaysMeals.length}
+            subtext="planned"
+            onClick={() => onNavigate?.('meals')}
+          />
+        )}
       </div>
+
+      {/* Weekly Challenge */}
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Sparkle className="text-primary" />
+              <div>
+                <p className="text-sm font-semibold">This week’s chore challenge</p>
+                <p className="text-xs text-muted-foreground">Complete {challenge.goal} chores this week</p>
+              </div>
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => setChallengeEnabled(!challengeEnabled)}>
+              {challengeEnabled ? 'Hide' : 'Show'}
+            </Button>
+          </div>
+          {challengeEnabled && (
+            <>
+              <Progress value={challenge.percent} className="h-2" />
+              <div className="flex items-center justify-between text-sm">
+                <span>{challenge.progress} of {challenge.goal} completed</span>
+                {challenge.done ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <Fire size={12} />
+                    Complete!
+                  </Badge>
+                ) : (
+                  <span className="text-muted-foreground">{challenge.goal - challenge.progress} to go</span>
+                )}
+              </div>
+              {challenge.done && (
+                <div className="text-sm text-green-700 dark:text-green-300">
+                  Nice work! You hit this week’s goal.
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Alert: High Priority Chores */}
       {highPriorityChores.length > 0 && (
@@ -912,6 +986,7 @@ function ChoreItem({ chore, onComplete, onClick, highlight }: ChoreItemProps & {
         <div className="flex gap-1 mt-1">
           {status.isOverdue && <Badge variant="destructive" className="h-5 px-2 text-[11px]">Overdue</Badge>}
           {status.isDueToday && !status.isOverdue && <Badge variant="secondary" className="h-5 px-2 text-[11px]">Today</Badge>}
+          {chore.room && <Badge variant="outline" className="h-5 px-2 text-[11px]">{chore.room}</Badge>}
           {chore.assignedTo && <Badge variant="outline" className="h-5 px-2 text-[11px]">Assigned: {chore.assignedTo}</Badge>}
         </div>
       </div>

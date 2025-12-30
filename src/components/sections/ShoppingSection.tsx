@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Plus, Trash, ShoppingCart, Sparkle, Flag, Storefront, Funnel, CaretDown } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { ShoppingItem, Meal, Recipe } from '@/lib/types'
 import { toast } from 'sonner'
+import { showUserFriendlyError, validateRequired } from '@/lib/error-helpers'
 import { startOfWeek, addDays, format } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
 
@@ -49,6 +50,10 @@ export default function ShoppingSection() {
     store: '',
     notes: ''
   })
+  const [quickItem, setQuickItem] = useState('')
+  const [quickQuantity, setQuickQuantity] = useState('1')
+  const quickInputRef = useRef<HTMLInputElement | null>(null)
+  const nameInputRef = useRef<HTMLInputElement | null>(null)
 
   const resetForm = () => {
     setItemForm({
@@ -62,8 +67,9 @@ export default function ShoppingSection() {
   }
 
   const handleSaveItem = () => {
-    if (!itemForm.name.trim()) {
-      toast.error('Please enter an item name')
+    const nameError = validateRequired(itemForm.name, 'Item name')
+    if (nameError) {
+      toast.error(nameError)
       return
     }
 
@@ -106,6 +112,7 @@ export default function ShoppingSection() {
     setDialogOpen(false)
     setEditingItem(null)
     resetForm()
+    nameInputRef.current?.focus()
   }
 
   const handleToggleItem = (id: string) => {
@@ -199,6 +206,33 @@ export default function ShoppingSection() {
     toast.success(`Added ${newItems.length} items from meal plan`)
   }
 
+  const handleQuickAdd = () => {
+    const nameError = validateRequired(quickItem, 'Item name')
+    if (nameError) {
+      toast.error(nameError)
+      return
+    }
+    if (!currentHousehold) {
+      toast.error('No household selected')
+      return
+    }
+    const newItem: ShoppingItem = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      householdId: currentHousehold.id,
+      name: quickItem.trim(),
+      category: 'Other',
+      quantity: quickQuantity.trim(),
+      priority: 'medium',
+      purchased: false,
+      createdAt: Date.now()
+    }
+    setItems([...allItems, newItem])
+    setQuickItem('')
+    setQuickQuantity('1')
+    quickInputRef.current?.focus()
+    toast.success('Item added')
+  }
+
   const filteredAndSortedItems = useMemo(() => {
     let filtered = items.filter(item => {
       if (filterCategory !== 'all' && item.category !== filterCategory) return false
@@ -236,6 +270,18 @@ export default function ShoppingSection() {
     acc[item.category].push(item)
     return acc
   }, {} as Record<string, ShoppingItem[]>)
+  const priorityOrder = { high: 0, medium: 1, low: 2 }
+  const sortedGroupedItems = Object.fromEntries(
+    Object.entries(groupedItems).map(([category, list]) => [
+      category,
+      [...list].sort((a, b) => {
+        const pa = priorityOrder[a.priority || 'medium'] ?? 1
+        const pb = priorityOrder[b.priority || 'medium'] ?? 1
+        if (pa !== pb) return pa - pb
+        return a.name.localeCompare(b.name)
+      })
+    ])
+  )
 
   const getPriorityColor = (priority?: string) => {
     switch (priority) {
@@ -317,6 +363,16 @@ export default function ShoppingSection() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          <Button size="sm" className="gap-2" onClick={() => setDialogOpen(true)}>
+            <Plus size={16} />
+            Add Item
+          </Button>
+
+          <Button size="sm" className="gap-2" onClick={() => setDialogOpen(true)}>
+            <Plus size={16} />
+            Add Item
+          </Button>
+
           <Dialog open={generateDialogOpen} onOpenChange={setGenerateDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="gap-2">
@@ -379,6 +435,7 @@ export default function ShoppingSection() {
                       value={itemForm.name}
                       onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
                       placeholder="e.g., Milk"
+                      ref={nameInputRef}
                     />
                   </div>
                   <div className="space-y-2">
@@ -462,6 +519,26 @@ export default function ShoppingSection() {
         </div>
       </div>
 
+      <Card className="p-3 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+        <div className="flex-1 flex gap-2">
+          <Input
+            placeholder="Quick add item"
+            value={quickItem}
+            onChange={(e) => setQuickItem(e.target.value)}
+            ref={quickInputRef}
+          />
+          <Input
+            placeholder="Qty"
+            value={quickQuantity}
+            onChange={(e) => setQuickQuantity(e.target.value)}
+            className="w-24"
+          />
+        </div>
+        <Button onClick={handleQuickAdd} className="whitespace-nowrap">
+          <Plus size={16} className="mr-1" /> Add
+        </Button>
+      </Card>
+
       {hasActiveFilters && (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm text-muted-foreground">Active filters:</span>
@@ -515,7 +592,7 @@ export default function ShoppingSection() {
           {activeItems.length > 0 && (
             <div className="space-y-4">
               <h3 className="font-semibold text-lg">To Buy</h3>
-              {Object.entries(groupedItems).map(([category, categoryItems]) => (
+              {Object.entries(sortedGroupedItems).map(([category, categoryItems]) => (
                 <div key={category} className="space-y-2">
                   <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                     {category}
@@ -527,7 +604,7 @@ export default function ShoppingSection() {
                           id={`item-${item.id}`}
                           checked={item.purchased}
                           onCheckedChange={() => handleToggleItem(item.id)}
-                          className="mt-1"
+                          className="mt-1 h-5 w-5"
                         />
                         <div className="flex-1 min-w-0">
                           <label

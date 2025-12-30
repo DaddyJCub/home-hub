@@ -1,5 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { apiRequest, ApiError } from '@/lib/api'
+import { getUserFriendlyMessage } from '@/lib/error-helpers'
+import { clearSyncCache } from '@/shims/spark-hooks'
+import { toast } from 'sonner'
 import type { Household, HouseholdMember, User } from '@/lib/types'
 
 interface AuthResult {
@@ -54,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ignore unauthenticated errors on initial load
       const status = err instanceof ApiError ? err.status : null
       if (status !== 401) {
-        setLastAuthError(err instanceof Error ? err.message : 'Failed to load session')
+        setLastAuthError(getUserFriendlyMessage(err, 'Failed to load session'))
       }
       applyAuthPayload(null)
     } finally {
@@ -65,6 +68,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void loadSession()
   }, [loadSession])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handleExpired = () => {
+      clearSyncCache()
+      setLastAuthError('Your session expired. Please sign in again.')
+      toast.error('Your session expired. Please sign in again.')
+      applyAuthPayload(null)
+    }
+    window.addEventListener('hh-session-expired', handleExpired)
+    return () => window.removeEventListener('hh-session-expired', handleExpired)
+  }, [applyAuthPayload])
 
   const currentUser = authState?.user ?? null
   const currentHousehold = useMemo(() => {
@@ -96,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [currentUser, currentHousehold, householdMembers])
 
   const handleAuthError = (error: unknown, fallback: string) => {
-    const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : fallback
+    const message = getUserFriendlyMessage(error, fallback)
     setLastAuthError(message)
     return message
   }
@@ -147,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore logout errors
     } finally {
+      clearSyncCache()
       applyAuthPayload(null)
     }
   }, [applyAuthPayload])

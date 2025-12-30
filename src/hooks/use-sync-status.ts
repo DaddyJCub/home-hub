@@ -12,6 +12,18 @@ interface SyncStatus {
 
 const LAST_SUCCESS_KEY = 'hh_sync_last_success'
 const LAST_ERROR_KEY = 'hh_sync_last_error'
+const SYNC_QUEUE_KEY = 'hh_sync_queue'
+
+const readQueueSize = () => {
+  if (typeof window === 'undefined') return 0
+  try {
+    const raw = window.localStorage.getItem(SYNC_QUEUE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed.length : 0
+  } catch {
+    return 0
+  }
+}
 
 function readInitialStatus(): SyncStatus {
   let lastSuccess: number | undefined
@@ -29,7 +41,13 @@ function readInitialStatus(): SyncStatus {
     }
   }
 
-  return { state: 'idle', lastSuccess, lastError, queueSize: 0, isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true }
+  return {
+    state: 'idle',
+    lastSuccess,
+    lastError,
+    queueSize: readQueueSize(),
+    isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true
+  }
 }
 
 export function useSyncStatus(): SyncStatus {

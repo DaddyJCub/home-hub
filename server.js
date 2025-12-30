@@ -4,17 +4,31 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import rateLimit from 'express-rate-limit';
+import { ZodError } from 'zod';
+import {
+  UserSignupSchema,
+  UserLoginSchema,
+  HouseholdCreateSchema,
+  HouseholdJoinSchema,
+  HouseholdMemberSchema,
+  SwitchHouseholdSchema,
+  buildHouseholdDataValidators,
+  formatZodError
+} from './server/validation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Lightweight logger used across the server
 const log = (level, message, data = null) => {
-  const timestamp = new Date().toISOString();
-  const logLine = data
-    ? `[${timestamp}] ${level}: ${message} ${JSON.stringify(data)}`
-    : `[${timestamp}] ${level}: ${message}`;
-  console.log(logLine);
+  const payload = {
+    level,
+    message,
+    context: data || {},
+    time: new Date().toISOString()
+  };
+  console.log(JSON.stringify(payload));
 };
 
 const app = express();
@@ -27,6 +41,7 @@ const SESSION_MAX_AGE_SECONDS =
   Number(process.env.SESSION_MAX_AGE_SECONDS) ||
   Number(process.env.SESSION_MAX_AGE_DAYS || 14) * 24 * 60 * 60;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+const devResetEnabled = NODE_ENV === 'development' && process.env.ALLOW_DEV_RESET === 'true';
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -65,6 +80,20 @@ const parseCookies = (header = '') => {
     acc[name] = decodeURIComponent(rest.join('='));
     return acc;
   }, {});
+};
+
+const sendError = (res, status, message, code = null) => {
+  const payload = { error: message };
+  if (code) payload.code = code;
+  return res.status(status).json(payload);
+};
+
+const parseOrReject = (schema, payload, res) => {
+  const result = schema.safeParse(payload);
+  if (!result.success) {
+    return sendError(res, 400, formatZodError(result.error), 'VALIDATION_ERROR');
+  }
+  return result.data;
 };
 
 const signSessionId = (sessionId) =>
@@ -230,6 +259,26 @@ const cleanupExpiredSessions = () => {
 };
 
 cleanupExpiredSessions();
+
+const resetStateForTests = () => {
+  if (NODE_ENV !== 'test') return;
+  const tables = [
+    'users',
+    'households',
+    'household_members',
+    'sessions',
+    'user_preferences',
+    'household_data',
+    'kv_store'
+  ];
+  tables.forEach((table) => {
+    try {
+      db.prepare(`DELETE FROM ${table}`).run();
+    } catch {
+      // ignore missing tables in tests
+    }
+  });
+};
 
 const hashPassword = (password) => crypto.createHash('sha256').update(password).digest('hex');
 
@@ -576,9 +625,29 @@ app.use((req, res, next) => {
   next();
 });
 
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => sendError(res, 429, 'Too many requests', 'RATE_LIMITED')
+});
+
+app.use('/api/auth', authLimiter);
+
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => sendError(res, 429, 'Too many requests', 'RATE_LIMITED')
+});
+
+app.use(['/api/data', '/api/households'], writeLimiter);
+
 const requireAuth = (req, res, next) => {
   if (!req.auth?.userId) {
-    return res.status(401).json({ error: 'Not authenticated' });
+    return sendError(res, 401, 'Not authenticated', 'NOT_AUTHENTICATED');
   }
   next();
 };
@@ -594,7 +663,7 @@ app.get('/api/migrations', (_req, res) => {
       .all();
     res.json({ versions });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to read migration state' });
+    sendError(res, 500, 'Failed to read migration state', 'SERVER_ERROR');
   }
 });
 
@@ -613,25 +682,23 @@ app.get('/api/backup', requireAuth, (req, res) => {
     res.json({ exported_at: new Date().toISOString(), data: payload });
   } catch (err) {
     log('ERROR', 'Backup export failed', { error: err.message });
-    res.status(500).json({ error: 'Failed to export data' });
+    sendError(res, 500, 'Failed to export data', 'SERVER_ERROR');
   }
 });
 
 // Auth endpoints
 app.post('/api/auth/signup', async (req, res) => {
   try {
-    const { email, password, displayName } = req.body || {};
-    const normalizedEmail = normalizeEmail(email || '');
-
-    if (!normalizedEmail || !password || !displayName?.trim()) {
-      return res.status(400).json({ error: 'Name, email, and password are required' });
-    }
+    const parsed = parseOrReject(UserSignupSchema, req.body || {}, res);
+    if (!parsed) return;
+    const { email, password, displayName } = parsed;
+    const normalizedEmail = normalizeEmail(email);
 
     const existing = db
       .prepare('SELECT id FROM users WHERE lower(email) = lower(?)')
       .get(normalizedEmail);
     if (existing) {
-      return res.status(409).json({ error: 'Email already exists' });
+      return sendError(res, 409, 'Email already exists', 'EMAIL_EXISTS');
     }
 
     const hashed = await bcryptHash(password);
@@ -656,28 +723,27 @@ app.post('/api/auth/signup', async (req, res) => {
     return res.json(payload);
   } catch (err) {
     log('ERROR', 'Signup failed', { error: err.message });
-    return res.status(500).json({ error: 'Failed to create account' });
+    return sendError(res, 500, 'Failed to create account', 'SERVER_ERROR');
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body || {};
-    const normalizedEmail = normalizeEmail(email || '');
-    if (!normalizedEmail || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
+    const parsed = parseOrReject(UserLoginSchema, req.body || {}, res);
+    if (!parsed) return;
+    const { email, password } = parsed;
+    const normalizedEmail = normalizeEmail(email);
 
     const userRow = db
       .prepare('SELECT id, email, password_hash, password_algo, display_name, created_at FROM users WHERE lower(email) = lower(?)')
       .get(normalizedEmail);
     if (!userRow) {
-      return res.status(404).json({ error: 'Account not found' });
+      return sendError(res, 404, 'Account not found', 'ACCOUNT_NOT_FOUND');
     }
 
     const isValid = await verifyPassword(password, userRow.password_hash, userRow.password_algo);
     if (!isValid) {
-      return res.status(401).json({ error: 'Incorrect password' });
+      return sendError(res, 401, 'Incorrect password', 'INVALID_CREDENTIALS');
     }
 
     if (userRow.password_algo !== 'bcrypt' || !userRow.password_hash.startsWith('$2')) {
@@ -694,7 +760,7 @@ app.post('/api/auth/login', async (req, res) => {
     return res.json(payload);
   } catch (err) {
     log('ERROR', 'Login failed', { error: err.message });
-    return res.status(500).json({ error: 'Failed to login' });
+    return sendError(res, 500, 'Failed to login', 'SERVER_ERROR');
   }
 });
 
@@ -707,25 +773,26 @@ app.post('/api/auth/logout', (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     log('ERROR', 'Logout failed', { error: err.message });
-    return res.status(500).json({ error: 'Failed to logout' });
+    return sendError(res, 500, 'Failed to logout', 'SERVER_ERROR');
   }
 });
 
 app.get('/api/auth/me', (req, res) => {
   if (!req.auth?.userId) {
-    return res.status(401).json({ error: 'Not authenticated' });
+    return sendError(res, 401, 'Not authenticated', 'NOT_AUTHENTICATED');
   }
   const payload = buildAuthPayload(req.auth.userId, req.auth.householdId, req.auth.sessionId);
-  if (!payload) return res.status(401).json({ error: 'Session is invalid' });
+  if (!payload) return sendError(res, 401, 'Session is invalid', 'NOT_AUTHENTICATED');
   return res.json(payload);
 });
 
 app.post('/api/auth/switch-household', requireAuth, (req, res) => {
-  const { householdId } = req.body || {};
-  if (!householdId) return res.status(400).json({ error: 'householdId is required' });
+  const parsed = parseOrReject(SwitchHouseholdSchema, req.body || {}, res);
+  if (!parsed) return;
+  const { householdId } = parsed;
 
   const membership = membershipForUser(req.auth.userId, householdId);
-  if (!membership) return res.status(403).json({ error: 'Not a member of that household' });
+  if (!membership) return sendError(res, 403, 'Not a member of that household', 'PERMISSION_DENIED');
 
   if (req.auth.sessionId) {
     db.prepare('UPDATE sessions SET household_id = ? WHERE id = ?').run(householdId, req.auth.sessionId);
@@ -739,8 +806,9 @@ app.post('/api/auth/switch-household', requireAuth, (req, res) => {
 // Household management
 app.post('/api/households', requireAuth, (req, res) => {
   try {
-    const { name } = req.body || {};
-    if (!name?.trim()) return res.status(400).json({ error: 'Household name is required' });
+    const parsed = parseOrReject(HouseholdCreateSchema, req.body || {}, res);
+    if (!parsed) return;
+    const { name } = parsed;
 
     const household = insertHousehold(name.trim(), req.auth.userId);
     const ownerRow = db
@@ -758,22 +826,20 @@ app.post('/api/households', requireAuth, (req, res) => {
     return res.json(payload);
   } catch (err) {
     log('ERROR', 'Create household failed', { error: err.message });
-    return res.status(500).json({ error: 'Failed to create household' });
+    return sendError(res, 500, 'Failed to create household', 'SERVER_ERROR');
   }
 });
 
 app.post('/api/households/join', requireAuth, (req, res) => {
   try {
-    const { inviteCode } = req.body || {};
-    if (!inviteCode?.trim()) {
-      return res.status(400).json({ error: 'Invite code is required' });
-    }
-    const code = inviteCode.trim().toUpperCase();
+    const parsed = parseOrReject(HouseholdJoinSchema, req.body || {}, res);
+    if (!parsed) return;
+    const code = parsed.inviteCode.trim().toUpperCase();
     const household = db
       .prepare('SELECT id, name, owner_id, invite_code, created_at FROM households WHERE invite_code = ?')
       .get(code);
     if (!household) {
-      return res.status(404).json({ error: 'Invalid invite code' });
+      return sendError(res, 404, 'Invalid invite code', 'NOT_FOUND');
     }
 
     const existing = membershipForUser(req.auth.userId, household.id);
@@ -791,27 +857,29 @@ app.post('/api/households/join', requireAuth, (req, res) => {
     return res.json(payload);
   } catch (err) {
     log('ERROR', 'Join household failed', { error: err.message });
-    return res.status(500).json({ error: 'Failed to join household' });
+    return sendError(res, 500, 'Failed to join household', 'SERVER_ERROR');
   }
 });
 
 app.post('/api/households/members', requireAuth, (req, res) => {
   try {
-    const { displayName, role = 'member', householdId } = req.body || {};
+    const parsed = parseOrReject(HouseholdMemberSchema, req.body || {}, res);
+    if (!parsed) return;
+    const { displayName, role = 'member', householdId } = parsed;
     const targetHousehold = householdId || req.auth.householdId;
-    if (!targetHousehold) return res.status(400).json({ error: 'householdId is required' });
-    if (!displayName?.trim()) return res.status(400).json({ error: 'Display name is required' });
+    if (!targetHousehold) return sendError(res, 400, 'householdId is required', 'VALIDATION_ERROR');
 
     const membership = membershipForUser(req.auth.userId, targetHousehold);
-    if (!membership) return res.status(403).json({ error: 'Not a member of that household' });
-    if (membership.role === 'member') return res.status(403).json({ error: 'Only owners or admins can add members' });
+    if (!membership) return sendError(res, 403, 'Not a member of that household', 'PERMISSION_DENIED');
+    if (membership.role === 'member')
+      return sendError(res, 403, 'Only owners or admins can add members', 'PERMISSION_DENIED');
 
     addMembership(targetHousehold, `local_${generateId()}`, displayName.trim(), role, true);
     const payload = buildAuthPayload(req.auth.userId, targetHousehold, req.auth.sessionId);
     return res.json(payload);
   } catch (err) {
     log('ERROR', 'Add household member failed', { error: err.message });
-    return res.status(500).json({ error: 'Failed to add member' });
+    return sendError(res, 500, 'Failed to add member', 'SERVER_ERROR');
   }
 });
 
@@ -819,19 +887,20 @@ app.delete('/api/households/members/:id', requireAuth, (req, res) => {
   try {
     const memberId = req.params.id;
     const targetHousehold = req.auth.householdId;
-    if (!targetHousehold) return res.status(400).json({ error: 'No household selected' });
+    if (!targetHousehold) return sendError(res, 400, 'No household selected', 'VALIDATION_ERROR');
     const membership = membershipForUser(req.auth.userId, targetHousehold);
-    if (!membership) return res.status(403).json({ error: 'Not a member of that household' });
-    if (membership.role === 'member') return res.status(403).json({ error: 'Only owners or admins can remove members' });
+    if (!membership) return sendError(res, 403, 'Not a member of that household', 'PERMISSION_DENIED');
+    if (membership.role === 'member')
+      return sendError(res, 403, 'Only owners or admins can remove members', 'PERMISSION_DENIED');
 
     const memberRow = db
       .prepare('SELECT id, role, household_id, user_id FROM household_members WHERE id = ?')
       .get(memberId);
     if (!memberRow || memberRow.household_id !== targetHousehold) {
-      return res.status(404).json({ error: 'Member not found' });
+      return sendError(res, 404, 'Member not found', 'NOT_FOUND');
     }
     if (memberRow.role === 'owner') {
-      return res.status(400).json({ error: 'Cannot remove the household owner' });
+      return sendError(res, 400, 'Cannot remove the household owner', 'VALIDATION_ERROR');
     }
 
     db.prepare('DELETE FROM household_members WHERE id = ?').run(memberId);
@@ -839,7 +908,7 @@ app.delete('/api/households/members/:id', requireAuth, (req, res) => {
     return res.json(payload);
   } catch (err) {
     log('ERROR', 'Remove household member failed', { error: err.message });
-    return res.status(500).json({ error: 'Failed to remove member' });
+    return sendError(res, 500, 'Failed to remove member', 'SERVER_ERROR');
   }
 });
 
@@ -847,7 +916,7 @@ app.delete('/api/households/members/:id', requireAuth, (req, res) => {
 app.get('/api/data/:scope/:key', requireAuth, (req, res) => {
   const { scope, key } = req.params;
   if (!['user', 'household'].includes(scope)) {
-    return res.status(400).json({ error: 'Invalid scope' });
+    return sendError(res, 400, 'Invalid scope', 'VALIDATION_ERROR');
   }
 
   try {
@@ -859,11 +928,11 @@ app.get('/api/data/:scope/:key', requireAuth, (req, res) => {
       return res.json({ value });
     }
 
-    const householdId = req.query.householdId || req.auth.householdId;
-    if (!householdId) return res.status(400).json({ error: 'householdId is required' });
+    const householdId = req.auth.householdId;
+    if (!householdId) return sendError(res, 400, 'householdId is required', 'VALIDATION_ERROR');
 
     const membership = membershipForUser(req.auth.userId, householdId);
-    if (!membership) return res.status(403).json({ error: 'Not a member of that household' });
+    if (!membership) return sendError(res, 403, 'Not a member of that household', 'PERMISSION_DENIED');
 
     const row = db
       .prepare('SELECT value FROM household_data WHERE household_id = ? AND key = ?')
@@ -872,15 +941,15 @@ app.get('/api/data/:scope/:key', requireAuth, (req, res) => {
     return res.json({ value });
   } catch (err) {
     log('ERROR', 'Read data failed', { error: err.message, scope, key });
-    return res.status(500).json({ error: 'Failed to read data' });
+    return sendError(res, 500, 'Failed to read data', 'SERVER_ERROR');
   }
 });
 
 app.put('/api/data/:scope/:key', requireAuth, (req, res) => {
   const { scope, key } = req.params;
-  const { value, householdId: bodyHouseholdId } = req.body || {};
+  const { value } = req.body || {};
   if (!['user', 'household'].includes(scope)) {
-    return res.status(400).json({ error: 'Invalid scope' });
+    return sendError(res, 400, 'Invalid scope', 'VALIDATION_ERROR');
   }
 
   try {
@@ -894,19 +963,32 @@ app.put('/api/data/:scope/:key', requireAuth, (req, res) => {
       return res.json({ value });
     }
 
-    const householdId = bodyHouseholdId || req.auth.householdId;
-    if (!householdId) return res.status(400).json({ error: 'householdId is required' });
+    const householdId = req.auth.householdId;
+    if (!householdId) return sendError(res, 400, 'householdId is required', 'VALIDATION_ERROR');
 
     const membership = membershipForUser(req.auth.userId, householdId);
-    if (!membership) return res.status(403).json({ error: 'Not a member of that household' });
+    if (!membership) return sendError(res, 403, 'Not a member of that household', 'PERMISSION_DENIED');
 
+    const validators = buildHouseholdDataValidators(householdId);
+    const validator = validators[key];
+    let parsedValue = value;
+
+    if (validator) {
+      const parsed = validator.safeParse(value ?? []);
+      if (!parsed.success) {
+        return sendError(res, 400, formatZodError(parsed.error), 'VALIDATION_ERROR');
+      }
+      parsedValue = parsed.data;
+    }
+
+    const serializedHouseholdValue = JSON.stringify(parsedValue ?? null);
     db.prepare(
       'INSERT INTO household_data (household_id, key, value, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(household_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at'
-    ).run(householdId, key, serialized, updatedAt);
-    return res.json({ value });
+    ).run(householdId, key, serializedHouseholdValue, updatedAt);
+    return res.json({ value: parsedValue });
   } catch (err) {
     log('ERROR', 'Write data failed', { error: err.message, scope, key });
-    return res.status(500).json({ error: 'Failed to save data' });
+    return sendError(res, 500, 'Failed to save data', 'SERVER_ERROR');
   }
 });
 
@@ -944,4 +1026,4 @@ export const stopServer = () => {
   }
 };
 
-export { app, db };
+export { app, db, resetStateForTests, devResetEnabled };

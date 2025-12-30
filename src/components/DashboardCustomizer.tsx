@@ -300,6 +300,8 @@ export default function DashboardCustomizer() {
     }
   }
 
+  const [lastPreset, setLastPreset] = useKV<string>('last-dashboard-preset', 'custom')
+
   const applyPreset = (presetId: string) => {
     const preset = presets.find((p) => p.id === presetId)
     if (!preset) return
@@ -310,12 +312,17 @@ export default function DashboardCustomizer() {
       enabled: preset.widgets.includes(w.id),
     }))
     setWidgets(updated)
+    setLastPreset(presetId)
     toast.success(`Applied "${preset.name}" preset`)
   }
 
   const currentWidgets = (widgets && widgets.length > 0) ? widgets : defaultWidgets
   const sortedWidgets = [...currentWidgets].sort((a, b) => (a.order || 0) - (b.order || 0))
   const enabledCount = currentWidgets.filter((w) => w.enabled).length
+  const resetToDefault = () => {
+    setWidgets(defaultWidgets)
+    toast.success('Dashboard reset to default')
+  }
 
   return (
     <Dialog>
@@ -346,16 +353,21 @@ export default function DashboardCustomizer() {
               <Sparkle size={16} />
               Presets
             </TabsTrigger>
-          </TabsList>
+            </TabsList>
 
-          <TabsContent value="widgets" className="flex-1 overflow-y-auto mt-4 space-y-3">
-            <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 rounded-lg border">
-              <strong>Tip:</strong> Drag the <DotsSixVertical size={14} className="inline" weight="bold" /> handle to reorder widgets
-            </div>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
+            <TabsContent value="widgets" className="flex-1 overflow-y-auto mt-4 space-y-3">
+              <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <span>
+                    <strong>Tip:</strong> Drag the <DotsSixVertical size={14} className="inline" weight="bold" /> handle to reorder widgets
+                  </span>
+                  <Button variant="ghost" size="sm" onClick={resetToDefault}>Reset to default</Button>
+                </div>
+              </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
             >
               <SortableContext
                 items={sortedWidgets.map(w => w.id)}
@@ -374,7 +386,7 @@ export default function DashboardCustomizer() {
 
           <TabsContent value="presets" className="flex-1 overflow-y-auto mt-4">
             <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 rounded-lg border">
-              Quick layouts for different use cases
+              Quick layouts for different use cases. Last applied: {lastPreset === 'custom' ? 'Custom' : presets.find(p => p.id === lastPreset)?.name || 'Custom'}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {presets.map((preset) => (

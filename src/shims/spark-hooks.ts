@@ -16,7 +16,8 @@ const USER_SCOPED_KEYS = new Set([
   'notification-preferences',
   'mobile-preferences',
   'quick-actions-config',
-  'dashboard-widgets'
+  'dashboard-widgets',
+  'onboarding-status'
 ])
 
 const clone = <T>(value: T): T => {
@@ -106,7 +107,19 @@ const enqueueSync = (item: SyncQueueItem) => {
   emitSyncStatus({ state: 'queued', queueSize: queue.length })
 }
 
-const processQueue = async () => {
+export const clearSyncCache = () => {
+  if (typeof window === 'undefined') return
+  try {
+    Object.keys(window.localStorage)
+      .filter((key) => key.startsWith(STORAGE_PREFIX) || key === SYNC_QUEUE_KEY || key === LAST_SUCCESS_KEY || key === LAST_ERROR_KEY)
+      .forEach((key) => window.localStorage.removeItem(key))
+  } catch {
+    // ignore storage errors
+  }
+  emitSyncStatus({ state: 'idle', queueSize: 0 })
+}
+
+export const processQueue = async () => {
   const queue = readQueue()
   if (queue.length === 0) return
   emitSyncStatus({ state: 'syncing', queueSize: queue.length })
@@ -129,6 +142,21 @@ const processQueue = async () => {
   }
   writeQueue(remaining)
   emitSyncStatus({ state: remaining.length > 0 ? 'error' : 'idle', queueSize: remaining.length })
+}
+
+export const retrySyncNow = async () => {
+  await processQueue()
+}
+
+export const clearSyncQueue = () => {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(SYNC_QUEUE_KEY)
+    window.localStorage.removeItem(LAST_ERROR_KEY)
+  } catch {
+    // ignore storage errors
+  }
+  emitSyncStatus({ state: 'idle', queueSize: 0, lastError: null })
 }
 
 if (typeof window !== 'undefined') {

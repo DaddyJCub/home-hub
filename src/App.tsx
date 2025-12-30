@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Broom, ShoppingCart, CalendarBlank, CookingPot, House, Gear, BookOpen, DotsThree, Icon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -44,7 +44,7 @@ interface TabConfig {
   enabled: boolean
 }
 
-const TAB_CONFIGS: TabConfig[] = [
+export const TAB_CONFIGS: TabConfig[] = [
   { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', icon: House, enabled: true },
   { id: 'chores', label: 'Chores', shortLabel: 'Chores', icon: Broom, enabled: true },
   { id: 'shopping', label: 'Shopping', shortLabel: 'Shop', icon: ShoppingCart, enabled: true },
@@ -151,6 +151,19 @@ function AppContent() {
   const visibleTabs = TAB_CONFIGS.filter(tab => enabledTabs.includes(tab.id))
   const tabOrder = visibleTabs.map(tab => tab.id)
 
+  // Ensure nav items mirror enabled tabs for label/icon consistency
+  const syncedNavItems = useMemo(() => {
+    const tabMap = Object.fromEntries(TAB_CONFIGS.map((t) => [t.id, t]))
+    return navItems.map((item) => {
+      const match = tabMap[item.id as TabId]
+      if (match) {
+        const iconName = match.icon.name
+        return { ...item, label: match.label, shortLabel: match.shortLabel, iconName }
+      }
+      return item
+    })
+  }, [navItems])
+
   useEffect(() => {
     if (highlightTarget && highlightTarget.tab !== activeTab) {
       setActiveTab(highlightTarget.tab)
@@ -162,7 +175,7 @@ function AppContent() {
   }, [])
   
   // For mobile navigation: show first 4 enabled items in the bar, rest in More menu
-  const enabledNavItems = navItems.filter(item => item.enabled && item.id !== 'settings')
+  const enabledNavItems = syncedNavItems.filter(item => item.enabled && item.id !== 'settings')
   const visibleNavItems = enabledNavItems.slice(0, 4)
   const overflowNavItems = enabledNavItems.slice(4)
   

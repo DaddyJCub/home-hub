@@ -5,18 +5,29 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/lib/AuthContext'
+import { showUserFriendlyError } from '@/lib/error-helpers'
 import { House } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 
 export default function AuthPage() {
   const { login, signup } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
+  const [errors, setErrors] = useState<{ loginEmail?: string; loginPassword?: string; signupEmail?: string; signupPassword?: string; signupConfirm?: string; signupName?: string }>({})
 
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
   const [signupForm, setSignupForm] = useState({ email: '', password: '', displayName: '', confirmPassword: '' })
+  const passwordRules = [
+    { id: 'length', label: 'At least 8 characters', pass: signupForm.password.length >= 8 },
+    { id: 'letters', label: 'Contains a letter', pass: /[A-Za-z]/.test(signupForm.password) },
+    { id: 'numbers', label: 'Contains a number', pass: /\d/.test(signupForm.password) }
+  ]
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    const emailErr = !loginForm.email.trim() ? 'Email is required' : ''
+    const passErr = !loginForm.password.trim() ? 'Password is required' : ''
+    setErrors((prev) => ({ ...prev, loginEmail: emailErr, loginPassword: passErr }))
+    if (emailErr || passErr) return
     setIsLoading(true)
 
     try {
@@ -24,11 +35,10 @@ export default function AuthPage() {
       if (result.success) {
         toast.success('Welcome back!')
       } else {
-        toast.error(result.error || 'Invalid email or password')
+        showUserFriendlyError(result.error, 'Invalid email or password')
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Login failed'
-      toast.error(message)
+      showUserFriendlyError(error, 'Login failed')
     } finally {
       setIsLoading(false)
     }
@@ -37,13 +47,13 @@ export default function AuthPage() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (signupForm.password !== signupForm.confirmPassword) {
-      toast.error('Passwords do not match')
-      return
-    }
-
-    if (signupForm.password.length < 6) {
-      toast.error('Password must be at least 6 characters')
+    const nameErr = !signupForm.displayName.trim() ? 'Display name is required' : ''
+    const emailErr = !signupForm.email.trim() ? 'Email is required' : ''
+    const passErr = !passwordRules.every(rule => rule.pass) ? 'Password must meet the requirements' : ''
+    const confirmErr = signupForm.password !== signupForm.confirmPassword ? 'Passwords do not match' : ''
+    setErrors((prev) => ({ ...prev, signupName: nameErr, signupEmail: emailErr, signupPassword: passErr, signupConfirm: confirmErr }))
+    if (nameErr || emailErr || passErr || confirmErr) {
+      if (passErr) toast.error(passErr)
       return
     }
 
@@ -54,11 +64,10 @@ export default function AuthPage() {
       if (result.success) {
         toast.success('Account created! Welcome to HomeHub')
       } else {
-        toast.error(result.error || 'Signup failed')
+        showUserFriendlyError(result.error, 'Signup failed')
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Signup failed'
-      toast.error(message)
+      showUserFriendlyError(error, 'Signup failed')
     } finally {
       setIsLoading(false)
     }
@@ -98,7 +107,9 @@ export default function AuthPage() {
                       value={loginForm.email}
                       onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                       required
+                      aria-invalid={!!errors.loginEmail}
                     />
+                    {errors.loginEmail && <p className="text-xs text-destructive">{errors.loginEmail}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Password</Label>
@@ -109,7 +120,9 @@ export default function AuthPage() {
                       value={loginForm.password}
                       onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                       required
+                      aria-invalid={!!errors.loginPassword}
                     />
+                    {errors.loginPassword && <p className="text-xs text-destructive">{errors.loginPassword}</p>}
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? 'Signing in...' : 'Sign In'}
@@ -136,7 +149,9 @@ export default function AuthPage() {
                       value={signupForm.displayName}
                       onChange={(e) => setSignupForm({ ...signupForm, displayName: e.target.value })}
                       required
+                      aria-invalid={!!errors.signupName}
                     />
+                    {errors.signupName && <p className="text-xs text-destructive">{errors.signupName}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
@@ -147,7 +162,9 @@ export default function AuthPage() {
                       value={signupForm.email}
                       onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
                       required
+                      aria-invalid={!!errors.signupEmail}
                     />
+                    {errors.signupEmail && <p className="text-xs text-destructive">{errors.signupEmail}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
@@ -158,8 +175,18 @@ export default function AuthPage() {
                       value={signupForm.password}
                       onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
                       required
-                      minLength={6}
+                      minLength={8}
+                      aria-invalid={!!errors.signupPassword}
                     />
+                    {errors.signupPassword && <p className="text-xs text-destructive">{errors.signupPassword}</p>}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-muted-foreground">
+                      {passwordRules.map(rule => (
+                        <div key={rule.id} className="flex items-center gap-1">
+                          <div className={`h-2 w-2 rounded-full ${rule.pass ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+                          <span>{rule.label}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-confirm">Confirm Password</Label>
@@ -170,8 +197,10 @@ export default function AuthPage() {
                       value={signupForm.confirmPassword}
                       onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
                       required
-                      minLength={6}
+                      minLength={8}
+                      aria-invalid={!!errors.signupConfirm}
                     />
+                    {errors.signupConfirm && <p className="text-xs text-destructive">{errors.signupConfirm}</p>}
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? 'Creating account...' : 'Create Account'}

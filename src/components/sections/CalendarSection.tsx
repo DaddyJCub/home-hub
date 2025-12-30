@@ -18,11 +18,12 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { CalendarEvent, EventCategory, RecurrencePattern, ReminderTime } from '@/lib/types'
 import { toast } from 'sonner'
+import { showUserFriendlyError, validateRequired } from '@/lib/error-helpers'
 import { 
   format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, 
   isSameDay, isToday, isSameMonth, startOfWeek, endOfWeek, addDays, addWeeks,
   addYears, isWithinInterval, parseISO, differenceInDays, startOfDay, isBefore,
-  isAfter
+  isAfter, addMinutes
 } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
 
@@ -128,7 +129,11 @@ export default function CalendarSection() {
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
   const [eventForm, setEventForm] = useState<EventFormState>(defaultFormState)
   const [showEventDetails, setShowEventDetails] = useState<CalendarEvent | null>(null)
-  
+  const [quickEventTitle, setQuickEventTitle] = useState('')
+  const [quickEventCategory, setQuickEventCategory] = useState<EventCategory>('personal')
+  const [quickEventTitle, setQuickEventTitle] = useState('')
+  const [quickEventCategory, setQuickEventCategory] = useState<EventCategory>('personal')
+
   // Multi-day selection state
   const [isSelecting, setIsSelecting] = useState(false)
   const [selectionStart, setSelectionStart] = useState<Date | null>(null)
@@ -214,6 +219,8 @@ export default function CalendarSection() {
     return expanded
   }, [events, calendarData, currentDate])
 
+  const categoryLegend = useMemo(() => Object.entries(categoryConfig), [])
+
   // Navigation handlers
   const handlePrevious = () => {
     if (viewMode === 'month') {
@@ -270,13 +277,20 @@ export default function CalendarSection() {
   // Event dialog handlers
   const openAddEventDialog = (startDate?: Date, endDate?: Date) => {
     setEditingEvent(null)
-    const isMulti = !!endDate && !isSameDay(startDate!, endDate)
+    const isMulti = !!endDate && startDate ? !isSameDay(startDate, endDate) : false
+    const now = new Date()
+    const rounded = new Date(Math.ceil(now.getTime() / (30 * 60 * 1000)) * 30 * 60 * 1000)
+    const defaultStart = addMinutes(rounded, 30)
+    const defaultEnd = addMinutes(defaultStart, 60)
     setEventForm({
       ...defaultFormState,
-      startDate: startDate ? format(startDate, 'yyyy-MM-dd') : '',
-      endDate: endDate ? format(endDate, 'yyyy-MM-dd') : (startDate ? format(startDate, 'yyyy-MM-dd') : ''),
+      startDate: startDate ? format(startDate, 'yyyy-MM-dd') : format(defaultStart, 'yyyy-MM-dd'),
+      endDate: endDate ? format(endDate, 'yyyy-MM-dd') : (startDate ? format(startDate, 'yyyy-MM-dd') : format(defaultStart, 'yyyy-MM-dd')),
       isMultiDay: isMulti,
-      isAllDay: isMulti
+      isAllDay: isMulti,
+      startTime: isMulti ? '' : format(defaultStart, 'HH:mm'),
+      endTime: isMulti ? '' : format(defaultEnd, 'HH:mm'),
+      category: 'personal'
     })
     setDialogOpen(true)
   }
@@ -312,8 +326,9 @@ export default function CalendarSection() {
   }
 
   const handleSaveEvent = () => {
-    if (!eventForm.title.trim()) {
-      toast.error('Please enter an event title')
+    const titleError = validateRequired(eventForm.title, 'Event title')
+    if (titleError) {
+      toast.error(titleError)
       return
     }
     if (!eventForm.startDate) {
@@ -367,6 +382,36 @@ export default function CalendarSection() {
     }
 
     setDialogOpen(false)
+  }
+
+  const handleQuickEvent = () => {
+    if (!currentHousehold) {
+      toast.error('No household selected')
+      return
+    }
+    const titleError = validateRequired(quickEventTitle, 'Event title')
+    if (titleError) {
+      toast.error(titleError)
+      return
+    }
+    const now = new Date()
+    const rounded = new Date(Math.ceil(now.getTime() / (30 * 60 * 1000)) * 30 * 60 * 1000)
+    const start = addMinutes(rounded, 30)
+    const end = addMinutes(start, 60)
+    const newEvent: CalendarEvent = {
+      id: Date.now().toString(),
+      householdId: currentHousehold.id,
+      title: quickEventTitle.trim(),
+      date: format(start, 'yyyy-MM-dd'),
+      startTime: format(start, 'HH:mm'),
+      endTime: format(end, 'HH:mm'),
+      category: quickEventCategory,
+      isAllDay: false,
+      createdAt: Date.now()
+    } as CalendarEvent
+    setEvents((current) => [...(current ?? []), newEvent])
+    setQuickEventTitle('')
+    toast.success('Event added')
   }
 
   const handleDeleteEvent = (id: string) => {
@@ -451,7 +496,8 @@ export default function CalendarSection() {
   const renderEventBadge = (event: CalendarEvent, compact = false) => {
     const config = categoryConfig[event.category]
     const isMultiDay = event.endDate && event.endDate !== event.date
-    
+    const isAllDay = event.isAllDay || (!event.startTime && !event.endTime)
+
     return (
       <div
         key={event.id}
@@ -460,6 +506,7 @@ export default function CalendarSection() {
           rounded border ${config.color} 
           cursor-pointer truncate flex items-center gap-1
           ${isMultiDay ? 'rounded-none first:rounded-l last:rounded-r' : ''}
+          ${isAllDay ? 'border-dashed' : ''}
         `}
         onClick={(e) => {
           e.stopPropagation()
@@ -472,6 +519,7 @@ export default function CalendarSection() {
         {!compact && event.startTime && !event.isAllDay && (
           <span className="font-semibold">{event.startTime}</span>
         )}
+        {isAllDay && !compact && <span className="text-[10px] uppercase">All day</span>}
         <span className="truncate">{event.title}</span>
       </div>
     )
@@ -512,6 +560,32 @@ export default function CalendarSection() {
           </Button>
         </div>
       </div>
+
+      {/* Quick Add Event */}
+      <Card className="p-3 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+        <div className="flex-1 flex flex-col sm:flex-row gap-2">
+          <Input
+            placeholder="Quick add event"
+            value={quickEventTitle}
+            onChange={(e) => setQuickEventTitle(e.target.value)}
+          />
+          <Select value={quickEventCategory} onValueChange={(v) => setQuickEventCategory(v as EventCategory)}>
+            <SelectTrigger className="sm:w-48">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.keys(categoryConfig).map((key) => (
+                <SelectItem key={key} value={key}>
+                  {categoryConfig[key as EventCategory].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={handleQuickEvent} className="whitespace-nowrap">
+          <Plus size={16} className="mr-1" /> Add
+        </Button>
+      </Card>
 
       {/* Today's Overview Card */}
       <Card className="bg-gradient-to-r from-primary/5 to-primary/10">
@@ -556,7 +630,7 @@ export default function CalendarSection() {
               <Button variant="outline" size="sm" onClick={handlePrevious}>
                 <CaretLeft />
               </Button>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap justify-center">
                 <h3 className="text-xl sm:text-2xl font-bold">
                   {viewMode === 'month' 
                     ? format(currentDate, 'MMMM yyyy')
@@ -572,8 +646,19 @@ export default function CalendarSection() {
               </Button>
             </div>
             <p className="text-sm text-muted-foreground text-center mt-2">
-              💡 Click and drag across multiple days to create multi-day events
+              💡 Click and drag across multiple days to create multi-day events. Use the Today button to jump back.
             </p>
+            <div className="flex flex-wrap gap-2 justify-center mt-2">
+              {categoryLegend.map(([key, cfg]) => {
+                const Icon = cfg.icon
+                return (
+                  <Badge key={key} variant="outline" className="gap-1 text-[11px]">
+                    <Icon size={12} />
+                    {cfg.label}
+                  </Badge>
+                )
+              })}
+            </div>
           </CardHeader>
           <CardContent>
             <div className={`grid grid-cols-7 gap-1 sm:gap-2 ${viewMode === 'week' ? 'min-h-[400px]' : ''}`}>
@@ -591,6 +676,8 @@ export default function CalendarSection() {
                 const isDayToday = isToday(day)
                 const isCurrentMonth = isSameMonth(day, currentDate)
                 const isSelected = isDateInSelection(day)
+                const allDayEvents = dayEvents.filter((e) => e.isAllDay)
+                const timedEvents = dayEvents.filter((e) => !e.isAllDay)
 
                 return (
                   <div
@@ -616,12 +703,15 @@ export default function CalendarSection() {
                       {format(day, 'd')}
                     </div>
                     <div className="space-y-0.5 sm:space-y-1 overflow-hidden">
-                      {dayEvents.slice(0, viewMode === 'week' ? 10 : 3).map((event) => 
+                      {allDayEvents.slice(0, viewMode === 'week' ? 6 : 2).map((event) =>
+                        renderEventBadge({ ...event, isAllDay: true }, viewMode === 'month')
+                      )}
+                      {timedEvents.slice(0, viewMode === 'week' ? 6 : 2).map((event) =>
                         renderEventBadge(event, viewMode === 'month')
                       )}
-                      {dayEvents.length > (viewMode === 'week' ? 10 : 3) && (
+                      {dayEvents.length > (viewMode === 'week' ? 12 : 4) && (
                         <div className="text-[10px] sm:text-xs text-muted-foreground text-center">
-                          +{dayEvents.length - (viewMode === 'week' ? 10 : 3)} more
+                          +{dayEvents.length - (viewMode === 'week' ? 12 : 4)} more
                         </div>
                       )}
                     </div>

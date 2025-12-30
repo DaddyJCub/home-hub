@@ -36,6 +36,7 @@ import {
   User,
   Plus,
   X,
+  Sparkle,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { themes, applyTheme, getThemeById, type Theme } from '@/lib/themes'
@@ -52,6 +53,7 @@ import { BugTracker } from '@/components/BugTracker'
 import IntegrityDiagnostics from '@/components/IntegrityDiagnostics'
 import UIDiagnostics from '@/components/UIDiagnostics'
 import MigrationStatus from '@/components/MigrationStatus'
+import { Switch as Toggle } from '@/components/ui/switch'
 
 interface DashboardWidget {
   id: string
@@ -72,6 +74,10 @@ export default function SettingsSection() {
   const [recipesRaw, setRecipes] = useKV<Recipe[]>('recipes', [])
   const [eventsRaw, setEvents] = useKV<CalendarEvent[]>('calendar-events', [])
   const [showUiDiag, setShowUiDiag] = useKV<boolean>('ui-diagnostics-enabled', false)
+  const [challengeEnabled, setChallengeEnabled] = useKV<boolean>('challenge-enabled', true)
+  const [onboardingStatus, setOnboardingStatus] = useKV<{ completedSteps?: string[]; skipped?: boolean }>('onboarding-status', { completedSteps: [], skipped: false })
+  const [challengeEnabled, setChallengeEnabled] = useKV<boolean>('challenge-enabled', true)
+  const [onboardingStatus, setOnboardingStatus] = useKV<{ completedSteps?: string[]; skipped?: boolean }>('onboarding-status', { completedSteps: [], skipped: false })
   
   const dashboardWidgets = dashboardWidgetsRaw ?? []
   const members = householdMembers ?? []
@@ -235,6 +241,44 @@ export default function SettingsSection() {
               checked={isDarkMode}
               onCheckedChange={handleDarkModeToggle}
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkle size={24} />
+            Onboarding & Motivation
+          </CardTitle>
+          <CardDescription>Control setup checklist and weekly challenge visibility</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-sm">Show weekly challenge</p>
+              <p className="text-xs text-muted-foreground">Highlights progress toward the weekly chore goal</p>
+            </div>
+            <Switch checked={challengeEnabled} onCheckedChange={setChallengeEnabled} />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-sm">Show setup checklist</p>
+              <p className="text-xs text-muted-foreground">Restart onboarding if you skipped it</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setOnboardingStatus({ completedSteps: [], skipped: false })}
+              >
+                Restart
+              </Button>
+              <Switch
+                checked={!onboardingStatus?.skipped}
+                onCheckedChange={(checked) => setOnboardingStatus({ ...(onboardingStatus ?? {}), skipped: !checked })}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

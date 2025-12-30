@@ -4,13 +4,18 @@ import { useServiceWorker } from '@/hooks/use-service-worker'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSyncStatus } from '@/hooks/use-sync-status'
 import { formatDistanceToNow } from 'date-fns'
+import { retrySyncNow } from '@/shims/spark-hooks'
+import { useState } from 'react'
+import { SyncDiagnostics } from './SyncDiagnostics'
 
 export function OfflineIndicator() {
+  const [showDiagnostics, setShowDiagnostics] = useState(false)
   const { isOnline, updateAvailable, applyUpdate } = useServiceWorker()
   const sync = useSyncStatus()
   const lastSync = sync.lastSuccess
     ? `Synced ${formatDistanceToNow(sync.lastSuccess, { addSuffix: true })}`
     : 'Not synced yet'
+  const pending = sync.queueSize && sync.queueSize > 0 ? `${sync.queueSize} change${sync.queueSize > 1 ? 's' : ''} queued` : null
 
   return (
     <>
@@ -54,9 +59,21 @@ export function OfflineIndicator() {
             exit={{ y: 100, opacity: 0 }}
             className="fixed bottom-24 left-4 right-4 md:bottom-6 md:left-auto md:right-4 md:max-w-sm z-50 bg-amber-100 text-amber-900 px-4 py-3 rounded-lg shadow-lg dark:bg-amber-900/30 dark:text-amber-50"
           >
-            <div className="flex items-center gap-2 text-sm">
-              <Warning size={16} />
-              <span>Sync failed. Will retry when possible.</span>
+            <div className="flex items-start gap-2 text-sm">
+              <Warning size={16} className="mt-[2px]" />
+              <div className="flex-1 space-y-1">
+                <div className="font-medium">Sync failed. Will retry automatically.</div>
+                {sync.lastError?.message && <div className="text-xs opacity-80">Last error: {sync.lastError.message}</div>}
+                {pending && <div className="text-xs opacity-80">{pending}</div>}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="secondary" onClick={() => retrySyncNow()}>
+                  Retry
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setShowDiagnostics(true)}>
+                  Details
+                </Button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -64,8 +81,12 @@ export function OfflineIndicator() {
 
       <div className="fixed bottom-2 right-3 md:right-4 z-40 flex items-center gap-1.5 bg-muted/90 backdrop-blur px-2.5 py-1.5 rounded-full text-[11px] text-muted-foreground shadow-sm border border-border/60">
         <ClockCounterClockwise size={12} />
-        <span className="leading-none">{lastSync}</span>
+        <span className="leading-none">
+          {pending ? `${lastSync} · ${pending}` : lastSync}
+        </span>
       </div>
+
+      <SyncDiagnostics open={showDiagnostics} onOpenChange={setShowDiagnostics} />
 
       <AnimatePresence>
         {updateAvailable && (

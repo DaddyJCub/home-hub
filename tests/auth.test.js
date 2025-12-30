@@ -77,3 +77,38 @@ test('data written by one client is visible to another after login', async () =>
 test('dev reset stays disabled by default', () => {
   assert.equal(devResetEnabled, false)
 })
+
+test('rejects invalid signup payloads', async () => {
+  const res = await agent.post('/api/auth/signup').send({ email: 'not-an-email', password: '', displayName: '' })
+  assert.equal(res.status, 400)
+  assert.equal(res.body.code, 'VALIDATION_ERROR')
+})
+
+test('rejects invalid household data payloads', async () => {
+  const email = `invalid-data-${Date.now()}@example.com`
+  await agent.post('/api/auth/signup').send({ email, password: 'password123', displayName: 'Data Owner' })
+
+  const bad = await agent.put('/api/data/household/chores').send({
+    value: [{ id: '', title: '', completed: false }]
+  })
+  assert.equal(bad.status, 400)
+  assert.equal(bad.body.code, 'VALIDATION_ERROR')
+})
+
+test('sets householdId server-side for household data', async () => {
+  const email = `server-scope-${Date.now()}@example.com`
+  const signup = await agent
+    .post('/api/auth/signup')
+    .send({ email, password: 'password123', displayName: 'Scope Tester' })
+  assert.equal(signup.status, 200)
+  const householdId = signup.body.currentHouseholdId
+  assert.ok(householdId)
+
+  const put = await agent.put('/api/data/household/chores').send({
+    value: [{ id: 'chore-1', title: 'Dishes' }]
+  })
+
+  assert.equal(put.status, 200)
+  assert(Array.isArray(put.body.value))
+  assert.equal(put.body.value[0].householdId, householdId)
+})

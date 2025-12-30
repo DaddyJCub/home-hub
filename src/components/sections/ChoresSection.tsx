@@ -22,6 +22,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import type { Chore, ChoreCompletion, ChoreFrequency, ChoreRotation } from '@/lib/types'
 import { toast } from 'sonner'
+import { showUserFriendlyError, validateRequired } from '@/lib/error-helpers'
 import { format, formatDistanceToNow, isPast, isToday, addDays, startOfDay, differenceInDays, isWithinInterval } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
 import { computeNextDueAt, frequencyToMs, getChoreStatus, isCompletedForToday, normalizeChore } from '@/lib/chore-utils'
@@ -60,6 +61,7 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
     'Kitchen', 'Living Room', 'Bedroom', 'Bathroom', 'Garage', 
     'Yard', 'Office', 'Laundry', 'Dining Room', 'Basement', 'Attic', 'Other'
   ])
+  const [roomQuickAdd, setRoomQuickAdd] = useState<Record<string, string>>({})
   
   const allChores = choresRaw ?? []
   const allCompletions = completionsRaw ?? []
@@ -84,6 +86,8 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
   const [filterRoom, setFilterRoom] = useState<string>('all')
   const [filterPriority, setFilterPriority] = useState<string>('all')
   const [sortBy, setSortBy] = useState<'dueDate' | 'priority' | 'room' | 'created'>('dueDate')
+  const [quickChoreTitle, setQuickChoreTitle] = useState('')
+  const [quickChoreRoom, setQuickChoreRoom] = useState('')
   
   // Form state
   const [choreForm, setChoreForm] = useState({
@@ -127,8 +131,9 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
 
   // Save chore
   const handleSaveChore = () => {
-    if (!choreForm.title.trim() || !choreForm.assignedTo) {
-      toast.error('Please fill in required fields')
+    const titleError = validateRequired(choreForm.title, 'Chore title')
+    if (titleError) {
+      toast.error(titleError)
       return
     }
     if (!currentHousehold) {
@@ -143,10 +148,12 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
         ? new Date(dueInput).getTime()
         : Date.now() + frequencyToMs(choreForm.frequency as ChoreFrequency, choreForm.customIntervalDays || 1)
 
+    const assignedValue = choreForm.assignedTo === 'anyone' ? '' : choreForm.assignedTo
+
     const choreData: Partial<Chore> = {
       title: choreForm.title.trim(),
       description: choreForm.description.trim() || undefined,
-      assignedTo: choreForm.assignedTo,
+      assignedTo: assignedValue,
       frequency: choreForm.frequency,
       scheduleType: choreForm.scheduleType,
       customIntervalDays: choreForm.frequency === 'custom' ? choreForm.customIntervalDays : undefined,
@@ -157,7 +164,7 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
       notes: choreForm.notes.trim() || undefined,
       daysOfWeek: choreForm.daysOfWeek.length > 0 ? choreForm.daysOfWeek : undefined,
       estimatedMinutes: choreForm.estimatedMinutes ? parseInt(choreForm.estimatedMinutes) : undefined,
-      rotation: choreForm.rotation !== 'none' ? choreForm.rotation : undefined,
+      rotation: choreForm.rotation !== 'none' ? choreForm.rotation : (choreForm.assignedTo === 'anyone' ? 'anyone' : undefined),
       rotationOrder: choreForm.rotation === 'rotate' ? choreForm.rotationOrder : undefined,
       trackTime: choreForm.trackTime || undefined
     }
@@ -189,7 +196,7 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
   // Complete chore with tracking
   const handleCompleteChore = (chore: Chore, actualMinutes?: number, completedBy?: string, notes?: string) => {
     const now = Date.now()
-    const completer = completedBy || chore.assignedTo
+    const completer = completedBy || chore.assignedTo || 'Anyone'
     
     const normalized = normalizeChore(chore)
     const status = getChoreStatus(normalized, now)
@@ -242,6 +249,9 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
         const nextIndex = ((chore.currentRotationIndex || 0) + 1) % chore.rotationOrder.length
         updatedChore.currentRotationIndex = nextIndex
         updatedChore.assignedTo = chore.rotationOrder[nextIndex]
+      } else if ((chore.rotation === 'anyone' || !chore.assignedTo) && members.length > 0) {
+        const randomMember = members[Math.floor(Math.random() * members.length)]
+        updatedChore.assignedTo = randomMember.displayName
       }
     }
     
@@ -403,6 +413,7 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
   const completedChores = processedChores.filter(({ chore }) => chore.completed)
   const overdueChores = pendingChores.filter(({ status }) => status.isOverdue)
   const dueTodayChores = pendingChores.filter(({ status }) => status.isDueToday && !status.isOverdue)
+  const upcomingChores = pendingChores.filter(({ status }) => !status.isOverdue && !status.isDueToday)
 
   // Stats
   const stats = useMemo<{ totalCompleted: number; avgStreak: number; byMember: Record<string, number>; thisWeek: number }>(() => {
@@ -423,7 +434,85 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
     return { totalCompleted, avgStreak, byMember, thisWeek }
   }, [chores, completions])
 
+  const roomSections = useMemo(() => {
+    const names = new Set<string>()
+    ;(rooms || []).forEach((r) => names.add(r))
+    chores.forEach((c) => names.add(c.room || 'Unassigned'))
+
+    const sorted = Array.from(names).sort((a, b) => a.localeCompare(b))
+    return sorted.map((room) => {
+      const pending = pendingChores.filter(({ chore }) => (chore.room || 'Unassigned') === room)
+      const total = processedChores.filter(({ chore }) => (chore.room || 'Unassigned') === room)
+      return { room, pending, total }
+    })
+  }, [rooms, chores, pendingChores, processedChores])
+
   const hasActiveFilters = filterRoom !== 'all' || filterPriority !== 'all'
+
+  const describeDue = (status: ReturnType<typeof getChoreStatus>, dueAt?: number) => {
+    if (status.isOverdue) return 'Overdue'
+    if (status.isDueToday) return 'Due today'
+    if (dueAt) return `Due in ${formatDistanceToNow(dueAt, { addSuffix: true })}`
+    return 'No due date'
+  }
+
+  const quickAddForRoom = (roomName: string) => {
+    const title = (roomQuickAdd[roomName] || '').trim()
+    const titleError = validateRequired(title, 'Chore title')
+    if (titleError) {
+      toast.error(titleError)
+      return
+    }
+    if (!currentHousehold) {
+      toast.error('No household selected')
+      return
+    }
+    const dueAt = startOfDay(addDays(new Date(), 1)).getTime()
+    const newChore: Chore = normalizeChore({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      householdId: currentHousehold.id,
+      title,
+      room: roomName === 'Unassigned' ? undefined : roomName,
+      frequency: 'once',
+      scheduleType: 'fixed',
+      customIntervalDays: undefined,
+      completed: false,
+      createdAt: Date.now(),
+      dueAt,
+      priority: 'medium'
+    } as Chore)
+    setChores([...allChores, newChore])
+    setRoomQuickAdd((prev) => ({ ...prev, [roomName]: '' }))
+    toast.success(`Added to ${roomName}`)
+  }
+
+  const handleQuickChore = () => {
+    const titleError = validateRequired(quickChoreTitle, 'Chore title')
+    if (titleError) {
+      toast.error(titleError)
+      return
+    }
+    if (!currentHousehold) {
+      toast.error('No household selected')
+      return
+    }
+    const newChore: Chore = normalizeChore({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      householdId: currentHousehold.id,
+      title: quickChoreTitle.trim(),
+      room: quickChoreRoom || undefined,
+      frequency: 'once',
+      scheduleType: 'fixed',
+      completed: false,
+      createdAt: Date.now(),
+      dueAt: Date.now() + 24 * 60 * 60 * 1000,
+      priority: 'medium'
+    } as Chore)
+    setChores([...allChores, newChore])
+    setQuickChoreTitle('')
+    setQuickChoreRoom('')
+    toast.success('Chore added')
+  }
 
   return (
     <div className="space-y-4 pb-20">
@@ -439,6 +528,9 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
               <span className="text-red-600">{overdueChores.length} overdue</span>
             )}
           </p>
+          {selectedMember !== 'all' && (
+            <p className="text-xs text-primary mt-1">Filtering for {selectedMember}</p>
+          )}
         </div>
         <div className="flex gap-1.5 flex-wrap">
           <Button 
@@ -521,15 +613,17 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
                 {/* Assigned To & Room */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label>Assigned To *</Label>
+                    <Label>Assigned To</Label>
                     <Select value={choreForm.assignedTo} onValueChange={(v) => setChoreForm({ ...choreForm, assignedTo: v })}>
                       <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="anyone">Anyone / Unassigned</SelectItem>
                         {members.map(m => (
                           <SelectItem key={m.id} value={m.displayName}>{m.displayName}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-[11px] text-muted-foreground">Leave unassigned for “anyone can do” or auto-assign.</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label>Room</Label>
@@ -857,6 +951,94 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
         </Card>
       )}
 
+      {/* Quick add */}
+      <Card className="p-3 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+        <div className="flex-1 flex flex-col sm:flex-row gap-2">
+          <Input
+            placeholder="Quick add chore"
+            value={quickChoreTitle}
+            onChange={(e) => setQuickChoreTitle(e.target.value)}
+          />
+          <Select value={quickChoreRoom} onValueChange={setQuickChoreRoom}>
+            <SelectTrigger className="sm:w-48">
+              <SelectValue placeholder="Room (optional)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">No room</SelectItem>
+              {(rooms || []).map((room) => (
+                <SelectItem key={room} value={room}>
+                  {room}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={handleQuickChore} className="whitespace-nowrap">
+          <Plus size={16} className="mr-1" /> Add
+        </Button>
+      </Card>
+
+      {/* Room Overview + Quick Add */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2">
+            <MapPin size={18} className="text-primary" />
+            Rooms overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {roomSections.map(({ room, pending, total }) => (
+              <div key={room} className="rounded-lg border border-border/60 p-3 bg-muted/40 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold">{room}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {pending.length} pending · {total.length} total
+                    </p>
+                  </div>
+                  <Badge variant={pending.length > 0 ? 'secondary' : 'outline'} className="text-[11px]">
+                    {pending.length > 0 ? 'Active' : 'Clear'}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Quick add"
+                    value={roomQuickAdd[room] || ''}
+                    onChange={(e) => setRoomQuickAdd((prev) => ({ ...prev, [room]: e.target.value }))}
+                    className="h-9"
+                  />
+                  <Button size="sm" onClick={() => quickAddForRoom(room)}>
+                    <Plus size={14} />
+                  </Button>
+                </div>
+                {pending.length > 0 ? (
+                  <div className="space-y-1">
+                    {pending.slice(0, 3).map(({ chore, status }) => (
+                      <div
+                        key={chore.id}
+                        className="flex items-center justify-between gap-2 rounded-md bg-background/70 px-2 py-1 text-xs border border-border/40 cursor-pointer hover:border-primary/40"
+                        onClick={() => setDetailChore(chore)}
+                      >
+                        <span className="truncate">{chore.title}</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {describeDue(status, chore.dueAt)}
+                        </span>
+                      </div>
+                    ))}
+                    {pending.length > 3 && (
+                      <p className="text-[11px] text-muted-foreground">+{pending.length - 3} more</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">No pending chores</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
         <TabsList className="w-full grid grid-cols-3">
@@ -874,6 +1056,33 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
         </TabsList>
 
         <TabsContent value="pending" className="space-y-2 mt-4">
+          {/* Overdue Section */}
+          {overdueChores.length > 0 && (
+            <div className="mb-4 space-y-2">
+              <h3 className="text-sm font-semibold text-destructive flex items-center gap-1">
+                <Warning size={16} />
+                Overdue ({overdueChores.length})
+              </h3>
+              {overdueChores.map(({ chore, status }) => (
+                <ChoreCard
+                  key={chore.id}
+                  chore={chore}
+                  status={status}
+                  members={members}
+                  isTracking={trackingChoreId === chore.id}
+                  onComplete={() => chore.trackTime ? setCompleteDialogChore(chore) : handleCompleteChore(chore)}
+                  onSkip={() => handleSkipChore(chore)}
+                  onEdit={() => openEditDialog(chore)}
+                  onDelete={() => handleDeleteChore(chore.id)}
+                  onStartTracking={() => startTracking(chore.id)}
+                  onStopTracking={() => stopTracking(chore)}
+                  onClick={() => setDetailChore(chore)}
+                  highlight={highlightChoreId === chore.id}
+                />
+              ))}
+            </div>
+          )}
+
           {/* Due Today Section */}
           {dueTodayChores.length > 0 && (
             <div className="mb-4">
@@ -904,12 +1113,12 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
           )}
           
           {/* Other Pending */}
-          {pendingChores.filter(({ status }) => !status.isDueToday).length > 0 && (
+          {upcomingChores.length > 0 && (
             <div className="space-y-2">
               {dueTodayChores.length > 0 && (
                 <h3 className="text-sm font-semibold text-muted-foreground mb-2">Upcoming</h3>
               )}
-              {pendingChores.filter(({ status }) => !status.isDueToday).map(({ chore, status }) => (
+              {upcomingChores.map(({ chore, status }) => (
                 <ChoreCard
                   key={chore.id}
                   chore={chore}
@@ -1081,6 +1290,20 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
                 setDetailChore(null)
               }}
               onClose={() => setDetailChore(null)}
+              rooms={rooms}
+              onDuplicate={(room) => {
+                const newChore: Chore = {
+                  ...detailChore,
+                  id: Date.now().toString(),
+                  room,
+                  createdAt: Date.now(),
+                  completed: false,
+                  lastCompletedAt: undefined,
+                  lastCompletedBy: undefined
+                }
+                setChores([...allChores, normalizeChore(newChore)])
+                toast.success(`Duplicated to ${room}`)
+              }}
             />
           )}
         </DialogContent>
@@ -1355,9 +1578,11 @@ interface ChoreDetailViewProps {
   onEdit: () => void
   onDelete: () => void
   onClose: () => void
+  rooms?: string[]
+  onDuplicate?: (room: string) => void
 }
 
-function ChoreDetailView({ chore, completions, members, onComplete, onSkip, onEdit, onDelete, onClose }: ChoreDetailViewProps) {
+function ChoreDetailView({ chore, completions, members, onComplete, onSkip, onEdit, onDelete, onClose, rooms = [], onDuplicate }: ChoreDetailViewProps) {
   const priorityCfg = priorityConfig[chore.priority || 'medium']
   const normalized = normalizeChore(chore)
   const status = getChoreStatus(normalized)
@@ -1560,6 +1785,22 @@ function ChoreDetailView({ chore, completions, members, onComplete, onSkip, onEd
             </div>
           </CollapsibleContent>
         </Collapsible>
+      )}
+
+      {rooms.length > 0 && onDuplicate && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Duplicate to another room</p>
+          <Select onValueChange={(room) => onDuplicate(room)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select room" />
+            </SelectTrigger>
+            <SelectContent>
+              {rooms.filter(r => r !== chore.room).map(room => (
+                <SelectItem key={room} value={room}>{room}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       )}
 
       {/* Actions */}

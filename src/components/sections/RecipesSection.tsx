@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { useIsMobile } from '@/hooks/use-mobile'
 import type { Recipe, ShoppingItem, RecipeCategory } from '@/lib/types'
 import { toast } from 'sonner'
+import { validateRequired } from '@/lib/error-helpers'
 import { useAuth } from '@/lib/AuthContext'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -72,6 +73,32 @@ export default function RecipesSection({ initialRecipeId, onRecipeViewed }: Reci
     sourceUrl: '',
     imageUrl: ''
   })
+  const autoGrow = (el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }
+
+  // Draft autosave
+  const DRAFT_KEY = 'recipe-draft'
+  useEffect(() => {
+    if (!dialogOpen || editingRecipe) return
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (raw) {
+      try {
+        const draft = JSON.parse(raw)
+        setRecipeForm({ ...recipeForm, ...draft })
+      } catch {
+        // ignore
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogOpen, editingRecipe])
+
+  useEffect(() => {
+    if (!dialogOpen || editingRecipe) return
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(recipeForm))
+  }, [recipeForm, dialogOpen, editingRecipe])
 
   // Handle opening a recipe from external navigation (e.g., from Dashboard)
   useEffect(() => {
@@ -157,14 +184,23 @@ export default function RecipesSection({ initialRecipeId, onRecipeViewed }: Reci
 
   const handleSaveRecipe = () => {
     if (!recipeForm.name.trim() || !recipeForm.ingredients.trim() || !recipeForm.instructions.trim()) {
-      toast.error('Please fill in name, ingredients, and instructions')
+      const err =
+        validateRequired(recipeForm.name, 'Recipe name') ||
+        validateRequired(recipeForm.ingredients, 'Ingredients') ||
+        validateRequired(recipeForm.instructions, 'Instructions') ||
+        'Please fill in name, ingredients, and instructions'
+      toast.error(err)
       return
     }
 
-    const tags = recipeForm.tags
-      .split(',')
-      .map((t) => t.trim().toLowerCase())
-      .filter((t) => t)
+    const tags = Array.from(
+      new Set(
+        recipeForm.tags
+          .split(',')
+          .map((t) => t.trim().toLowerCase())
+          .filter((t) => t)
+      )
+    )
 
     if (editingRecipe) {
       setRecipes((current) =>
@@ -172,7 +208,7 @@ export default function RecipesSection({ initialRecipeId, onRecipeViewed }: Reci
           recipe.id === editingRecipe.id
             ? {
                 ...recipe,
-                name: recipeForm.name.trim(),
+                name: recipeForm.name.trim() || 'Untitled recipe',
                 ingredients: recipeForm.ingredients.split('\n').filter((i) => i.trim()),
                 instructions: recipeForm.instructions.trim(),
                 prepTime: recipeForm.prepTime.trim() || undefined,
@@ -196,7 +232,7 @@ export default function RecipesSection({ initialRecipeId, onRecipeViewed }: Reci
       const newRecipe: Recipe = {
         id: Date.now().toString(),
         householdId: currentHousehold.id,
-        name: recipeForm.name.trim(),
+        name: recipeForm.name.trim() || 'Untitled recipe',
         ingredients: recipeForm.ingredients.split('\n').filter((i) => i.trim()),
         instructions: recipeForm.instructions.trim(),
         prepTime: recipeForm.prepTime.trim() || undefined,
@@ -216,6 +252,7 @@ export default function RecipesSection({ initialRecipeId, onRecipeViewed }: Reci
     setDialogOpen(false)
     setEditingRecipe(null)
     setAddMode('manual')
+    localStorage.removeItem(DRAFT_KEY)
     setRecipeForm({
       name: '',
       ingredients: '',
@@ -654,10 +691,15 @@ export default function RecipesSection({ initialRecipeId, onRecipeViewed }: Reci
 
                 <div className="space-y-2">
                   <Label htmlFor="ingredients">Ingredients</Label>
+                  <p className="text-xs text-muted-foreground">Tip: one ingredient per line for easy shopping list use.</p>
                   <Textarea
                     id="ingredients"
                     value={recipeForm.ingredients}
-                    onChange={(e) => setRecipeForm({ ...recipeForm, ingredients: e.target.value })}
+                    onChange={(e) => {
+                      setRecipeForm({ ...recipeForm, ingredients: e.target.value })
+                      autoGrow(e.target)
+                    }}
+                    onInput={(e) => autoGrow(e.target as HTMLTextAreaElement)}
                     placeholder="Enter each ingredient on a new line&#10;e.g.,&#10;2 cups flour&#10;1 cup sugar&#10;3 eggs"
                     rows={8}
                   />
@@ -665,10 +707,15 @@ export default function RecipesSection({ initialRecipeId, onRecipeViewed }: Reci
 
                 <div className="space-y-2">
                   <Label htmlFor="instructions">Instructions</Label>
+                  <p className="text-xs text-muted-foreground">Add clear steps. Include oven temps/timing where relevant.</p>
                   <Textarea
                     id="instructions"
                     value={recipeForm.instructions}
-                    onChange={(e) => setRecipeForm({ ...recipeForm, instructions: e.target.value })}
+                    onChange={(e) => {
+                      setRecipeForm({ ...recipeForm, instructions: e.target.value })
+                      autoGrow(e.target)
+                    }}
+                    onInput={(e) => autoGrow(e.target as HTMLTextAreaElement)}
                     placeholder="Enter the cooking instructions..."
                     rows={10}
                   />

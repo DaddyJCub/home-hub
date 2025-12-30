@@ -1,14 +1,22 @@
 export class ApiError extends Error {
   status: number
+  code?: string
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message)
     this.status = status
+    this.code = code
   }
 }
 
 interface RequestOptions extends RequestInit {
   skipAuthError?: boolean
+}
+
+const emitSessionExpired = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('hh-session-expired'))
+  }
 }
 
 export async function apiRequest<T = any>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -27,10 +35,13 @@ export async function apiRequest<T = any>(path: string, options: RequestOptions 
 
   if (!response.ok) {
     if (response.status === 401 && skipAuthError) {
-      throw new ApiError('Not authenticated', response.status)
+      throw new ApiError('Not authenticated', response.status, body?.code)
+    }
+    if (response.status === 401) {
+      emitSessionExpired()
     }
     const message = body?.error || `Request failed (${response.status})`
-    throw new ApiError(message, response.status)
+    throw new ApiError(message, response.status, body?.code)
   }
 
   return body as T

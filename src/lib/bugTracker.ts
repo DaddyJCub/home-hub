@@ -16,6 +16,9 @@ export interface BugReport {
 
 const BUG_STORAGE_KEY = 'homehub-bug-reports'
 const MAX_BUGS = 100 // Keep last 100 bugs
+const RATE_LIMIT_COUNT = 10
+const RATE_LIMIT_WINDOW_MS = 10 * 1000
+let recentTimestamps: number[] = []
 
 // Generate unique ID
 const generateId = () => `bug_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -51,6 +54,22 @@ export const addBugReport = (
     context?: Record<string, unknown>
   }
 ): BugReport => {
+  const now = Date.now()
+  recentTimestamps = recentTimestamps.filter((ts) => now - ts < RATE_LIMIT_WINDOW_MS)
+  if (recentTimestamps.length >= RATE_LIMIT_COUNT) {
+    console.warn('Bug tracker rate limited')
+    return {
+      id: 'rate-limited',
+      timestamp: now,
+      type,
+      message: 'Rate limited',
+      url: window.location.href,
+      userAgent: navigator.userAgent,
+      resolved: false
+    }
+  }
+  recentTimestamps.push(now)
+
   const report: BugReport = {
     id: generateId(),
     timestamp: Date.now(),

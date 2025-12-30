@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import AutoMealPlanner from '@/components/AutoMealPlanner'
 import type { Meal, Recipe, ShoppingItem, RecipeCategory } from '@/lib/types'
 import { toast } from 'sonner'
+import { validateRequired } from '@/lib/error-helpers'
 import { format, startOfWeek, addDays, addWeeks, isToday, parseISO } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
 
@@ -57,6 +58,11 @@ export default function MealsSection() {
   const [viewRecipeOpen, setViewRecipeOpen] = useState(false)
   const [selectedViewRecipe, setSelectedViewRecipe] = useState<Recipe | null>(null)
   const [quickRecipeOpen, setQuickRecipeOpen] = useState(false)
+  const autoGrow = (el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }
   
   // Form state
   const [selectedDate, setSelectedDate] = useState<string>('')
@@ -145,9 +151,8 @@ export default function MealsSection() {
       toast.error('Please select a household first')
       return
     }
-    
     if (!mealForm.name.trim()) {
-      toast.error('Please enter a meal name or select a recipe')
+      toast.error(validateRequired(mealForm.name, 'Meal name') || 'Please enter a meal name or select a recipe')
       return
     }
 
@@ -654,7 +659,11 @@ export default function MealsSection() {
                 <Label>Notes (optional)</Label>
                 <Textarea
                   value={mealForm.notes}
-                  onChange={(e) => setMealForm({ ...mealForm, notes: e.target.value })}
+                  onChange={(e) => {
+                    setMealForm({ ...mealForm, notes: e.target.value })
+                    autoGrow(e.target)
+                  }}
+                  onInput={(e) => autoGrow(e.target as HTMLTextAreaElement)}
                   placeholder="Any special notes for this meal..."
                   rows={2}
                 />
@@ -712,7 +721,11 @@ export default function MealsSection() {
                 <Label>Details (optional)</Label>
                 <Textarea
                   value={mealForm.notes}
-                  onChange={(e) => setMealForm({ ...mealForm, notes: e.target.value })}
+                  onChange={(e) => {
+                    setMealForm({ ...mealForm, notes: e.target.value })
+                    autoGrow(e.target)
+                  }}
+                  onInput={(e) => autoGrow(e.target as HTMLTextAreaElement)}
                   placeholder="Restaurant name, what leftovers, etc..."
                   rows={2}
                 />
