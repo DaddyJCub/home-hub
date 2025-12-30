@@ -496,22 +496,26 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
       toast.error('No household selected')
       return
     }
-    const newChore: Chore = normalizeChore({
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      householdId: currentHousehold.id,
+    // Prefill the full chore modal instead of silently creating
+    setEditingChore(null)
+    setChoreForm({
+      ...choreForm,
       title: quickChoreTitle.trim(),
-      room: quickChoreRoom === 'none' ? undefined : quickChoreRoom,
+      room: quickChoreRoom === 'none' ? '' : quickChoreRoom,
       frequency: 'once',
       scheduleType: 'fixed',
-      completed: false,
-      createdAt: Date.now(),
-      dueAt: Date.now() + 24 * 60 * 60 * 1000,
-      priority: 'medium'
-    } as Chore)
-    setChores([...allChores, newChore])
-    setQuickChoreTitle('')
-    setQuickChoreRoom('none')
-    toast.success('Chore added')
+      customIntervalDays: 7,
+      priority: 'medium',
+      dueDateTime: '',
+      dueDate: '',
+      notes: '',
+      daysOfWeek: [],
+      estimatedMinutes: '',
+      rotation: 'none',
+      rotationOrder: [],
+      trackTime: false
+    })
+    setDialogOpen(true)
   }
 
   return (
@@ -974,9 +978,14 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={handleQuickChore} className="whitespace-nowrap">
-          <Plus size={16} className="mr-1" /> Add
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => setManageRoomsOpen(true)}>
+            Manage rooms
+          </Button>
+          <Button onClick={handleQuickChore} className="whitespace-nowrap">
+            <Plus size={16} className="mr-1" /> Add
+          </Button>
+        </div>
       </Card>
 
       {/* Room Overview + Quick Add */}

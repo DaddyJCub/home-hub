@@ -43,6 +43,9 @@ const SESSION_MAX_AGE_SECONDS =
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const devResetEnabled = NODE_ENV === 'development' && process.env.ALLOW_DEV_RESET === 'true';
 
+// Respect proxy headers when deployed behind a load balancer (needed for rate limiting/IP keys)
+app.set('trust proxy', true);
+
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -627,7 +630,7 @@ app.use((req, res, next) => {
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200, // loosen to avoid auth sync spikes
+  max: 1000, // allow higher auth/sync traffic bursts
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req, res) => sendError(res, 429, 'Too many requests', 'RATE_LIMITED')
@@ -637,7 +640,7 @@ app.use('/api/auth', authLimiter);
 
 const writeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 1000, // allow more sync traffic before throttling
+  max: 5000, // generous headroom for sync
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req, res) => sendError(res, 429, 'Too many requests', 'RATE_LIMITED')
