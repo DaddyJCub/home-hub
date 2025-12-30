@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Plus, Trash, ShoppingCart, Sparkle, Flag, Storefront, Funnel, CaretDown } from '@phosphor-icons/react'
+import { Plus, Trash, ShoppingCart, Sparkle, Flag, Storefront, Funnel, CaretDown, Gear } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog'
@@ -17,15 +17,17 @@ import { showUserFriendlyError, validateRequired } from '@/lib/error-helpers'
 import { startOfWeek, addDays, format } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
 
-const CATEGORIES = ['Produce', 'Dairy', 'Meat', 'Pantry', 'Frozen', 'Bakery', 'Beverages', 'Household', 'Other']
+const DEFAULT_CATEGORIES = ['Produce', 'Dairy', 'Meat', 'Pantry', 'Frozen', 'Bakery', 'Beverages', 'Household', 'Other']
 
-const STORES = ['Grocery Store', 'Farmers Market', 'Warehouse Club', 'Specialty Store', 'Convenience Store', 'Online', 'Other']
+const DEFAULT_STORES = ['Grocery Store', 'Farmers Market', 'Warehouse Club', 'Specialty Store', 'Convenience Store', 'Online', 'Other']
 
 export default function ShoppingSection() {
   const { currentHousehold } = useAuth()
   const [itemsRaw, setItems] = useKV<ShoppingItem[]>('shopping-items', [])
   const [mealsRaw] = useKV<Meal[]>('meals', [])
   const [recipesRaw] = useKV<Recipe[]>('recipes', [])
+  const [categoriesKV, setCategories] = useKV<string[]>('shopping-categories', DEFAULT_CATEGORIES)
+  const [storesKV, setStores] = useKV<string[]>('shopping-stores', DEFAULT_STORES)
   // Filter data by current household
   const allItems = itemsRaw ?? []
   const allMeals = mealsRaw ?? []
@@ -36,6 +38,9 @@ export default function ShoppingSection() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null)
+  const [manageListsOpen, setManageListsOpen] = useState(false)
+  const [newCategory, setNewCategory] = useState('')
+  const [newStore, setNewStore] = useState('')
   
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [filterStore, setFilterStore] = useState<string>('all')
@@ -54,6 +59,25 @@ export default function ShoppingSection() {
   const [quickQuantity, setQuickQuantity] = useState('1')
   const quickInputRef = useRef<HTMLInputElement | null>(null)
   const nameInputRef = useRef<HTMLInputElement | null>(null)
+
+  const categoryOptions = (categoriesKV && categoriesKV.length > 0 ? categoriesKV : DEFAULT_CATEGORIES).sort()
+  const storeOptions = (storesKV && storesKV.length > 0 ? storesKV : DEFAULT_STORES).sort()
+
+  const addCategory = () => {
+    const name = newCategory.trim()
+    if (!name) return
+    const next = Array.from(new Set([...(categoriesKV ?? DEFAULT_CATEGORIES), name]))
+    setCategories(next)
+    setNewCategory('')
+  }
+
+  const addStore = () => {
+    const name = newStore.trim()
+    if (!name) return
+    const next = Array.from(new Set([...(storesKV ?? DEFAULT_STORES), name]))
+    setStores(next)
+    setNewStore('')
+  }
 
   const resetForm = () => {
     setItemForm({
@@ -320,7 +344,7 @@ export default function ShoppingSection() {
               <DropdownMenuLabel className="text-xs text-muted-foreground">Category</DropdownMenuLabel>
               <DropdownMenuRadioGroup value={filterCategory} onValueChange={setFilterCategory}>
                 <DropdownMenuRadioItem value="all">All Categories</DropdownMenuRadioItem>
-                {CATEGORIES.map(cat => (
+                {categoryOptions.map(cat => (
                   <DropdownMenuRadioItem key={cat} value={cat}>{cat}</DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
@@ -329,7 +353,7 @@ export default function ShoppingSection() {
               <DropdownMenuLabel className="text-xs text-muted-foreground">Store</DropdownMenuLabel>
               <DropdownMenuRadioGroup value={filterStore} onValueChange={setFilterStore}>
                 <DropdownMenuRadioItem value="all">All Stores</DropdownMenuRadioItem>
-                {STORES.map(store => (
+                {storeOptions.map(store => (
                   <DropdownMenuRadioItem key={store} value={store}>{store}</DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
@@ -344,6 +368,11 @@ export default function ShoppingSection() {
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => setManageListsOpen(true)}>
+            <Gear size={16} />
+            Lists
+          </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -362,11 +391,6 @@ export default function ShoppingSection() {
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <Button size="sm" className="gap-2" onClick={() => setDialogOpen(true)}>
-            <Plus size={16} />
-            Add Item
-          </Button>
 
           <Button size="sm" className="gap-2" onClick={() => setDialogOpen(true)}>
             <Plus size={16} />
@@ -404,6 +428,88 @@ export default function ShoppingSection() {
                     <Sparkle />
                     Generate List
                   </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={manageListsOpen} onOpenChange={setManageListsOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Manage categories & stores</DialogTitle>
+                <DialogDescription>Edit the options shown in dropdowns.</DialogDescription>
+              </DialogHeader>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-sm">Categories</h4>
+                    <Button variant="outline" size="sm" onClick={() => setCategories(DEFAULT_CATEGORIES)}>
+                      Reset
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Add category"
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addCategory()
+                        }
+                      }}
+                    />
+                    <Button onClick={addCategory}>Add</Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {categoryOptions.map((cat) => (
+                      <Badge key={cat} variant="secondary" className="gap-1">
+                        {cat}
+                        <button
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => setCategories((prev) => (prev || []).filter((c) => c !== cat))}
+                        >
+                          ×
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-sm">Stores</h4>
+                    <Button variant="outline" size="sm" onClick={() => setStores(DEFAULT_STORES)}>
+                      Reset
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Add store"
+                      value={newStore}
+                      onChange={(e) => setNewStore(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addStore()
+                        }
+                      }}
+                    />
+                    <Button onClick={addStore}>Add</Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {storeOptions.map((store) => (
+                      <Badge key={store} variant="secondary" className="gap-1">
+                        {store}
+                        <button
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => setStores((prev) => (prev || []).filter((s) => s !== store))}
+                        >
+                          ×
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               </div>
             </DialogContent>
@@ -457,7 +563,7 @@ export default function ShoppingSection() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {CATEGORIES.map((cat) => (
+                        {categoryOptions.map((cat) => (
                           <SelectItem key={cat} value={cat}>
                             {cat}
                           </SelectItem>
@@ -491,7 +597,7 @@ export default function ShoppingSection() {
                         <SelectValue placeholder="Select store" />
                       </SelectTrigger>
                       <SelectContent>
-                        {STORES.map((store) => (
+                        {storeOptions.map((store) => (
                           <SelectItem key={store} value={store}>
                             {store}
                           </SelectItem>

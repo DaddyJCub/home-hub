@@ -979,7 +979,7 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
           </Select>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => setManageRoomsOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => setManageRoomsOpen(true)}>
             Manage rooms
           </Button>
           <Button onClick={handleQuickChore} className="whitespace-nowrap">

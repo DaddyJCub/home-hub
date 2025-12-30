@@ -39,6 +39,7 @@ export default function MealsSection() {
   const [mealsRaw, setMeals] = useKV<Meal[]>('meals', [])
   const [recipesRaw, setRecipes] = useKV<Recipe[]>('recipes', [])
   const [shoppingItemsRaw, setShoppingItems] = useKV<ShoppingItem[]>('shopping-items', [])
+  const [tagLibrary, setTagLibrary] = useKV<string[]>('recipe-tags', [])
   const { currentHousehold } = useAuth()
   
   // Filter data by current household
@@ -58,6 +59,7 @@ export default function MealsSection() {
   const [viewRecipeOpen, setViewRecipeOpen] = useState(false)
   const [selectedViewRecipe, setSelectedViewRecipe] = useState<Recipe | null>(null)
   const [quickRecipeOpen, setQuickRecipeOpen] = useState(false)
+  const [newTag, setNewTag] = useState('')
   const autoGrow = (el: HTMLTextAreaElement | null) => {
     if (!el) return
     el.style.height = 'auto'
@@ -208,6 +210,8 @@ export default function MealsSection() {
       return
     }
 
+    const tags = quickRecipeForm.tags.split(',').map(t => t.trim().toLowerCase()).filter(t => t)
+
     const newRecipe: Recipe = {
       id: Date.now().toString(),
       householdId: currentHousehold.id,
@@ -218,11 +222,14 @@ export default function MealsSection() {
       cookTime: quickRecipeForm.cookTime.trim() || undefined,
       servings: quickRecipeForm.servings.trim() || undefined,
       category: quickRecipeForm.category,
-      tags: quickRecipeForm.tags.split(',').map(t => t.trim().toLowerCase()).filter(t => t),
+      tags,
       createdAt: Date.now()
     }
 
     setRecipes((current) => [...(current ?? []), newRecipe])
+    if (tags.length > 0) {
+      setTagLibrary((prev) => Array.from(new Set([...(prev ?? []), ...tags])))
+    }
     
     // Auto-select the new recipe
     setMealForm(prev => ({
@@ -812,6 +819,54 @@ export default function MealsSection() {
                   onChange={(e) => setQuickRecipeForm({ ...quickRecipeForm, tags: e.target.value })}
                   placeholder="e.g., quick, healthy, vegetarian"
                 />
+                {tagLibrary && tagLibrary.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {tagLibrary.map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant="secondary"
+                        className="cursor-pointer"
+                        onClick={() => {
+                          const current = quickRecipeForm.tags ? quickRecipeForm.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+                          if (!current.includes(tag)) {
+                            setQuickRecipeForm({ ...quickRecipeForm, tags: [...current, tag].join(', ') })
+                          }
+                        }}
+                      >
+                        + {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Add tag to library"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        if (newTag.trim()) {
+                          const tag = newTag.trim().toLowerCase()
+                          setTagLibrary((prev) => Array.from(new Set([...(prev ?? []), tag])))
+                          setNewTag('')
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (newTag.trim()) {
+                        const tag = newTag.trim().toLowerCase()
+                        setTagLibrary((prev) => Array.from(new Set([...(prev ?? []), tag])))
+                        setNewTag('')
+                      }
+                    }}
+                  >
+                    Save tag
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-2">

@@ -42,6 +42,7 @@ const SESSION_MAX_AGE_SECONDS =
   Number(process.env.SESSION_MAX_AGE_DAYS || 14) * 24 * 60 * 60;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const devResetEnabled = NODE_ENV === 'development' && process.env.ALLOW_DEV_RESET === 'true';
+const rateLimitEnabled = process.env.RATE_LIMIT_ENABLED === 'true';
 
 // Respect proxy headers when deployed behind a load balancer (needed for rate limiting/IP keys)
 app.set('trust proxy', true);
@@ -628,25 +629,29 @@ app.use((req, res, next) => {
   next();
 });
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 1000, // allow higher auth/sync traffic bursts
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (_req, res) => sendError(res, 429, 'Too many requests', 'RATE_LIMITED')
-});
+if (rateLimitEnabled) {
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1000, // allow higher auth/sync traffic bursts
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (_req, res) => sendError(res, 429, 'Too many requests', 'RATE_LIMITED')
+  });
 
-app.use('/api/auth', authLimiter);
+  app.use('/api/auth', authLimiter);
 
-const writeLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5000, // generous headroom for sync
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (_req, res) => sendError(res, 429, 'Too many requests', 'RATE_LIMITED')
-});
+  const writeLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5000, // generous headroom for sync
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (_req, res) => sendError(res, 429, 'Too many requests', 'RATE_LIMITED')
+  });
 
-app.use(['/api/data', '/api/households'], writeLimiter);
+  app.use(['/api/data', '/api/households'], writeLimiter);
+} else {
+  log('INFO', 'Rate limiting disabled (RATE_LIMIT_ENABLED not set to true)');
+}
 
 const requireAuth = (req, res, next) => {
   if (!req.auth?.userId) {
