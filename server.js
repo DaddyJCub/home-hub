@@ -627,7 +627,7 @@ app.use((req, res, next) => {
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 50,
+  max: 200, // loosen to avoid auth sync spikes
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req, res) => sendError(res, 429, 'Too many requests', 'RATE_LIMITED')
@@ -637,7 +637,7 @@ app.use('/api/auth', authLimiter);
 
 const writeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 1000, // allow more sync traffic before throttling
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req, res) => sendError(res, 429, 'Too many requests', 'RATE_LIMITED')

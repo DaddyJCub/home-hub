@@ -87,7 +87,7 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
   const [filterPriority, setFilterPriority] = useState<string>('all')
   const [sortBy, setSortBy] = useState<'dueDate' | 'priority' | 'room' | 'created'>('dueDate')
   const [quickChoreTitle, setQuickChoreTitle] = useState('')
-  const [quickChoreRoom, setQuickChoreRoom] = useState('')
+const [quickChoreRoom, setQuickChoreRoom] = useState('none')
   
   // Form state
   const [choreForm, setChoreForm] = useState({
@@ -500,7 +500,7 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       householdId: currentHousehold.id,
       title: quickChoreTitle.trim(),
-      room: quickChoreRoom || undefined,
+      room: quickChoreRoom === 'none' ? undefined : quickChoreRoom,
       frequency: 'once',
       scheduleType: 'fixed',
       completed: false,
@@ -510,7 +510,7 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
     } as Chore)
     setChores([...allChores, newChore])
     setQuickChoreTitle('')
-    setQuickChoreRoom('')
+    setQuickChoreRoom('none')
     toast.success('Chore added')
   }
 
@@ -965,7 +965,7 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
               <SelectValue placeholder="Room (optional)" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">No room</SelectItem>
+              <SelectItem value="none">No room</SelectItem>
               {(rooms || []).map((room) => (
                 <SelectItem key={room} value={room}>
                   {room}
