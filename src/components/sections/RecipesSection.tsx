@@ -168,6 +168,7 @@ export default function RecipesSection({ initialRecipeId, onRecipeViewed }: Reci
         tags: Array.isArray(parsed.tags) 
           ? parsed.tags.join(', ') 
           : (parsed.tags || ''),
+        category: parsed.category || recipeForm.category || 'dinner',
         sourceUrl: recipeForm.sourceUrl,
         imageUrl: parsed.imageUrl || ''
       })

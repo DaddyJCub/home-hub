@@ -87,8 +87,7 @@ export async function sendTestPush(): Promise<{ success: boolean; message: strin
       data: { url: '/' },
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      tag: 'test-push',
-      renotify: true,
+      tag: 'test-push'
     })
     return { success: true, message: 'Test push sent' }
   } catch (err: any) {

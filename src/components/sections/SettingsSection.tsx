@@ -78,6 +78,7 @@ export default function SettingsSection() {
   const [onboardingStatus, setOnboardingStatus] = useKV<{ completedSteps?: string[]; skipped?: boolean }>('onboarding-status', { completedSteps: [], skipped: false })
   
   const dashboardWidgets = dashboardWidgetsRaw ?? []
+  const resolvedThemeId = currentThemeId || 'warm-home'
   const members = householdMembers ?? []
   const [joinCode, setJoinCode] = useState('')
   const chores = choresRaw ?? []
@@ -112,7 +113,7 @@ export default function SettingsSection() {
 
   const handleDarkModeToggle = (checked: boolean) => {
     setIsDarkMode(checked)
-    const theme = getThemeById(currentThemeId)
+    const theme = getThemeById(resolvedThemeId)
     if (theme) {
       applyTheme(theme, checked)
     }

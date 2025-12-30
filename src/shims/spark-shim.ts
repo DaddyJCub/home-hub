@@ -52,3 +52,19 @@ if (typeof window !== 'undefined') {
     user: async () => null
   }
 }
+
+declare global {
+  interface Window {
+    spark?: {
+      kv: {
+        keys: () => Promise<string[]>
+        get: (key: string) => Promise<any>
+        set: (key: string, value: any) => Promise<void>
+        delete: (key: string) => Promise<void>
+      }
+      llmPrompt?: ((parts: string[], html: string) => any) | undefined
+      llm?: ((prompt: any, model: string, streaming?: boolean) => Promise<string | undefined>) | undefined
+      user?: () => Promise<unknown>
+    }
+  }
+}

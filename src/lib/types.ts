@@ -5,6 +5,7 @@ export interface User {
   email: string
   displayName: string
   createdAt: number
+  passwordHash?: string
 }
 
 export interface Household {
@@ -58,6 +59,7 @@ export interface Chore {
   scheduleType?: ChoreScheduleType // fixed time vs after completion
   completed: boolean
   dueAt?: number // next/current occurrence timestamp
+  nextDue?: number // legacy/derived next occurrence timestamp
   lastCompletedAt?: number
   lastCompletedBy?: string
   createdAt: number
@@ -129,6 +131,7 @@ export interface Meal {
   isNote?: boolean // For notes like "leftovers", "eating out", etc.
   servings?: number // How many servings for this meal
   notes?: string
+  createdAt?: number
 }
 
 export type EventCategory = 'personal' | 'work' | 'appointment' | 'booking' | 'vacation' | 'holiday' | 'school' | 'sports' | 'medical' | 'birthday' | 'other'

@@ -30,6 +30,12 @@
       ],
       "@github/spark/spark": [
         "./src/shims/spark-shim.ts"
+      ],
+      "date-fns": [
+        "./node_modules/date-fns/index.d.ts"
+      ],
+      "date-fns/*": [
+        "./node_modules/date-fns/*"
       ]
     },
   },

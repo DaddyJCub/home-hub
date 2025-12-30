@@ -4,7 +4,7 @@ import { normalizeChore } from './chore-utils'
 
 type ValidationResult<T> = { valid: boolean; normalized: T; errors: string[] }
 
-const buildResult = <T>(parsed: { success: boolean; data?: T; error?: any }, fallback: T): ValidationResult<T> => {
+const buildResult = <T>(parsed: any, fallback: T): ValidationResult<T> => {
   if (parsed.success) {
     return { valid: true, normalized: parsed.data as T, errors: [] }
   }
@@ -56,7 +56,10 @@ const choreSchema = z
   .passthrough()
 
 export function validateChore(chore: Chore): ValidationResult<Chore> {
-  const normalized = normalizeChore(chore)
+  const normalized = normalizeChore({
+    ...chore,
+    createdAt: chore.createdAt ?? Date.now()
+  } as Chore)
   const parsed = choreSchema.safeParse(normalized)
   return buildResult(parsed, normalized)
 }
@@ -83,7 +86,8 @@ export function validateShopping(item: ShoppingItem): ValidationResult<ShoppingI
     name: (item.name || '').trim(),
     quantity: item.quantity ?? '1',
     householdId: item.householdId || '',
-    purchased: item.purchased ?? false
+    purchased: item.purchased ?? false,
+    createdAt: item.createdAt ?? Date.now()
   } as ShoppingItem
   const parsed = shoppingSchema.safeParse(defaults)
   return buildResult(parsed, defaults)
@@ -108,7 +112,8 @@ export function validateMeal(meal: Meal): ValidationResult<Meal> {
     ...meal,
     id: meal.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     name: meal.name || 'Untitled meal',
-    householdId: meal.householdId || ''
+    householdId: meal.householdId || '',
+    createdAt: (meal as any).createdAt ?? Date.now()
   } as Meal
   const parsed = mealSchema.safeParse(defaults)
   return buildResult(parsed, defaults)
@@ -164,6 +169,8 @@ export function validateRecipe(recipe: Recipe): ValidationResult<Recipe> {
     name: recipe.name || 'Untitled recipe',
     ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
     instructions: recipe.instructions || '',
+    category: recipe.category || 'other',
+    createdAt: recipe.createdAt ?? Date.now(),
     householdId: recipe.householdId || ''
   } as Recipe
   const parsed = recipeSchema.safeParse(defaults)
@@ -217,7 +224,8 @@ export function validateEvent(event: CalendarEvent): ValidationResult<CalendarEv
     id: event.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     title: event.title || 'Untitled event',
     householdId: event.householdId || '',
-    category: event.category || 'other'
+    category: event.category || 'other',
+    createdAt: event.createdAt ?? Date.now()
   } as CalendarEvent
   const parsed = eventSchema.safeParse(defaults)
   return buildResult(parsed, defaults)

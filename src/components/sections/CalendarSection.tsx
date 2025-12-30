@@ -116,6 +116,7 @@ export default function CalendarSection() {
   const { currentHousehold, householdMembers } = useAuth()
   const [eventsRaw, setEvents] = useKV<CalendarEvent[]>('calendar-events', [])
   const [selectedMember] = useKV<string>('selected-member-filter', 'all')
+  const memberFilter = selectedMember ?? 'all'
   
   // Filter events by current household
   const allEvents = eventsRaw ?? []
@@ -439,9 +440,9 @@ export default function CalendarSection() {
     })
     
     // Apply member filter
-    if (selectedMember !== 'all') {
+    if (memberFilter !== 'all') {
       dayEvents = dayEvents.filter((evt) => 
-        evt.bookedBy === selectedMember || evt.attendees?.includes(selectedMember)
+        evt.bookedBy === memberFilter || evt.attendees?.includes(memberFilter)
       )
     }
     
@@ -455,7 +456,7 @@ export default function CalendarSection() {
       }
       return 0
     })
-  }, [expandedEvents, selectedMember])
+  }, [expandedEvents, memberFilter])
 
   const toggleAttendee = (memberId: string) => {
     setEventForm((prev) => ({
@@ -530,9 +531,9 @@ export default function CalendarSection() {
         <div>
           <h2 className="text-3xl font-bold">Calendar</h2>
           <p className="text-sm text-muted-foreground">
-            {selectedMember === 'all'
+            {memberFilter === 'all'
               ? 'Shared household events and bookings'
-              : `${selectedMember}'s events and bookings`}
+              : `${memberFilter}'s events and bookings`}
           </p>
         </div>
         <div className="flex items-center gap-2">

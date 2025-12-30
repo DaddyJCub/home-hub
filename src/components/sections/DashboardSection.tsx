@@ -50,6 +50,8 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   const [recipesRaw] = useKV<Recipe[]>('recipes', [])
   const [eventsRaw] = useKV<CalendarEvent[]>('calendar-events', [])
   const [selectedMember] = useKV<string>('selected-member-filter', 'all')
+  const memberFilter = selectedMember ?? 'all'
+  const [challengeEnabled, setChallengeEnabled] = useKV<boolean>('challenge-enabled', true)
 
   // Collapsible states
   const [showAllChores, setShowAllChores] = useState(false)
@@ -149,13 +151,13 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   }, [currentHousehold, allChores, allCompletions, setChores, setCompletions, computeNextDueAt])
 
   // Filtered data based on selected member
-  const filteredChores = selectedMember === 'all' 
+  const filteredChores = memberFilter === 'all' 
     ? chores 
-    : chores.filter(c => c.assignedTo === selectedMember)
+    : chores.filter(c => c.assignedTo === memberFilter)
 
-  const filteredEvents = selectedMember === 'all'
+  const filteredEvents = memberFilter === 'all'
     ? events
-    : events.filter(e => e.bookedBy === selectedMember || e.attendees?.includes(selectedMember))
+    : events.filter(e => e.bookedBy === memberFilter || e.attendees?.includes(memberFilter))
 
   // Computed values
   const pendingChoresWithStatus = useMemo(() => {

@@ -635,7 +635,7 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button variant="ghost" size="xs" className="h-6 px-2 text-xs" onClick={() => setManageRoomsOpen(true)}>
+                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setManageRoomsOpen(true)}>
                       <Gear size={12} className="mr-1" /> Manage Rooms
                     </Button>
                   </div>
@@ -862,12 +862,13 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
                     <div key={room} className="flex items-center justify-between rounded border px-2 py-1 text-sm">
                       <span>{room}</span>
                       <div className="flex gap-1">
-                        <Button size="xs" variant="ghost" onClick={() => { setRoomEditIndex(idx); setNewRoomName(room) }}>
+                        <Button size="sm" variant="ghost" className="h-7" onClick={() => { setRoomEditIndex(idx); setNewRoomName(room) }}>
                           Rename
                         </Button>
                         <Button
-                          size="xs"
+                          size="sm"
                           variant="ghost"
+                          className="h-7"
                           onClick={() => {
                             setRooms((current) => (current || []).filter((r) => r !== room))
                             if (filterRoom === room) setFilterRoom('all')
