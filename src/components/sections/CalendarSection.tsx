@@ -131,8 +131,6 @@ export default function CalendarSection() {
   const [showEventDetails, setShowEventDetails] = useState<CalendarEvent | null>(null)
   const [quickEventTitle, setQuickEventTitle] = useState('')
   const [quickEventCategory, setQuickEventCategory] = useState<EventCategory>('personal')
-  const [quickEventTitle, setQuickEventTitle] = useState('')
-  const [quickEventCategory, setQuickEventCategory] = useState<EventCategory>('personal')
 
   // Multi-day selection state
   const [isSelecting, setIsSelecting] = useState(false)

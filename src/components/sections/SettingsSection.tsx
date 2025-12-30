@@ -76,8 +76,6 @@ export default function SettingsSection() {
   const [showUiDiag, setShowUiDiag] = useKV<boolean>('ui-diagnostics-enabled', false)
   const [challengeEnabled, setChallengeEnabled] = useKV<boolean>('challenge-enabled', true)
   const [onboardingStatus, setOnboardingStatus] = useKV<{ completedSteps?: string[]; skipped?: boolean }>('onboarding-status', { completedSteps: [], skipped: false })
-  const [challengeEnabled, setChallengeEnabled] = useKV<boolean>('challenge-enabled', true)
-  const [onboardingStatus, setOnboardingStatus] = useKV<{ completedSteps?: string[]; skipped?: boolean }>('onboarding-status', { completedSteps: [], skipped: false })
   
   const dashboardWidgets = dashboardWidgetsRaw ?? []
   const members = householdMembers ?? []

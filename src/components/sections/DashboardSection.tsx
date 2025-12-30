@@ -18,8 +18,6 @@ import { computeNextDueAt, getChoreStatus, normalizeChore, isCompletedForToday }
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useKV } from '@github/spark/hooks'
 import { OnboardingChecklist } from '@/components/OnboardingChecklist'
-import { Progress } from '@/components/ui/progress'
-import { OnboardingChecklist } from '@/components/OnboardingChecklist'
 
 interface DashboardSectionProps {
   onNavigate?: (tab: string) => void
@@ -56,7 +54,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   // Collapsible states
   const [showAllChores, setShowAllChores] = useState(false)
   const [showAllEvents, setShowAllEvents] = useState(false)
-  const [showShopping, setShowShopping] = useState(true)
+  const [showShoppingPanel, setShowShoppingPanel] = useState(true)
 
   const allChores = choresRaw ?? []
   const allCompletions = completionsRaw ?? []
@@ -258,7 +256,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   const greeting = getGreeting()
   const GreetingIcon = greeting.icon
   const [enabledTabsRaw] = useKV<string[]>('enabled-tabs', ['dashboard', 'chores', 'shopping', 'meals', 'calendar', 'recipes'])
-  const showShopping = enabledTabsRaw?.includes('shopping') ?? true
+  const showShoppingTab = enabledTabsRaw?.includes('shopping') ?? true
   const showMeals = enabledTabsRaw?.includes('meals') ?? true
   const showCalendar = enabledTabsRaw?.includes('calendar') ?? true
 
@@ -311,7 +309,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
           highlight={highPriorityChores.length > 0}
           onClick={() => onNavigate?.('chores')}
         />
-        {showShopping && (
+        {showShoppingTab && (
           <QuickStatPill
             icon={ShoppingCart}
             label="Shopping"
@@ -749,8 +747,8 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
       )}
 
       {/* Shopping List - Compact */}
-      {unpurchasedItems.length > 0 && (
-        <Collapsible open={showShopping} onOpenChange={setShowShopping}>
+      {showShoppingTab && unpurchasedItems.length > 0 && (
+        <Collapsible open={showShoppingPanel} onOpenChange={setShowShoppingPanel}>
           <Card>
             <CollapsibleTrigger asChild>
               <CardHeader className="pb-2 pt-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors">
@@ -760,7 +758,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                     Shopping List
                     <Badge variant="secondary" className="ml-1">{unpurchasedItems.length}</Badge>
                   </span>
-                  {showShopping ? <CaretUp size={16} /> : <CaretDown size={16} />}
+                  {showShoppingPanel ? <CaretUp size={16} /> : <CaretDown size={16} />}
                 </CardTitle>
               </CardHeader>
             </CollapsibleTrigger>
