@@ -238,10 +238,12 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
     const roomList = roomsRaw && roomsRaw.length > 0 ? roomsRaw : ['General']
     roomList.forEach(r => { byRoom[r] = { total: 0, pending: 0 } })
     chores.forEach(chore => {
-      const room = chore.room || 'General'
-      if (!byRoom[room]) byRoom[room] = { total: 0, pending: 0 }
-      byRoom[room].total += 1
-      if (!chore.completed) byRoom[room].pending += 1
+      const rooms = chore.rooms?.length ? chore.rooms : [chore.room || 'General']
+      rooms.forEach((room) => {
+        if (!byRoom[room]) byRoom[room] = { total: 0, pending: 0 }
+        byRoom[room].total += 1
+        if (!chore.completed) byRoom[room].pending += 1
+      })
     })
     return Object.entries(byRoom).map(([room, data]) => ({
       room,

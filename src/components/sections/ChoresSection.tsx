@@ -8,7 +8,7 @@ import {
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -51,6 +51,7 @@ const priorityConfig = {
 }
 
 const COMPLETED_RECENT_WINDOW_HOURS = 24
+const getChoreRooms = (chore: Chore) => chore.rooms?.length ? chore.rooms : (chore.room ? [chore.room] : [])
 
 export default function ChoresSection({ highlightChoreId }: { highlightChoreId?: string | null }) {
   const { currentHousehold, householdMembers } = useAuth()
@@ -77,6 +78,8 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
   const [trackingChoreId, setTrackingChoreId] = useState<string | null>(null)
   const [trackingStartTime, setTrackingStartTime] = useState<number | null>(null)
   const [completeDialogChore, setCompleteDialogChore] = useState<Chore | null>(null)
+  const [roomCompleteChore, setRoomCompleteChore] = useState<Chore | null>(null)
+  const [roomSelection, setRoomSelection] = useState<string[]>([])
   const [detailChore, setDetailChore] = useState<Chore | null>(null)
   const [manageRoomsOpen, setManageRoomsOpen] = useState(false)
   const [newRoomName, setNewRoomName] = useState('')
@@ -98,6 +101,7 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
     scheduleType: 'fixed' as 'fixed' | 'after_completion',
     customIntervalDays: 7,
     room: '',
+    rooms: [] as string[],
     priority: 'medium' as 'low' | 'medium' | 'high',
     dueDateTime: '',
     dueDate: '',
@@ -113,7 +117,7 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
   const resetForm = useCallback(() => {
     setChoreForm({
       title: '', description: '', assignedTo: '', frequency: 'once', scheduleType: 'fixed',
-      customIntervalDays: 7, room: '', priority: 'medium', dueDateTime: '', dueDate: '',
+      customIntervalDays: 7, room: '', rooms: [], priority: 'medium', dueDateTime: '', dueDate: '',
       notes: '', daysOfWeek: [], estimatedMinutes: '', rotation: 'none',
       rotationOrder: [], trackTime: false
     })
@@ -150,6 +154,10 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
 
     const assignedValue = choreForm.assignedTo === 'anyone' ? '' : choreForm.assignedTo
 
+    const roomsSelected = (choreForm.rooms && choreForm.rooms.length > 0)
+      ? choreForm.rooms
+      : (choreForm.room ? [choreForm.room] : [])
+
     const choreData: Partial<Chore> = {
       title: choreForm.title.trim(),
       description: choreForm.description.trim() || undefined,
@@ -158,6 +166,7 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
       scheduleType: choreForm.scheduleType,
       customIntervalDays: choreForm.frequency === 'custom' ? choreForm.customIntervalDays : undefined,
       room: choreForm.room || undefined,
+      rooms: roomsSelected,
       priority: choreForm.priority,
       dueAt: initialDue,
       dueDate: choreForm.frequency === 'once' ? dueInput || undefined : undefined,
@@ -194,13 +203,25 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
   }
 
   // Complete chore with tracking
-  const handleCompleteChore = (chore: Chore, actualMinutes?: number, completedBy?: string, notes?: string) => {
+  const handleCompleteChore = (chore: Chore, actualMinutes?: number, completedBy?: string, notes?: string, roomsOverride?: string | string[]) => {
     const now = Date.now()
     const completer = completedBy || chore.assignedTo || 'Anyone'
     
     const normalized = normalizeChore(chore)
     const status = getChoreStatus(normalized, now)
     const wasOnTime = !status.isOverdue
+    const roomsList = getChoreRooms(normalized)
+    const targetRooms = Array.isArray(roomsOverride)
+      ? roomsOverride
+      : roomsOverride
+        ? [roomsOverride]
+        : roomsList.length > 0
+          ? roomsList
+          : []
+    const completedRoomsSet = new Set(normalized.completedRooms || [])
+    targetRooms.forEach(r => completedRoomsSet.add(r))
+    const completedRooms = Array.from(completedRoomsSet)
+    const allRoomsDone = roomsList.length === 0 ? true : completedRooms.length >= roomsList.length
     
     // Create completion record
     const completion: ChoreCompletion = {
@@ -209,7 +230,8 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
       completedBy: completer,
       householdId: currentHousehold!.id,
       completedAt: now,
-      notes: notes || undefined
+      notes: notes || undefined,
+      room: targetRooms[0]
     }
     const prevCompletions = [...allCompletions]
     setCompletions([...allCompletions, completion])
@@ -218,50 +240,60 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
     const updatedChore: Chore = { ...normalized }
     updatedChore.lastCompletedAt = now
     updatedChore.lastCompletedBy = completer
-    updatedChore.totalCompletions = (chore.totalCompletions || 0) + 1
+    updatedChore.totalCompletions = (chore.totalCompletions || 0) + Math.max(1, targetRooms.length || 1)
+    updatedChore.completedRooms = completedRooms
     
-    // Update streak
-    if (wasOnTime && chore.frequency !== 'once') {
-      updatedChore.streak = (chore.streak || 0) + 1
-      if (updatedChore.streak > (chore.bestStreak || 0)) {
-        updatedChore.bestStreak = updatedChore.streak
+    // Update streak and recurrence only when all rooms are done
+    if (allRoomsDone) {
+      // Update streak
+      if (wasOnTime && chore.frequency !== 'once') {
+        updatedChore.streak = (chore.streak || 0) + 1
+        if (updatedChore.streak > (chore.bestStreak || 0)) {
+          updatedChore.bestStreak = updatedChore.streak
+        }
+      } else {
+        updatedChore.streak = 0
       }
-    } else {
-      updatedChore.streak = 0
-    }
-    
-    // Update average time if tracked
-    if (actualMinutes && chore.trackTime) {
-      const prevAvg = chore.averageCompletionTime || chore.estimatedMinutes || actualMinutes
-      const prevCount = (chore.totalCompletions || 1) - 1
-      updatedChore.averageCompletionTime = Math.round((prevAvg * prevCount + actualMinutes) / (prevCount + 1))
-    }
-    
-    // Handle recurring vs one-time
-    if (chore.frequency === 'once') {
-      updatedChore.completed = true
+      
+      // Update average time if tracked
+      if (actualMinutes && chore.trackTime) {
+        const prevAvg = chore.averageCompletionTime || chore.estimatedMinutes || actualMinutes
+        const prevCount = (chore.totalCompletions || 1) - 1
+        updatedChore.averageCompletionTime = Math.round((prevAvg * prevCount + actualMinutes) / (prevCount + 1))
+      }
+      
+      // Handle recurring vs one-time
+      if (chore.frequency === 'once') {
+        updatedChore.completed = true
+      } else {
+        updatedChore.completed = false
+        updatedChore.dueAt = computeNextDueAt(updatedChore, now)
+        updatedChore.completedRooms = []
+        
+        // Handle rotation
+        if (chore.rotation === 'rotate' && chore.rotationOrder && chore.rotationOrder.length > 0) {
+          const nextIndex = ((chore.currentRotationIndex || 0) + 1) % chore.rotationOrder.length
+          updatedChore.currentRotationIndex = nextIndex
+          updatedChore.assignedTo = chore.rotationOrder[nextIndex]
+        } else if ((chore.rotation === 'anyone' || !chore.assignedTo) && members.length > 0) {
+          const randomMember = members[Math.floor(Math.random() * members.length)]
+          updatedChore.assignedTo = randomMember.displayName
+        }
+      }
     } else {
       updatedChore.completed = false
-      updatedChore.dueAt = computeNextDueAt(updatedChore, now)
-      
-      // Handle rotation
-      if (chore.rotation === 'rotate' && chore.rotationOrder && chore.rotationOrder.length > 0) {
-        const nextIndex = ((chore.currentRotationIndex || 0) + 1) % chore.rotationOrder.length
-        updatedChore.currentRotationIndex = nextIndex
-        updatedChore.assignedTo = chore.rotationOrder[nextIndex]
-      } else if ((chore.rotation === 'anyone' || !chore.assignedTo) && members.length > 0) {
-        const randomMember = members[Math.floor(Math.random() * members.length)]
-        updatedChore.assignedTo = randomMember.displayName
-      }
     }
     
     const prevChores = [...allChores]
     setChores(allChores.map(c => c.id === chore.id ? updatedChore : c))
     
     // Show streak toast if relevant
-    const description = updatedChore.streak && updatedChore.streak >= 3
-      ? `🔥 ${updatedChore.streak} day streak!`
-      : 'Marked complete'
+    const remainingRooms = roomsList.filter(r => !completedRooms.includes(r))
+    const description = !allRoomsDone
+      ? `${remainingRooms.length} room(s) left for this chore`
+      : updatedChore.streak && updatedChore.streak >= 3
+        ? `🔥 ${updatedChore.streak} day streak!`
+        : 'Marked complete'
 
     toast.success('Chore completed', {
       description,
@@ -331,6 +363,7 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
     setEditingChore(chore)
     const normalized = normalizeChore(chore)
     const dueDateTime = normalized.dueAt ? new Date(normalized.dueAt).toISOString().slice(0,16) : ''
+    const roomsList = getChoreRooms(normalized)
     setChoreForm({
       title: chore.title,
       description: chore.description || '',
@@ -338,7 +371,8 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
       frequency: chore.frequency,
       scheduleType: chore.scheduleType || 'fixed',
       customIntervalDays: chore.customIntervalDays || 7,
-      room: chore.room || '',
+      room: chore.room || roomsList[0] || '',
+      rooms: roomsList,
       priority: chore.priority || 'medium',
       dueDateTime,
       dueDate: chore.dueDate || (chore.frequency === 'once' && dueDateTime ? dueDateTime.slice(0, 10) : ''),
@@ -367,11 +401,32 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
     }
   }
 
+  const beginCompleteChore = (chore: Chore) => {
+    const roomsList = getChoreRooms(chore)
+    const remaining = roomsList.filter(r => !(chore.completedRooms || []).includes(r))
+
+    if (roomsList.length > 1 && remaining.length > 0) {
+      setRoomCompleteChore(chore)
+      setRoomSelection(remaining)
+      return
+    }
+
+    if (chore.trackTime) {
+      setCompleteDialogChore(chore)
+      return
+    }
+
+    handleCompleteChore(chore, undefined, undefined, undefined, remaining.length > 0 ? remaining : undefined)
+  }
+
   // Filtered and sorted chores
   const processedChores = useMemo(() => {
     let filtered = chores.filter(chore => {
       if (selectedMember !== 'all' && chore.assignedTo !== selectedMember) return false
-      if (filterRoom !== 'all' && chore.room !== filterRoom) return false
+      if (filterRoom !== 'all') {
+        const roomsList = getChoreRooms(chore)
+        if (!roomsList.includes(filterRoom)) return false
+      }
       if (filterPriority !== 'all' && chore.priority !== filterPriority) return false
       return true
     })
@@ -398,7 +453,7 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
           return aDue - bDue
         }
         case 'room':
-          return (a.chore.room || '').localeCompare(b.chore.room || '')
+          return (getChoreRooms(a.chore)[0] || '').localeCompare(getChoreRooms(b.chore)[0] || '')
         default:
           return b.chore.createdAt - a.chore.createdAt
       }
@@ -437,12 +492,25 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
   const roomSections = useMemo(() => {
     const names = new Set<string>()
     ;(rooms || []).forEach((r) => names.add(r))
-    chores.forEach((c) => names.add(c.room || 'Unassigned'))
+    chores.forEach((c) => {
+      const list = getChoreRooms(c)
+      if (list.length === 0) {
+        names.add('Unassigned')
+      } else {
+        list.forEach((r) => names.add(r))
+      }
+    })
 
     const sorted = Array.from(names).sort((a, b) => a.localeCompare(b))
     return sorted.map((room) => {
-      const pending = pendingChores.filter(({ chore }) => (chore.room || 'Unassigned') === room)
-      const total = processedChores.filter(({ chore }) => (chore.room || 'Unassigned') === room)
+      const pending = pendingChores.filter(({ chore }) => {
+        const list = getChoreRooms(chore)
+        return (list.length === 0 ? 'Unassigned' : list).includes(room)
+      })
+      const total = processedChores.filter(({ chore }) => {
+        const list = getChoreRooms(chore)
+        return (list.length === 0 ? 'Unassigned' : list).includes(room)
+      })
       return { room, pending, total }
     })
   }, [rooms, chores, pendingChores, processedChores])
@@ -631,7 +699,7 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
                   </div>
                   <div className="space-y-1.5">
                     <Label>Room</Label>
-                    <Select value={choreForm.room} onValueChange={(v) => setChoreForm({ ...choreForm, room: v })}>
+                    <Select value={choreForm.room} onValueChange={(v) => setChoreForm({ ...choreForm, room: v, rooms: Array.from(new Set([...(choreForm.rooms || []), v])) })}>
                       <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
                         {(rooms || []).map(room => (
@@ -642,6 +710,33 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
                     <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setManageRoomsOpen(true)}>
                       <Gear size={12} className="mr-1" /> Manage Rooms
                     </Button>
+                    {rooms && rooms.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {rooms.map((room) => {
+                          const checked = choreForm.rooms?.includes(room)
+                          return (
+                            <Badge
+                              key={room}
+                              variant={checked ? 'secondary' : 'outline'}
+                              className="cursor-pointer text-[11px]"
+                              onClick={() => {
+                                setChoreForm((prev) => {
+                                  const next = new Set(prev.rooms || [])
+                                  if (checked) {
+                                    next.delete(room)
+                                  } else {
+                                    next.add(room)
+                                  }
+                                  return { ...prev, rooms: Array.from(next) }
+                                })
+                              }}
+                            >
+                              {checked ? '✓ ' : ''}{room}
+                            </Badge>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
                 
@@ -1240,7 +1335,7 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
               status={status}
               members={members}
               isTracking={trackingChoreId === chore.id}
-              onComplete={() => chore.trackTime ? setCompleteDialogChore(chore) : handleCompleteChore(chore)}
+              onComplete={() => beginCompleteChore(chore)}
               onSkip={() => handleSkipChore(chore)}
               onEdit={() => openEditDialog(chore)}
               onDelete={() => handleDeleteChore(chore.id)}
@@ -1264,9 +1359,61 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
               chore={completeDialogChore}
               members={members}
               trackingStartTime={trackingStartTime}
-              onComplete={(minutes, completedBy, notes) => handleCompleteChore(completeDialogChore, minutes, completedBy, notes)}
+              onComplete={(minutes, completedBy, notes, roomsPicked) => handleCompleteChore(completeDialogChore, minutes, completedBy, notes, roomsPicked)}
               onCancel={() => setCompleteDialogChore(null)}
             />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Multi-room completion dialog */}
+      <Dialog open={!!roomCompleteChore} onOpenChange={() => { setRoomCompleteChore(null); setRoomSelection([]) }}>
+        <DialogContent className="max-w-md">
+          {roomCompleteChore && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Select rooms to mark complete</DialogTitle>
+                <DialogDescription>{roomCompleteChore.title}</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  {getChoreRooms(roomCompleteChore).map((room) => {
+                    const checked = roomSelection.includes(room)
+                    return (
+                      <label key={room} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(val) => {
+                            setRoomSelection((prev) => {
+                              if (val) return Array.from(new Set([...prev, room]))
+                              return prev.filter((r) => r !== room)
+                            })
+                          }}
+                        />
+                        <span>{room}</span>
+                        {(roomCompleteChore.completedRooms || []).includes(room) && (
+                          <Badge variant="secondary" className="text-[10px]">Already done</Badge>
+                        )}
+                      </label>
+                    )
+                  })}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1"
+                    onClick={() => {
+                      const selection = roomSelection.length > 0 ? roomSelection : getChoreRooms(roomCompleteChore)
+                      handleCompleteChore(roomCompleteChore, undefined, undefined, undefined, selection)
+                      setRoomCompleteChore(null)
+                      setRoomSelection([])
+                    }}
+                  >
+                    Mark complete
+                  </Button>
+                  <Button variant="outline" onClick={() => { setRoomCompleteChore(null); setRoomSelection([]) }}>Cancel</Button>
+                </div>
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
@@ -1280,11 +1427,7 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
               completions={completions.filter(c => c.choreId === detailChore.id)}
               members={members}
               onComplete={() => {
-                if (detailChore.trackTime) {
-                  setCompleteDialogChore(detailChore)
-                } else {
-                  handleCompleteChore(detailChore)
-                }
+                beginCompleteChore(detailChore)
                 setDetailChore(null)
               }}
               onSkip={() => {
@@ -1306,6 +1449,7 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
                   ...detailChore,
                   id: Date.now().toString(),
                   room,
+                  rooms: [room],
                   createdAt: Date.now(),
                   completed: false,
                   lastCompletedAt: undefined,
@@ -1400,13 +1544,13 @@ function ChoreCard({ chore, status, members, isTracking, onComplete, onSkip, onE
                     {chore.assignedTo}
                   </Badge>
                   
-                  {/* Room */}
-                  {chore.room && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                  {/* Rooms */}
+                  {getChoreRooms(chore).map((room) => (
+                    <Badge key={room} variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
                       <House size={10} />
-                      {chore.room}
+                      {room}
                     </Badge>
-                  )}
+                  ))}
                   
                   {/* Frequency */}
                   {chore.frequency !== 'once' && (
@@ -1505,7 +1649,7 @@ interface CompleteChoreFormProps {
   chore: Chore
   members: { id: string; displayName: string }[]
   trackingStartTime: number | null
-  onComplete: (minutes?: number, completedBy?: string, notes?: string) => void
+  onComplete: (minutes?: number, completedBy?: string, notes?: string, roomsPicked?: string[]) => void
   onCancel: () => void
 }
 
@@ -1518,12 +1662,15 @@ function CompleteChoreForm({ chore, members, trackingStartTime, onComplete, onCa
   })
   const [completedBy, setCompletedBy] = useState(chore.assignedTo)
   const [notes, setNotes] = useState('')
+  const rooms = getChoreRooms(chore)
+  const remainingRooms = rooms.filter(r => !(chore.completedRooms || []).includes(r))
+  const [roomChoice, setRoomChoice] = useState<string>(remainingRooms[0] || rooms[0] || '')
   
   return (
     <div className="space-y-4 pt-2">
       <div className="p-3 rounded-lg bg-muted/50">
         <p className="font-medium">{chore.title}</p>
-        {chore.room && <p className="text-sm text-muted-foreground">{chore.room}</p>}
+        {rooms.length > 0 && <p className="text-sm text-muted-foreground">Rooms: {rooms.join(', ')}</p>}
       </div>
       
       {chore.trackTime && (
@@ -1556,6 +1703,23 @@ function CompleteChoreForm({ chore, members, trackingStartTime, onComplete, onCa
           </Select>
         </div>
       )}
+
+      {rooms.length > 1 && (
+        <div className="space-y-1.5">
+          <Label>Room completed</Label>
+          <Select value={roomChoice} onValueChange={setRoomChoice}>
+            <SelectTrigger><SelectValue placeholder="Select room" /></SelectTrigger>
+            <SelectContent>
+              {rooms.map((r) => (
+                <SelectItem key={r} value={r}>{r}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {remainingRooms.length > 0 && (
+            <p className="text-xs text-muted-foreground">{remainingRooms.length} room(s) remaining</p>
+          )}
+        </div>
+      )}
       
       <div className="space-y-1.5">
         <Label>Notes (optional)</Label>
@@ -1568,7 +1732,10 @@ function CompleteChoreForm({ chore, members, trackingStartTime, onComplete, onCa
       </div>
       
       <div className="flex gap-2">
-        <Button onClick={() => onComplete(minutes, completedBy, notes)} className="flex-1">
+        <Button onClick={() => {
+          const roomsPicked = rooms.length > 1 ? [roomChoice] : rooms.length === 1 ? [rooms[0]] : undefined
+          onComplete(minutes, completedBy, notes, roomsPicked)
+        }} className="flex-1">
           <Check size={16} className="mr-1" />
           Complete
         </Button>
@@ -1592,11 +1759,12 @@ interface ChoreDetailViewProps {
   onDuplicate?: (room: string) => void
 }
 
-function ChoreDetailView({ chore, completions, members, onComplete, onSkip, onEdit, onDelete, onClose, rooms = [], onDuplicate }: ChoreDetailViewProps) {
+function ChoreDetailView({ chore, completions, members, onComplete, onSkip, onEdit, onDelete, onClose, rooms: availableRooms = [], onDuplicate }: ChoreDetailViewProps) {
   const priorityCfg = priorityConfig[chore.priority || 'medium']
   const normalized = normalizeChore(chore)
   const status = getChoreStatus(normalized)
   const recentCompletions = completions.sort((a, b) => b.completedAt - a.completedAt).slice(0, 10)
+  const choreRooms = getChoreRooms(chore)
   
   return (
     <div className="space-y-4">
@@ -1650,13 +1818,18 @@ function ChoreDetailView({ chore, completions, members, onComplete, onSkip, onEd
             </p>
           )}
         </div>
-        {chore.room && (
+        {choreRooms.length > 0 && (
           <div className="p-3 rounded-lg bg-muted/50">
-            <p className="text-xs text-muted-foreground mb-1">Room</p>
-            <p className="font-medium flex items-center gap-1">
-              <House size={14} />
-              {chore.room}
-            </p>
+            <p className="text-xs text-muted-foreground mb-1">Rooms</p>
+            <div className="flex flex-wrap gap-1">
+              {choreRooms.map((room) => (
+                <Badge key={room} variant="secondary" className="gap-1">
+                  <House size={12} />
+                  {room}
+                  {(chore.completedRooms || []).includes(room) && <span className="text-[10px]">done</span>}
+                </Badge>
+              ))}
+            </div>
           </div>
         )}
         {chore.estimatedMinutes && (
@@ -1797,7 +1970,7 @@ function ChoreDetailView({ chore, completions, members, onComplete, onSkip, onEd
         </Collapsible>
       )}
 
-      {rooms.length > 0 && onDuplicate && (
+      {availableRooms.length > 0 && onDuplicate && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground">Duplicate to another room</p>
           <Select onValueChange={(room) => onDuplicate(room)}>
@@ -1805,7 +1978,7 @@ function ChoreDetailView({ chore, completions, members, onComplete, onSkip, onEd
               <SelectValue placeholder="Select room" />
             </SelectTrigger>
             <SelectContent>
-              {rooms.filter(r => r !== chore.room).map(room => (
+              {availableRooms.filter(r => !choreRooms.includes(r)).map(room => (
                 <SelectItem key={room} value={room}>{room}</SelectItem>
               ))}
             </SelectContent>

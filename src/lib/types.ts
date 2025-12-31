@@ -40,6 +40,7 @@ export interface ChoreCompletion {
   scheduledFor?: string // the date it was scheduled for
   notes?: string
   skipped?: boolean // if it was skipped rather than completed
+  room?: string // room context for multi-room chores
 }
 
 export type ChoreFrequency = 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly' | 'custom'
@@ -64,6 +65,8 @@ export interface Chore {
   lastCompletedBy?: string
   createdAt: number
   room?: string
+  rooms?: string[] // allow assigning to multiple rooms
+  completedRooms?: string[] // rooms completed for current cycle
   priority?: 'low' | 'medium' | 'high'
   dueDate?: string
   notes?: string

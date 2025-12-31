@@ -19,6 +19,17 @@ export const frequencyToMs = (frequency: ChoreFrequency, customDays?: number) =>
 export const normalizeChore = (chore: Chore): Chore => {
   const scheduleType: ChoreScheduleType = chore.scheduleType || (chore.frequency === 'once' ? 'fixed' : 'after_completion')
   const lastCompletedAt = chore.lastCompletedAt ?? (chore as any).lastCompleted
+  const rooms = Array.from(
+    new Set(
+      (chore.rooms && chore.rooms.length > 0
+        ? chore.rooms
+        : chore.room
+          ? [chore.room]
+          : []
+      ).filter(Boolean)
+    )
+  )
+  const completedRooms = Array.from(new Set(chore.completedRooms || [])).filter(r => rooms.length === 0 || rooms.includes(r))
 
   let dueAt = chore.dueAt
   if (!dueAt) {
@@ -34,6 +45,8 @@ export const normalizeChore = (chore: Chore): Chore => {
 
   return {
     ...chore,
+    rooms,
+    completedRooms,
     scheduleType,
     dueAt,
     lastCompletedAt
