@@ -20,7 +20,6 @@ import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, DropdownMenuItem } from '@/components/ui/dropdown-menu'
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import type { Chore, ChoreCompletion, ChoreFrequency, ChoreRotation } from '@/lib/types'
 import { toast } from 'sonner'
 import { showUserFriendlyError, validateRequired } from '@/lib/error-helpers'
@@ -703,69 +702,33 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
                   </div>
                   <div className="space-y-1.5">
                     <Label>Rooms</Label>
-                    <div className="flex flex-wrap gap-2 items-center">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" size="sm" className="gap-2">
-                            <House size={12} />
-                            {choreForm.rooms && choreForm.rooms.length > 0
-                              ? `${choreForm.rooms.length} selected`
-                              : 'Select rooms'}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-56">
-                          <div className="space-y-2">
-                            {(rooms || []).map((room) => {
-                              const checked = choreForm.rooms?.includes(room)
-                              return (
-                                <label key={room} className="flex items-center gap-2 text-sm">
-                                  <Checkbox
-                                    checked={checked}
-                                    onCheckedChange={(val) => {
-                                      setChoreForm((prev) => {
-                                        const next = new Set(prev.rooms || [])
-                                        if (val) next.add(room)
-                                        else next.delete(room)
-                                        const arr = Array.from(next)
-                                        return { ...prev, rooms: arr, room: arr[0] || '' }
-                                      })
-                                    }}
-                                  />
-                                  <span>{room}</span>
-                                </label>
-                              )
-                            })}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setManageRoomsOpen(true)}>
-                        <Gear size={12} className="mr-1" /> Manage Rooms
-                      </Button>
-                    </div>
-                    {rooms && rooms.length > 0 && choreForm.rooms?.length > 0 && (
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {rooms.map((room) => {
-                          const checked = choreForm.rooms?.includes(room)
-                          if (!checked) return null
-                          return (
-                            <Badge
-                              key={room}
-                              variant="secondary"
-                              className="cursor-pointer text-[11px]"
-                              onClick={() => {
+                    <div className="flex flex-wrap gap-2">
+                      {(rooms || []).map((room) => {
+                        const checked = choreForm.rooms?.includes(room)
+                        return (
+                          <label key={room} className="flex items-center gap-2 text-sm border rounded px-2 py-1">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(val) => {
                                 setChoreForm((prev) => {
                                   const next = new Set(prev.rooms || [])
-                                  if (next.has(room)) next.delete(room)
+                                  if (val) next.add(room)
+                                  else next.delete(room)
                                   const arr = Array.from(next)
                                   return { ...prev, rooms: arr, room: arr[0] || '' }
                                 })
                               }}
-                            >
-                              ✓ {room}
-                            </Badge>
-                          )
-                        })}
-                      </div>
+                            />
+                            <span>{room}</span>
+                          </label>
+                        )
+                      })}
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setManageRoomsOpen(true)}>
+                        <Gear size={12} className="mr-1" /> Manage Rooms
+                      </Button>
+                    </div>
+                    {rooms && rooms.length > 0 && choreForm.rooms?.length === 0 && (
+                      <p className="text-xs text-muted-foreground">Select one or more rooms.</p>
                     )}
                   </div>
                 </div>
