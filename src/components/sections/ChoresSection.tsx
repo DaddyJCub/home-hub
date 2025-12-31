@@ -165,7 +165,7 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
       frequency: choreForm.frequency,
       scheduleType: choreForm.scheduleType,
       customIntervalDays: choreForm.frequency === 'custom' ? choreForm.customIntervalDays : undefined,
-      room: choreForm.room || undefined,
+      room: roomsSelected[0] || undefined,
       rooms: roomsSelected,
       priority: choreForm.priority,
       dueAt: initialDue,
