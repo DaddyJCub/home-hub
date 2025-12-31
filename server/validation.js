@@ -65,6 +65,8 @@ const choreSchema = (householdId) =>
       lastCompletedBy: z.string().max(200).optional(),
       createdAt: z.number().int().optional(),
       room: z.string().max(200).optional(),
+      rooms: z.array(z.string().max(200)).optional(),
+      completedRooms: z.array(z.string().max(200)).optional(),
       priority: z.enum(['low', 'medium', 'high']).optional(),
       dueDate: z.string().max(50).optional(),
       notes: z.string().max(2000).optional(),
@@ -95,7 +97,8 @@ const choreCompletionSchema = (householdId) =>
       completedAt: z.number().int(),
       scheduledFor: z.string().optional(),
       notes: z.string().max(2000).optional(),
-      skipped: z.boolean().optional()
+      skipped: z.boolean().optional(),
+      room: z.string().max(200).optional()
     })
     .transform((val) => ({
       ...val,
