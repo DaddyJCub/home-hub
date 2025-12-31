@@ -180,7 +180,8 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
     }
 
     if (editingChore) {
-      setChores(allChores.map(c => c.id === editingChore.id ? normalizeChore({ ...c, ...choreData } as Chore) : c))
+      const updated = normalizeChore({ ...editingChore, ...choreData } as Chore)
+      setChores(allChores.map(c => c.id === editingChore.id ? updated : c))
       toast.success('Chore updated')
     } else {
       const newChore: Chore = {
