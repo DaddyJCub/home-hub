@@ -1109,6 +1109,23 @@ const [quickChoreRoom, setQuickChoreRoom] = useState('none')
                   <Button size="sm" onClick={() => quickAddForRoom(room)}>
                     <Plus size={14} />
                   </Button>
+                  {pending.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-[11px]"
+                      onClick={() => {
+                        // If multiple chores in this room, open the detail for the first; otherwise mark it done
+                        if (pending.length === 1) {
+                          handleCompleteChore(pending[0].chore, undefined, undefined, undefined, room)
+                        } else {
+                          setDetailChore(pending[0].chore)
+                        }
+                      }}
+                    >
+                      Complete room
+                    </Button>
+                  )}
                 </div>
                 {pending.length > 0 ? (
                   <div className="space-y-1">
@@ -1527,23 +1544,23 @@ function ChoreCard({ chore, status, members, isTracking, onComplete, onSkip, onE
                 <h3 className={`font-medium ${chore.completed ? 'line-through text-muted-foreground' : ''}`}>
                   {chore.title}
                 </h3>
-                <div className="flex items-center gap-2 flex-wrap mt-1">
-                  {/* Priority dot */}
-                  <div className={`w-2 h-2 rounded-full ${priorityCfg.color}`} />
-                  
-                  {/* Assignee */}
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
-                    <User size={10} />
-                    {chore.assignedTo}
-                  </Badge>
-                  
-                  {/* Rooms */}
-                  {getChoreRooms(chore).map((room) => (
-                    <Badge key={room} variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
-                      <House size={10} />
-                      {room}
-                    </Badge>
-                  ))}
+        <div className="flex items-center gap-2 flex-wrap mt-1">
+          {/* Priority dot */}
+          <div className={`w-2 h-2 rounded-full ${priorityCfg.color}`} />
+          
+          {/* Assignee */}
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+            <User size={10} />
+            {chore.assignedTo}
+          </Badge>
+          
+          {/* Rooms */}
+          {getChoreRooms(chore).map((room) => (
+            <Badge key={room} variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+              <House size={10} />
+              {room}
+            </Badge>
+          ))}
                   
                   {/* Frequency */}
                   {chore.frequency !== 'once' && (
@@ -1588,27 +1605,34 @@ function ChoreCard({ chore, status, members, isTracking, onComplete, onSkip, onE
                 </div>
               </div>
               
-              {/* Actions */}
-              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                {/* Time tracking button */}
-                {chore.trackTime && !chore.completed && (
-                  isTracking ? (
-                    <Button size="sm" variant="destructive" className="h-7 w-7 p-0" onClick={onStopTracking}>
-                      <Stop size={14} />
+        {/* Actions */}
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          {/* Time tracking button */}
+          {chore.trackTime && !chore.completed && (
+            isTracking ? (
+              <Button size="sm" variant="destructive" className="h-7 w-7 p-0" onClick={onStopTracking}>
+                <Stop size={14} />
                     </Button>
                   ) : (
                     <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={onStartTracking}>
                       <Play size={14} />
                     </Button>
                   )
-                )}
-                
-                {/* Skip button */}
-                {chore.frequency !== 'once' && !chore.completed && (
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={onSkip}>
-                    <SkipForward size={14} />
-                  </Button>
-                )}
+          )}
+          
+          {/* Quick complete */}
+          {!chore.completed && (
+            <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={onComplete}>
+              Complete
+            </Button>
+          )}
+
+          {/* Skip button */}
+          {chore.frequency !== 'once' && !chore.completed && (
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={onSkip}>
+              <SkipForward size={14} />
+            </Button>
+          )}
                 
                 {/* More actions */}
                 <DropdownMenu>

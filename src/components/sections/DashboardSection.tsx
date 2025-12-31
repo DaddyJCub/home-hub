@@ -964,18 +964,19 @@ function ChoreItem({ chore, onComplete, onClick, highlight }: ChoreItemProps & {
       : status.isDueSoon
         ? 'Due tomorrow'
         : `Due ${formatDistanceToNow(new Date(status.dueAt || Date.now()), { addSuffix: true })}`
+  const rooms = chore.rooms?.length ? chore.rooms : (chore.room ? [chore.room] : [])
   return (
     <div className={`flex items-center gap-2 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group cursor-pointer min-h-[44px] ${highlight ? 'ring-2 ring-primary' : ''}`} onClick={onClick}>
       {/* Complete Button */}
-      <button
+      <Button
+        size="icon"
+        variant="outline"
+        className="h-8 w-8 flex-shrink-0"
         onClick={(e) => { e.stopPropagation(); onComplete(chore); }}
-        className="flex-shrink-0 w-5 h-5 rounded-full border-2 border-muted-foreground/30 
-                   hover:border-primary hover:bg-primary/10 flex items-center justify-center 
-                   transition-all opacity-60 group-hover:opacity-100"
-        title="Mark complete"
+        title="Complete"
       >
-        <Check size={10} className="text-transparent group-hover:text-primary" />
-      </button>
+        <Check size={14} />
+      </Button>
       <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
         chore.priority === 'high' ? 'bg-red-500' :
         chore.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
@@ -988,7 +989,11 @@ function ChoreItem({ chore, onComplete, onClick, highlight }: ChoreItemProps & {
         <div className="flex gap-1 mt-1">
           {status.isOverdue && <Badge variant="destructive" className="h-5 px-2 text-[11px]">Overdue</Badge>}
           {status.isDueToday && !status.isOverdue && <Badge variant="secondary" className="h-5 px-2 text-[11px]">Today</Badge>}
-          {chore.room && <Badge variant="outline" className="h-5 px-2 text-[11px]">{chore.room}</Badge>}
+          {rooms.map((room) => (
+            <Badge key={room} variant="outline" className="h-5 px-2 text-[11px]">
+              {room}
+            </Badge>
+          ))}
           {chore.assignedTo && <Badge variant="outline" className="h-5 px-2 text-[11px]">Assigned: {chore.assignedTo}</Badge>}
         </div>
       </div>

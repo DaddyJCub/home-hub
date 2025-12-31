@@ -18,27 +18,35 @@ export function usePullToRefresh({ onRefresh, threshold = 80, enabled = true }: 
 
   const isEnabled = enabled && (mobilePreferences?.pullToRefresh ?? true)
 
+  const getScrollTop = () => {
+    return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
+  }
+
   useEffect(() => {
     if (!isEnabled) return
 
     let touchStartY = 0
 
     const handleTouchStart = (e: TouchEvent) => {
-      if (window.scrollY === 0) {
+      if (getScrollTop() <= 2 && !isRefreshing) {
         touchStartY = e.touches[0].clientY
         startY.current = touchStartY
       }
     }
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (window.scrollY !== 0 || isRefreshing) return
+      if (getScrollTop() > 2 || isRefreshing) return
 
       currentY.current = e.touches[0].clientY
       const distance = currentY.current - startY.current
 
-      if (distance > 0 && distance < threshold * 2) {
+      if (distance > 0) {
+        const limited = Math.min(distance, threshold * 1.5)
         setIsPulling(true)
-        setPullDistance(distance)
+        setPullDistance(limited)
+      } else {
+        setIsPulling(false)
+        setPullDistance(0)
       }
     }
 
