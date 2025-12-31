@@ -1522,20 +1522,15 @@ function ChoreCard({ chore, status, members, isTracking, onComplete, onSkip, onE
       <CardContent className="p-3">
         <div className="flex items-start gap-3">
           {/* Complete Button */}
-          <button
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-2"
             onClick={(e) => { e.stopPropagation(); onComplete(); }}
-            disabled={chore.completed}
-            className={`
-              mt-0.5 flex-shrink-0 w-6 h-6 rounded-full border-2 
-              flex items-center justify-center transition-all
-              ${chore.completed 
-                ? 'bg-green-500 border-green-500 text-white' 
-                : 'border-muted-foreground/30 hover:border-primary hover:bg-primary/10'
-              }
-            `}
           >
-            {chore.completed && <Check size={14} weight="bold" />}
-          </button>
+            <Check size={14} className="mr-1" />
+            Complete
+          </Button>
           
           {/* Content */}
           <div className="flex-1 min-w-0">
@@ -1555,12 +1550,26 @@ function ChoreCard({ chore, status, members, isTracking, onComplete, onSkip, onE
           </Badge>
           
           {/* Rooms */}
-          {getChoreRooms(chore).map((room) => (
-            <Badge key={room} variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
-              <House size={10} />
-              {room}
-            </Badge>
-          ))}
+          {(() => {
+            const rooms = getChoreRooms(chore)
+            const primary = rooms.slice(0, 2)
+            const extra = rooms.length > 2 ? rooms.length - 2 : 0
+            return (
+              <>
+                {primary.map((room) => (
+                  <Badge key={room} variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5 max-w-[90px] truncate">
+                    <House size={10} />
+                    {room}
+                  </Badge>
+                ))}
+                {extra > 0 && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                    +{extra} more
+                  </Badge>
+                )}
+              </>
+            )
+          })()}
                   
                   {/* Frequency */}
                   {chore.frequency !== 'once' && (

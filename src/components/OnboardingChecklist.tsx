@@ -12,6 +12,7 @@ type StepId = 'household-name' | 'member' | 'chore' | 'shopping' | 'event' | 'me
 interface OnboardingStatus {
   completedSteps: StepId[]
   skipped?: boolean
+  force?: boolean
 }
 
 const steps: { id: StepId; label: string; description: string }[] = [
@@ -60,12 +61,12 @@ export function OnboardingChecklist() {
   }, [status?.completedSteps, derivedCompleted])
 
   const isComplete = completedSteps.length === steps.length
-  const shouldShow = !dismissed && !status?.skipped && !isComplete
+  const shouldShow = !dismissed && !status?.skipped && (!isComplete || status?.force)
 
   useEffect(() => {
     if (isComplete && !status?.skipped) {
       toast.success('Setup complete! Enjoy HomeHub.')
-      setStatus({ completedSteps: steps.map((s) => s.id) })
+      setStatus({ completedSteps: steps.map((s) => s.id), skipped: false, force: false })
     }
   }, [isComplete, status?.skipped, setStatus])
 
@@ -75,16 +76,16 @@ export function OnboardingChecklist() {
     const next = completedSteps.includes(id)
       ? completedSteps.filter((s) => s !== id)
       : [...completedSteps, id]
-    setStatus({ completedSteps: next })
+    setStatus({ completedSteps: next, skipped: false, force: true })
   }
 
   const skip = () => {
-    setStatus({ completedSteps, skipped: true })
+    setStatus({ completedSteps, skipped: true, force: false })
     setDismissed(true)
   }
 
   const restart = () => {
-    setStatus({ completedSteps: [] })
+    setStatus({ completedSteps: [], skipped: false, force: true })
     setDismissed(false)
   }
 

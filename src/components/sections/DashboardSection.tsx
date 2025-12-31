@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent, ChoreCompletion } from '@/lib/types'
 import { format, isToday, isAfter, isSameDay, startOfDay, addDays, parseISO, isTomorrow, formatDistanceToNow } from 'date-fns'
 import { useState, useMemo, useCallback } from 'react'
@@ -92,12 +93,17 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   const members = householdMembers ?? []
 
   // Complete chore handler
-  const handleCompleteChore = useCallback((chore: Chore) => {
+  const handleCompleteChore = useCallback((chore: Chore, roomOverride?: string) => {
     if (!currentHousehold) return
     
     const now = Date.now()
     const normalized = normalizeChore(chore)
     const wasOnTime = !getChoreStatus(normalized, now).isOverdue
+    const rooms = normalized.rooms?.length ? normalized.rooms : (normalized.room ? [normalized.room] : [])
+    const completedRoomsSet = new Set(normalized.completedRooms || [])
+    if (roomOverride) completedRoomsSet.add(roomOverride)
+    const completedRooms = Array.from(completedRoomsSet)
+    const allRoomsDone = rooms.length === 0 ? true : completedRooms.length >= rooms.length
     
     // Create completion record
     const completion: ChoreCompletion = {
@@ -105,7 +111,8 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
       choreId: chore.id,
       completedBy: chore.assignedTo,
       householdId: currentHousehold.id,
-      completedAt: now
+      completedAt: now,
+      room: roomOverride
     }
     setCompletions([...allCompletions, completion])
     
@@ -114,40 +121,56 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
     updatedChore.lastCompletedAt = now
     updatedChore.lastCompletedBy = chore.assignedTo
     updatedChore.totalCompletions = (chore.totalCompletions || 0) + 1
+    updatedChore.completedRooms = completedRooms
     
-    // Update streak
-    if (wasOnTime && chore.frequency !== 'once') {
-      updatedChore.streak = (chore.streak || 0) + 1
-      if (updatedChore.streak > (chore.bestStreak || 0)) {
-        updatedChore.bestStreak = updatedChore.streak
+    // Update streak only when all rooms are done
+    if (allRoomsDone) {
+      if (wasOnTime && chore.frequency !== 'once') {
+        updatedChore.streak = (chore.streak || 0) + 1
+        if (updatedChore.streak > (chore.bestStreak || 0)) {
+          updatedChore.bestStreak = updatedChore.streak
+        }
+      } else {
+        updatedChore.streak = 0
       }
-    } else {
-      updatedChore.streak = 0
-    }
-    
-    // Handle recurring vs one-time
-    if (chore.frequency === 'once') {
-      updatedChore.completed = true
+      
+      // Handle recurring vs one-time
+      if (chore.frequency === 'once') {
+        updatedChore.completed = true
+      } else {
+        updatedChore.completed = false
+        updatedChore.dueAt = computeNextDueAt(updatedChore, now)
+        updatedChore.completedRooms = []
+        
+        // Handle rotation
+        if (chore.rotation === 'rotate' && chore.rotationOrder && chore.rotationOrder.length > 0) {
+          const nextIndex = ((chore.currentRotationIndex || 0) + 1) % chore.rotationOrder.length
+          updatedChore.currentRotationIndex = nextIndex
+          updatedChore.assignedTo = chore.rotationOrder[nextIndex]
+        }
+      }
     } else {
       updatedChore.completed = false
-      updatedChore.dueAt = computeNextDueAt(updatedChore, now)
-      
-      // Handle rotation
-      if (chore.rotation === 'rotate' && chore.rotationOrder && chore.rotationOrder.length > 0) {
-        const nextIndex = ((chore.currentRotationIndex || 0) + 1) % chore.rotationOrder.length
-        updatedChore.currentRotationIndex = nextIndex
-        updatedChore.assignedTo = chore.rotationOrder[nextIndex]
-      }
     }
     
+    const prevChores = [...allChores]
+    const prevCompletions = [...allCompletions]
     setChores(allChores.map(c => c.id === chore.id ? updatedChore : c))
     
-    // Show toast
-    if (updatedChore.streak && updatedChore.streak >= 3) {
-      toast.success(`🔥 ${updatedChore.streak} day streak!`, { description: chore.title })
-    } else {
-      toast.success('Chore completed!', { description: chore.title })
-    }
+    // Show toast with undo
+    const message = updatedChore.streak && updatedChore.streak >= 3
+      ? `🔥 ${updatedChore.streak} day streak!`
+      : 'Chore completed!'
+    toast.success(message, {
+      description: roomOverride ? `${chore.title} (${roomOverride})` : chore.title,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          setChores(prevChores)
+          setCompletions(prevCompletions)
+        }
+      }
+    })
   }, [currentHousehold, allChores, allCompletions, setChores, setCompletions, computeNextDueAt])
 
   // Filtered data based on selected member
@@ -235,6 +258,9 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
 
   const roomProgress = useMemo(() => {
     const byRoom: Record<string, { total: number; pending: number }> = {}
+    const today = startOfDay(new Date())
+    const tomorrow = addDays(today, 1)
+    const weekAgo = addDays(today, -7).getTime()
     const roomList = roomsRaw && roomsRaw.length > 0 ? roomsRaw : ['General']
     roomList.forEach(r => { byRoom[r] = { total: 0, pending: 0 } })
     chores.forEach(chore => {
@@ -245,13 +271,29 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         if (!chore.completed) byRoom[room].pending += 1
       })
     })
-    return Object.entries(byRoom).map(([room, data]) => ({
-      room,
-      total: data.total,
-      pending: data.pending,
-      completion: data.total === 0 ? 100 : Math.round(((data.total - data.pending) / data.total) * 100)
-    })).sort((a, b) => b.total - a.total)
-  }, [chores, roomsRaw])
+    return Object.entries(byRoom).map(([room, data]) => {
+      const roomChores = chores.filter((c) => (c.rooms?.length ? c.rooms : [c.room || 'General']).includes(room))
+      const dueToday = roomChores.filter((c) => {
+        const due = c.dueAt || 0
+        return due >= today.getTime() && due < tomorrow.getTime() && !c.completed
+      }).length
+      const overdue = roomChores.filter((c) => (c.dueAt || 0) < today.getTime() && !c.completed).length
+      const completedThisWeek = completions.filter((comp) => {
+        if (comp.completedAt < weekAgo) return false
+        const chore = roomChores.find((c) => c.id === comp.choreId)
+        return !!chore
+      }).length
+      return {
+        room,
+        total: data.total,
+        pending: data.pending,
+        completion: data.total === 0 ? 100 : Math.round(((data.total - data.pending) / data.total) * 100),
+        dueToday,
+        overdue,
+        completedThisWeek
+      }
+    }).sort((a, b) => b.total - a.total)
+  }, [chores, roomsRaw, completions])
 
   const [detailChore, setDetailChore] = useState<Chore | null>(null)
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null)
@@ -260,20 +302,22 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   const greeting = getGreeting()
   const GreetingIcon = greeting.icon
   const [enabledTabsRaw] = useKV<string[]>('enabled-tabs', ['dashboard', 'chores', 'shopping', 'meals', 'calendar', 'recipes'])
+  const [onboardingStatus] = useKV<{ completedSteps?: string[]; skipped?: boolean; force?: boolean }>('onboarding-status', { completedSteps: [], skipped: false })
   const showShoppingTab = enabledTabsRaw?.includes('shopping') ?? true
   const showMeals = enabledTabsRaw?.includes('meals') ?? true
   const showCalendar = enabledTabsRaw?.includes('calendar') ?? true
 
   const showOnboarding = useMemo(() => {
     if (!currentHousehold) return false
+    if (onboardingStatus?.skipped) return false
     const empty =
       chores.length === 0 &&
       shoppingItems.length === 0 &&
       meals.length === 0 &&
       recipes.length === 0 &&
       events.length === 0
-    return empty
-  }, [currentHousehold, chores.length, shoppingItems.length, meals.length, recipes.length, events.length])
+    return empty || onboardingStatus?.force
+  }, [currentHousehold, chores.length, shoppingItems.length, meals.length, recipes.length, events.length, onboardingStatus])
 
   return (
     <div className="space-y-4 pb-20">
@@ -731,17 +775,22 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
           <CardHeader className="pb-2 pt-3 px-4">
             <CardTitle className="text-base flex items-center gap-2">
               <House size={18} className="text-primary" />
-              Room Progress
+              Room Progress (today & week)
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4 space-y-2">
             {roomProgress.map(room => (
               <div key={room.room} className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between text-xs flex-wrap gap-2">
                   <span className="font-medium">{room.room}</span>
-                  <span className="text-muted-foreground">
-                    {room.total - room.pending}/{room.total} done
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-[11px]">Today: {room.dueToday}</Badge>
+                    {room.overdue > 0 && <Badge variant="destructive" className="text-[11px]">Overdue: {room.overdue}</Badge>}
+                    <Badge variant="outline" className="text-[11px]">This week: {room.completedThisWeek} done</Badge>
+                    <span className="text-muted-foreground">
+                      {room.total - room.pending}/{room.total} done
+                    </span>
+                  </div>
                 </div>
                 <Progress value={room.completion} />
               </div>
@@ -951,7 +1000,7 @@ function QuickStatPill({ icon: Icon, label, value, subtext, highlight, onClick }
 // Chore Item Component
 interface ChoreItemProps {
   chore: Chore
-  onComplete: (chore: Chore) => void
+  onComplete: (chore: Chore, roomOverride?: string) => void
   highlight?: boolean
 }
 
@@ -965,18 +1014,40 @@ function ChoreItem({ chore, onComplete, onClick, highlight }: ChoreItemProps & {
         ? 'Due tomorrow'
         : `Due ${formatDistanceToNow(new Date(status.dueAt || Date.now()), { addSuffix: true })}`
   const rooms = chore.rooms?.length ? chore.rooms : (chore.room ? [chore.room] : [])
+  const primaryRooms = rooms.slice(0, 2)
+  const extraRooms = rooms.length > 2 ? rooms.length - 2 : 0
   return (
     <div className={`flex items-center gap-2 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group cursor-pointer min-h-[44px] ${highlight ? 'ring-2 ring-primary' : ''}`} onClick={onClick}>
       {/* Complete Button */}
-      <Button
-        size="icon"
-        variant="outline"
-        className="h-8 w-8 flex-shrink-0"
-        onClick={(e) => { e.stopPropagation(); onComplete(chore); }}
-        title="Complete"
-      >
-        <Check size={14} />
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-8 w-8 flex-shrink-0"
+            onClick={(e) => e.stopPropagation()}
+            title="Complete"
+          >
+            <Check size={14} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {rooms.length > 1 ? (
+            <>
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Complete room</DropdownMenuLabel>
+              {rooms.map((room) => (
+                <DropdownMenuItem key={room} onClick={(e) => { e.stopPropagation(); onComplete(chore, room) }}>
+                  {room}
+                </DropdownMenuItem>
+              ))}
+            </>
+          ) : (
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onComplete(chore, rooms[0]); }}>
+              Complete
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
       <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
         chore.priority === 'high' ? 'bg-red-500' :
         chore.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
@@ -989,11 +1060,14 @@ function ChoreItem({ chore, onComplete, onClick, highlight }: ChoreItemProps & {
         <div className="flex gap-1 mt-1">
           {status.isOverdue && <Badge variant="destructive" className="h-5 px-2 text-[11px]">Overdue</Badge>}
           {status.isDueToday && !status.isOverdue && <Badge variant="secondary" className="h-5 px-2 text-[11px]">Today</Badge>}
-          {rooms.map((room) => (
-            <Badge key={room} variant="outline" className="h-5 px-2 text-[11px]">
+          {primaryRooms.map((room) => (
+            <Badge key={room} variant="outline" className="h-5 px-2 text-[11px] max-w-[90px] truncate">
               {room}
             </Badge>
           ))}
+          {extraRooms > 0 && (
+            <Badge variant="outline" className="h-5 px-2 text-[11px]">+{extraRooms} more</Badge>
+          )}
           {chore.assignedTo && <Badge variant="outline" className="h-5 px-2 text-[11px]">Assigned: {chore.assignedTo}</Badge>}
         </div>
       </div>

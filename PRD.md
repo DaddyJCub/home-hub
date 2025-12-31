@@ -55,8 +55,9 @@ This is a multi-feature application with user authentication, role-based access 
   - **Skip/Reschedule**: Skip button for recurring chores, logs skip in history, reschedules to next due date
   - **Recurrence Modes**: `scheduleType` supports **Fixed** (advance from scheduled `dueAt`) and **After Completion** (advance from completion time); chores track `dueAt` and `lastCompletedAt` for current cycle
   - **Statistics Dashboard**: This week's completions, total completions, average streak, overdue count, completions by member
-  - **Advanced Filtering**: Filter by room, priority; sort by due date, priority, room, or created date
-  - **Rooms Management**: Room list is user-manageable (add/rename/delete) and used for filtering, progress bars, and grouping on dashboard
+- **Advanced Filtering**: Filter by room, priority; sort by due date, priority, room, or created date
+- **Rooms Management**: Room list is user-manageable (add/rename/delete) and used for filtering, progress bars, and grouping on dashboard
+- **Multi-room Chores**: Assign a chore to multiple rooms, complete rooms individually (per-room completion from Chores and Dashboard), and undo a completion if tapped by mistake; room progress/stats reflect per-room state, with badges that truncate gracefully on mobile
 - **Success criteria**: Chores track full completion history with streaks, rotation works automatically, time tracking captures actual effort, statistics provide insights into household contributions, overdue chores are prominently highlighted, and skip functionality allows flexibility without losing data
 
 ### Shopping List
@@ -64,7 +65,7 @@ This is a multi-feature application with user authentication, role-based access 
 - **Purpose**: Prevent duplicate purchases, organize shopping by category and store, ensure nothing is forgotten, and prioritize urgent items
 - **Trigger**: User navigates to shopping section
 - **Progression**: View shopping list grouped by category → Add item with category, quantity, priority, and store → Check off item when purchased → Item moves to purchased state → Clear purchased items → Generate shopping list from weekly meal plan
-- **Success criteria**: Items can be added with full details (category, quantity, priority, store, notes), grouped by category, checked off, cleared, and auto-generated from meal plans
+- **Success criteria**: Items can be added with full details (category, quantity, priority, store, notes), grouped by category, checked off, cleared, auto-generated from meal plans, and categories/stores are user-manageable (add/reset/delete)
 
 ### Meal Planning
 - **Functionality**: Weekly calendar view of planned meals
@@ -94,7 +95,7 @@ This is a multi-feature application with user authentication, role-based access 
 - **Purpose**: Keep household recipes in one accessible place, enable better organization and discovery, and integrate with meal planning
 - **Trigger**: User navigates to recipes section
 - **Progression**: View recipe list → Add new recipe manually or from URL → AI parses website content → Enter/edit name, ingredients, instructions, tags → Save → Filter by tags/search recipes → Select recipe to view details → Optional: add to meal plan
-- **Success criteria**: Recipes can be created manually or from URLs, tagged/labeled, filtered, searched, and linked to meal plans
+- **Success criteria**: Recipes can be created manually or from URLs, tagged/labeled, filtered, searched, linked to meal plans, and tags can be managed via a shared tag library (quick-select and save tags)
 
 ### Automated Meal Planning
 - **Functionality**: AI-powered meal plan generation based on recipes, preferences, and dietary constraints
@@ -116,7 +117,9 @@ This is a multi-feature application with user authentication, role-based access 
   - **Collapsible Sections**: Expand/collapse Today's Schedule, Chores, Shopping Preview to manage information density; chore items are clickable for detail/quick complete
   - **Progressive Disclosure**: Show summary counts by default, details on demand
   - **Combined Schedule**: Today's meals and events merged into unified timeline view
-  - **Room Progress**: Progress bars by room using customizable rooms list; highlights which areas need attention
+- **Room Progress**: Progress bars by room using customizable rooms list; highlights which areas need attention; shows today’s due, overdue, and completions this week
+- **Per-room Completion**: Chore completion menu on dashboard supports per-room completion for multi-room chores, with undo on toast
+  - **Undo on completion**: Both Dashboard and Chores views provide an undo action in the toast to revert accidental completions
   - **Member Filtering**: All dashboard data filters when specific member selected
 - **Success criteria**: Dashboard loads quickly on mobile, reduces scrolling through collapsible sections, highlights urgent items prominently, provides quick stats at a glance, and maintains full functionality while being more compact
 
@@ -139,7 +142,7 @@ This is a multi-feature application with user authentication, role-based access 
 - **Purpose**: Enable easy diagnosis of issues by capturing errors with stack traces, timestamps, and context
 - **Trigger**: Any unhandled error, promise rejection, or console error occurs in the application
 - **Progression**: Error occurs → Bug tracker captures details (message, stack trace, URL, timestamp, context) → Bug indicator badge appears in header → User can view bugs in Settings → Copy formatted bug report for sharing → Mark resolved or delete bugs
-- **Success criteria**: All errors are automatically captured with useful context, users can easily copy bug reports for diagnosis, and resolved bugs can be cleared
+- **Success criteria**: All errors are automatically captured with useful context, users can easily copy bug reports for diagnosis, resolved bugs can be cleared, and server logs are structured (JSON with feature tags)
 
 ### Dashboard Customization
 - **Functionality**: Drag-and-drop widget reordering, toggle visibility, apply layout presets, and organize dashboard layout
@@ -155,6 +158,13 @@ This is a multi-feature application with user authentication, role-based access 
 - **Progression**: View settings → Export data as JSON backup or Delete specific data categories → Confirm destructive actions → System updates
 - **Success criteria**: Users can export all data and selectively delete data categories safely
 
+### Platform & Ops
+- **Rate Limiting & Proxy Trust**: Auth/write endpoints can be rate-limited; proxy trust enabled for accurate IPs; rate limits can be disabled via `RATE_LIMIT_ENABLED` in environments where an upstream proxy already limits traffic.
+- **Cookies & Security Flags**: Session cookies set with secure/samesite flags in production.
+- **Offline/Sync**: Service worker caching, offline indicator, queued changes sync on reconnect; pull-to-refresh and manual refresh indicators provide user feedback.
+- **Onboarding**: Restartable onboarding checklist (Settings → Restart) with per-step tracking and the ability to force visibility even after data exists; hide/skip options retained.
+- **Validation & Forms**: Consistent inline validation and error toasts across auth, chores, shopping, meals, recipes, and events; sane defaults applied server-side (length limits) to prevent malformed data.
+
 ### Mobile Optimization Features
 - **Functionality**: Customizable bottom navigation with overflow "More" menu, swipe gestures, offline mode with service worker, visual feedback for connectivity
 - **Purpose**: Provide a native-app-like mobile experience with personalization, intuitive gesture navigation, and reliable offline functionality
@@ -163,7 +173,7 @@ This is a multi-feature application with user authentication, role-based access 
   - **Custom Navigation**: Settings → Mobile Navigation → Toggle tabs on/off → First 4 enabled tabs show in bottom nav → Additional tabs appear in "More" menu → Swipe left/right between enabled tabs
   - **Offline Mode**: App loads → Service worker caches assets → Network goes offline → Banner appears at top → Changes queue for sync → Network returns → Changes sync automatically → Banner disappears
   - **Updates**: New version deployed → Service worker detects update → Update banner appears at bottom → Click "Update" → App refreshes with new version
-- **Success criteria**: Users can customize which tabs appear in mobile nav, overflow tabs accessible via "More" menu, swipe between tabs with natural gestures, use app fully offline with visual feedback, receive non-intrusive update notifications, and maintain all functionality in PWA mode
+- **Success criteria**: Users can customize which tabs appear in mobile nav, overflow tabs accessible via "More" menu, swipe between tabs with natural gestures, use app fully offline with visual feedback, receive non-intrusive update notifications, pull-to-refresh reliably at top-of-page, and maintain all functionality in PWA mode
 
 ### Member-Specific Views
 - **Functionality**: Global filter in header that shows only data relevant to a selected household member across all sections
@@ -182,7 +192,14 @@ This is a multi-feature application with user authentication, role-based access 
 - **Recurring Chore Logic**: Clearly indicate next due date and handle completion without losing schedule
 - **Offline Mode**: App functions fully offline with service worker caching; changes sync when connection returns
 - **PWA Install**: Manifest configured for native-like installation on mobile devices with proper icons and display mode
-- **Gesture Conflicts**: Swipe gestures only active on mobile with appropriate threshold to avoid accidental navigation
+- **Gesture Conflicts**: Swipe gestures only active on mobile with appropriate threshold to avoid accidental navigation; pull-to-refresh reliable at top-of-page
+
+### Cross-Cutting Enhancements
+- **Onboarding & Guidance**: Restartable onboarding checklist (Settings → Restart) with forced visibility even after data exists; per-step tracking and hide/skip options.
+- **Validation & Forms**: Centralized inline validation for auth, chores, shopping, meals, recipes, and events; consistent error toasts; sane defaults for missing fields.
+- **Sync/Offline/PWA**: Pull-to-refresh tuned for PWA, offline indicator and refresh banner, service worker caching; rate limiting can be disabled/enabled via env (RATE_LIMIT_ENABLED).
+- **Diagnostics & Bug Reporting**: Error boundary with copyable bug report; structured server logging (JSON); UI/Notification diagnostics panels in Settings.
+- **Security/Rate Limits**: Auth/write endpoints can be rate-limited; cookies use secure/samesite in production; input length limits on server; proxy trust enabled for correct IP handling.
 - **Error Boundaries**: React error boundaries catch rendering errors and display user-friendly fallback with bug reporting capability
 - **State Synchronization**: Multiple components using the same useKV key stay synchronized via event-based updates (both same-tab and cross-tab)
 
