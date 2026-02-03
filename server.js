@@ -9,6 +9,8 @@ import { ZodError } from 'zod';
 import {
   UserSignupSchema,
   UserLoginSchema,
+  ForgotPasswordSchema,
+  ResetPasswordSchema,
   HouseholdCreateSchema,
   HouseholdJoinSchema,
   HouseholdMemberSchema,
@@ -43,6 +45,109 @@ const SESSION_MAX_AGE_SECONDS =
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const devResetEnabled = NODE_ENV === 'development' && process.env.ALLOW_DEV_RESET === 'true';
 const rateLimitEnabled = process.env.RATE_LIMIT_ENABLED === 'true';
+
+// SMTP configuration for password reset emails (optional)
+const SMTP_HOST = process.env.SMTP_HOST || null;
+const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
+const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
+const SMTP_USER = process.env.SMTP_USER || null;
+const SMTP_PASS = process.env.SMTP_PASS || null;
+const SMTP_FROM = process.env.SMTP_FROM || null;
+const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
+const emailEnabled = Boolean(SMTP_HOST && SMTP_FROM);
+
+// Lazy-loaded email transporter
+let mailTransporter = null;
+const getMailer = async () => {
+  if (!emailEnabled) return null;
+  if (!mailTransporter) {
+    const nodemailer = await import('nodemailer');
+    mailTransporter = nodemailer.default.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_SECURE,
+      auth: SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASS } : undefined
+    });
+  }
+  return mailTransporter;
+};
+
+// Branded password reset email template
+const getResetEmailHtml = (resetLink, userName) => `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your Password - HomeHub</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f1eb;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 480px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
+          <!-- Header -->
+          <tr>
+            <td style="background-color: #c17a5c; padding: 32px 40px; border-radius: 12px 12px 0 0; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">🏠 HomeHub</h1>
+              <p style="margin: 8px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 14px;">Household harmony made simple</p>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="margin: 0 0 16px 0; color: #1a1a1a; font-size: 20px; font-weight: 600;">Reset Your Password</h2>
+              <p style="margin: 0 0 24px 0; color: #4a4a4a; font-size: 16px; line-height: 1.6;">Hi${userName ? ` ${userName}` : ''},</p>
+              <p style="margin: 0 0 24px 0; color: #4a4a4a; font-size: 16px; line-height: 1.6;">We received a request to reset your password. Click the button below to create a new password:</p>
+              <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="text-align: center; padding: 8px 0 32px 0;">
+                    <a href="${resetLink}" style="display: inline-block; background-color: #c17a5c; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 16px; font-weight: 600;">Reset Password</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin: 0 0 16px 0; color: #6a6a6a; font-size: 14px; line-height: 1.5;">This link will expire in <strong>1 hour</strong> for security reasons.</p>
+              <p style="margin: 0 0 16px 0; color: #6a6a6a; font-size: 14px; line-height: 1.5;">If you can't click the button, copy and paste this link into your browser:</p>
+              <p style="margin: 0 0 24px 0; color: #c17a5c; font-size: 12px; word-break: break-all;">${resetLink}</p>
+              <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 24px 0;">
+              <p style="margin: 0; color: #999999; font-size: 13px; line-height: 1.5;">If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9f7f5; padding: 24px 40px; border-radius: 0 0 12px 12px; text-align: center;">
+              <p style="margin: 0; color: #999999; font-size: 12px;">© ${new Date().getFullYear()} HomeHub. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+
+// Send password reset email (returns true if sent, false if SMTP not configured or failed)
+const sendResetEmail = async (to, resetLink, userName) => {
+  const mailer = await getMailer();
+  if (!mailer) {
+    log('INFO', 'Password reset email skipped - SMTP not configured', { to });
+    return false;
+  }
+  try {
+    await mailer.sendMail({
+      from: SMTP_FROM,
+      to,
+      subject: 'Reset Your Password - HomeHub',
+      html: getResetEmailHtml(resetLink, userName)
+    });
+    log('INFO', 'Password reset email sent', { to });
+    return true;
+  } catch (err) {
+    log('ERROR', 'Failed to send password reset email', { to, error: err.message });
+    return false;
+  }
+};
 
 // Respect proxy headers when deployed behind a load balancer (needed for rate limiting/IP keys)
 app.set('trust proxy', true);
@@ -218,6 +323,16 @@ const MIGRATIONS = [
           value TEXT,
           updated_at INTEGER DEFAULT (strftime('%s', 'now'))
         );
+
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id TEXT NOT NULL,
+          token TEXT UNIQUE NOT NULL,
+          expires_at INTEGER NOT NULL,
+          used INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
+        CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
       `);
     }
   }
@@ -640,6 +755,21 @@ if (rateLimitEnabled) {
 
   app.use('/api/auth', authLimiter);
 
+  // Stricter rate limiter for password reset to prevent abuse
+  const forgotPasswordLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour window
+    max: 5, // 5 attempts per hour per IP+email
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      const email = (req.body?.email || '').toLowerCase().trim();
+      return `${req.ip}-${email}`;
+    },
+    handler: (_req, res) => sendError(res, 429, 'Too many password reset requests. Please try again later.', 'RATE_LIMITED')
+  });
+
+  app.use('/api/auth/forgot-password', forgotPasswordLimiter);
+
   const writeLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5000, // generous headroom for sync
@@ -792,6 +922,102 @@ app.get('/api/auth/me', (req, res) => {
   const payload = buildAuthPayload(req.auth.userId, req.auth.householdId, req.auth.sessionId);
   if (!payload) return sendError(res, 401, 'Session is invalid', 'NOT_AUTHENTICATED');
   return res.json(payload);
+});
+
+// Password reset - request reset link
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const parsed = parseOrReject(ForgotPasswordSchema, req.body || {}, res);
+    if (!parsed) return;
+    const { email } = parsed;
+
+    // Always return success to prevent email enumeration
+    const successResponse = (emailSent, resetLink = null) => {
+      const response = { success: true, emailSent };
+      if (resetLink && !emailSent) response.resetLink = resetLink;
+      return res.json(response);
+    };
+
+    const userRow = db
+      .prepare('SELECT id, display_name FROM users WHERE lower(email) = lower(?)')
+      .get(email);
+
+    if (!userRow) {
+      // Don't reveal that the email doesn't exist
+      log('INFO', 'Password reset requested for non-existent email', { email });
+      return successResponse(emailEnabled);
+    }
+
+    // Invalidate any existing unused tokens for this user
+    db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE user_id = ? AND used = 0').run(userRow.id);
+
+    // Generate secure token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = nowSeconds() + 3600; // 1 hour
+
+    db.prepare(
+      'INSERT INTO password_reset_tokens (user_id, token, expires_at, used) VALUES (?, ?, ?, 0)'
+    ).run(userRow.id, token, expiresAt);
+
+    const resetLink = `${APP_URL}/reset-password?token=${token}`;
+    const emailSent = await sendResetEmail(email, resetLink, userRow.display_name);
+
+    log('INFO', 'Password reset token created', { userId: userRow.id, emailSent });
+    return successResponse(emailSent, resetLink);
+  } catch (err) {
+    log('ERROR', 'Forgot password failed', { error: err.message });
+    return sendError(res, 500, 'Failed to process password reset request', 'SERVER_ERROR');
+  }
+});
+
+// Password reset - set new password
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const parsed = parseOrReject(ResetPasswordSchema, req.body || {}, res);
+    if (!parsed) return;
+    const { token, password } = parsed;
+
+    const tokenRow = db
+      .prepare('SELECT id, user_id, expires_at, used FROM password_reset_tokens WHERE token = ?')
+      .get(token);
+
+    if (!tokenRow) {
+      return sendError(res, 400, 'Invalid or expired reset link', 'INVALID_TOKEN');
+    }
+
+    if (tokenRow.used === 1) {
+      return sendError(res, 400, 'This reset link has already been used', 'TOKEN_USED');
+    }
+
+    if (tokenRow.expires_at <= nowSeconds()) {
+      return sendError(res, 400, 'This reset link has expired. Please request a new one.', 'TOKEN_EXPIRED');
+    }
+
+    // Hash new password
+    const hashedPassword = await bcryptHash(password);
+
+    // Update user password
+    db.prepare('UPDATE users SET password_hash = ?, password_algo = ? WHERE id = ?').run(
+      hashedPassword,
+      'bcrypt',
+      tokenRow.user_id
+    );
+
+    // Mark token as used
+    db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(tokenRow.id);
+
+    // Invalidate all sessions for this user (force re-login everywhere)
+    const deletedSessions = db.prepare('DELETE FROM sessions WHERE user_id = ?').run(tokenRow.user_id);
+    log('INFO', 'Password reset completed, sessions invalidated', {
+      userId: tokenRow.user_id,
+      sessionsDeleted: deletedSessions.changes
+    });
+
+    return res.json({ success: true });
+  } catch (err) {
+    log('ERROR', 'Reset password failed', { error: err.message });
+    return sendError(res, 500, 'Failed to reset password', 'SERVER_ERROR');
+  }
 });
 
 app.post('/api/auth/switch-household', requireAuth, (req, res) => {

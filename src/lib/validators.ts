@@ -4,6 +4,27 @@ import { normalizeChore } from './chore-utils'
 
 type ValidationResult<T> = { valid: boolean; normalized: T; errors: string[] }
 
+// Password validation rules - shared across signup and password reset
+export const passwordRules = [
+  { id: 'length', label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
+  { id: 'letters', label: 'Contains a letter', test: (p: string) => /[A-Za-z]/.test(p) },
+  { id: 'numbers', label: 'Contains a number', test: (p: string) => /\d/.test(p) }
+] as const
+
+export function validatePassword(password: string): { valid: boolean; errors: string[]; rules: Array<{ id: string; label: string; pass: boolean }> } {
+  const rules = passwordRules.map(rule => ({
+    id: rule.id,
+    label: rule.label,
+    pass: rule.test(password)
+  }))
+  const errors = rules.filter(r => !r.pass).map(r => r.label)
+  return {
+    valid: errors.length === 0,
+    errors,
+    rules
+  }
+}
+
 const buildResult = <T>(parsed: any, fallback: T): ValidationResult<T> => {
   if (parsed.success) {
     return { valid: true, normalized: parsed.data as T, errors: [] }

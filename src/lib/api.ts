@@ -46,3 +46,26 @@ export async function apiRequest<T = any>(path: string, options: RequestOptions 
 
   return body as T
 }
+
+// Password reset API functions
+export interface ForgotPasswordResponse {
+  success: boolean
+  emailSent: boolean
+  resetLink?: string
+}
+
+export async function forgotPassword(email: string): Promise<ForgotPasswordResponse> {
+  return apiRequest<ForgotPasswordResponse>('/api/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+    skipAuthError: true
+  })
+}
+
+export async function resetPassword(token: string, password: string): Promise<{ success: boolean }> {
+  return apiRequest<{ success: boolean }>('/api/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ token, password }),
+    skipAuthError: true
+  })
+}

@@ -13,18 +13,31 @@ const emailSchema = z
   .email('Email is invalid')
   .transform((val) => val.trim().toLowerCase());
 
+// Shared password validation schema
+export const passwordSchema = z
+  .string({ required_error: 'Password is required' })
+  .min(8, 'Password must be at least 8 characters')
+  .regex(/[A-Za-z]/, 'Password must contain at least one letter')
+  .regex(/\d/, 'Password must contain at least one number');
+
 export const UserSignupSchema = z.object({
   email: emailSchema,
-  password: z
-    .string({ required_error: 'Password is required' })
-    .min(8, 'Password must be at least 8 characters and include a mix of letters and numbers')
-    .regex(/^(?=.*[A-Za-z])(?=.*\d).+$/, 'Password must include at least one letter and one number'),
+  password: passwordSchema,
   displayName: trimmedString('Display name is required', 1, 80)
 });
 
 export const UserLoginSchema = z.object({
   email: emailSchema,
   password: z.string({ required_error: 'Password is required' }).min(1, 'Password is required')
+});
+
+export const ForgotPasswordSchema = z.object({
+  email: emailSchema
+});
+
+export const ResetPasswordSchema = z.object({
+  token: z.string({ required_error: 'Reset token is required' }).min(1, 'Reset token is required'),
+  password: passwordSchema
 });
 
 export const HouseholdCreateSchema = z.object({
