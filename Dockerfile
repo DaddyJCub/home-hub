@@ -32,6 +32,7 @@ RUN apk del python3 make g++
 
 # Copy built app, server, and entrypoint
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/public ./public
 COPY --from=builder /app/server.js ./server.js
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh

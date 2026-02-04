@@ -1256,7 +1256,9 @@ app.get('/healthz.txt', (req, res) => {
   res.send('ok');
 });
 
-// Static assets
+// Static assets - serve from public folder first (for icons, manifest, etc.)
+app.use(express.static(path.join(__dirname, 'public')));
+// Then serve from dist folder (built assets)
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // SPA fallback
