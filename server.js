@@ -335,6 +335,24 @@ const MIGRATIONS = [
         CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
       `);
     }
+  },
+  {
+    version: 2,
+    name: 'add-password-reset-tokens',
+    up: (database) => {
+      // For existing databases that already ran migration 1 before password_reset_tokens was added
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id TEXT NOT NULL,
+          token TEXT UNIQUE NOT NULL,
+          expires_at INTEGER NOT NULL,
+          used INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
+        CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+      `);
+    }
   }
 ];
 
