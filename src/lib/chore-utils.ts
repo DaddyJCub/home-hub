@@ -48,6 +48,7 @@ export const normalizeChore = (chore: Chore): Chore => {
     rooms,
     completedRooms,
     scheduleType,
+    priority: chore.priority || 'medium',
     dueAt,
     lastCompletedAt
   }

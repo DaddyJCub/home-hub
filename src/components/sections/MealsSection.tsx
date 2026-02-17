@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Plus, Trash, CalendarBlank, CookingPot, Sparkle, MagnifyingGlass, Check, Note, ShoppingCart, CaretLeft, CaretRight, Clock, Users, Star, X } from '@phosphor-icons/react'
+import { Plus, Trash, CalendarBlank, CookingPot, Sparkle, MagnifyingGlass, Check, Note, ShoppingCart, CaretLeft, CaretRight, Clock, Users, Star, X, CaretDown, BookOpen } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -13,11 +13,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import AutoMealPlanner from '@/components/AutoMealPlanner'
+import RecipesPanel from '@/components/meals/RecipesPanel'
+import EmptyState from '@/components/EmptyState'
 import type { Meal, Recipe, ShoppingItem, RecipeCategory } from '@/lib/types'
 import { toast } from 'sonner'
 import { validateRequired } from '@/lib/error-helpers'
-import { format, startOfWeek, addDays, addWeeks, isToday, parseISO } from 'date-fns'
+import { format, startOfWeek, addDays, addWeeks, isToday, parseISO, isBefore, startOfDay } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const
@@ -35,24 +38,38 @@ const RECIPE_CATEGORIES: { value: RecipeCategory; label: string }[] = [
   { value: 'other', label: 'Other' },
 ]
 
-export default function MealsSection() {
+interface MealsSectionProps {
+  initialRecipeId?: string | null
+  onRecipeViewed?: () => void
+}
+
+export default function MealsSection({ initialRecipeId, onRecipeViewed }: MealsSectionProps = {}) {
   const [mealsRaw, setMeals] = useKV<Meal[]>('meals', [])
   const [recipesRaw, setRecipes] = useKV<Recipe[]>('recipes', [])
   const [shoppingItemsRaw, setShoppingItems] = useKV<ShoppingItem[]>('shopping-items', [])
   const [tagLibrary, setTagLibrary] = useKV<string[]>('recipe-tags', [])
   const { currentHousehold } = useAuth()
-  
+
   // Filter data by current household
   const allMeals = mealsRaw ?? []
   const allRecipes = recipesRaw ?? []
   const meals = currentHousehold ? allMeals.filter(m => m.householdId === currentHousehold.id) : []
   const recipes = currentHousehold ? allRecipes.filter(r => r.householdId === currentHousehold.id) : []
-  
+
+  // Sub-tab state
+  const [subTab, setSubTab] = useState<'plan' | 'recipes'>('plan')
+
+  useEffect(() => {
+    if (initialRecipeId) {
+      setSubTab('recipes')
+    }
+  }, [initialRecipeId])
+
   // Week navigation
   const [weekOffset, setWeekOffset] = useState(0)
   const weekStart = startOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 0 })
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
-  
+
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false)
   const [autoPlannerOpen, setAutoPlannerOpen] = useState(false)
@@ -65,7 +82,7 @@ export default function MealsSection() {
     el.style.height = 'auto'
     el.style.height = `${el.scrollHeight}px`
   }
-  
+
   // Form state
   const [selectedDate, setSelectedDate] = useState<string>('')
   const [addMode, setAddMode] = useState<'recipe' | 'note'>('recipe')
@@ -79,7 +96,7 @@ export default function MealsSection() {
     notes: '',
     isNote: false
   })
-  
+
   // Quick recipe form
   const [quickRecipeForm, setQuickRecipeForm] = useState({
     name: '',
@@ -96,7 +113,7 @@ export default function MealsSection() {
   const filteredRecipes = useMemo(() => {
     if (!recipeSearch.trim()) return recipes
     const search = recipeSearch.toLowerCase()
-    return recipes.filter(r => 
+    return recipes.filter(r =>
       r.name.toLowerCase().includes(search) ||
       r.tags?.some(t => t.toLowerCase().includes(search)) ||
       r.category?.toLowerCase().includes(search)
@@ -113,7 +130,7 @@ export default function MealsSection() {
       snack: ['snack', 'dessert', 'appetizer']
     }
     const relevantCategories = categoryMap[mealType] || []
-    
+
     return recipes
       .filter(r => r.category && relevantCategories.includes(r.category))
       .slice(0, 5)
@@ -171,18 +188,18 @@ export default function MealsSection() {
     }
 
     setMeals((current) => [...(current ?? []), newMeal])
-    
+
     // Update recipe's lastMade if linked
     if (mealForm.recipeId) {
-      setRecipes((current) => 
-        (current ?? []).map(r => 
-          r.id === mealForm.recipeId 
+      setRecipes((current) =>
+        (current ?? []).map(r =>
+          r.id === mealForm.recipeId
             ? { ...r, lastMade: Date.now(), timesCooked: (r.timesCooked || 0) + 1 }
             : r
         )
       )
     }
-    
+
     setDialogOpen(false)
     resetForm()
     toast.success(addMode === 'note' ? 'Note added' : 'Meal added to plan')
@@ -204,7 +221,7 @@ export default function MealsSection() {
       toast.error('No household selected')
       return
     }
-    
+
     if (!quickRecipeForm.name.trim()) {
       toast.error('Please enter a recipe name')
       return
@@ -230,7 +247,7 @@ export default function MealsSection() {
     if (tags.length > 0) {
       setTagLibrary((prev) => Array.from(new Set([...(prev ?? []), ...tags])))
     }
-    
+
     // Auto-select the new recipe
     setMealForm(prev => ({
       ...prev,
@@ -239,7 +256,7 @@ export default function MealsSection() {
       servings: parseInt(newRecipe.servings || '4') || 4
     }))
     setRecipeSearch(newRecipe.name)
-    
+
     setQuickRecipeOpen(false)
     setQuickRecipeForm({
       name: '',
@@ -256,21 +273,21 @@ export default function MealsSection() {
 
   const handleAddToShoppingList = (recipe: Recipe, servings?: number) => {
     if (!currentHousehold) return
-    
-    const multiplier = servings && recipe.servings 
-      ? servings / (parseInt(recipe.servings) || 1) 
+
+    const multiplier = servings && recipe.servings
+      ? servings / (parseInt(recipe.servings) || 1)
       : 1
 
     const existingItems = (shoppingItemsRaw ?? []).filter(i => i.householdId === currentHousehold.id)
-    
+
     let addedCount = 0
     const newItems: ShoppingItem[] = []
-    
+
     recipe.ingredients.forEach(ingredient => {
       const exists = existingItems.some(
         item => item.name.toLowerCase() === ingredient.toLowerCase() && !item.purchased
       )
-      
+
       if (!exists) {
         newItems.push({
           id: `${Date.now()}-${addedCount}`,
@@ -285,7 +302,7 @@ export default function MealsSection() {
         addedCount++
       }
     })
-    
+
     if (newItems.length > 0) {
       setShoppingItems((current) => [...(current ?? []), ...newItems])
       toast.success(`Added ${newItems.length} ingredient${newItems.length > 1 ? 's' : ''} to shopping list`)
@@ -318,123 +335,169 @@ export default function MealsSection() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h2 className="text-xl md:text-2xl font-semibold">Meal Planning</h2>
+          <h1>Meal Planning</h1>
           <p className="text-sm text-muted-foreground">
             Week of {format(weekStart, 'MMM d, yyyy')}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center border rounded-lg">
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setWeekOffset(w => w - 1)}
               className="h-8 px-2"
             >
               <CaretLeft size={16} />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setWeekOffset(0)}
               className="h-8 px-2 text-xs"
               disabled={weekOffset === 0}
             >
               Today
             </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setWeekOffset(w => w + 1)}
               className="h-8 px-2"
             >
               <CaretRight size={16} />
             </Button>
           </div>
-          <Button 
-            onClick={() => setAutoPlannerOpen(true)} 
-            variant="outline" 
-            size="sm"
-            className="gap-1"
+          <Button
+            onClick={() => setAutoPlannerOpen(true)}
+            variant="default"
+            size="default"
+            className="gap-2"
           >
-            <Sparkle size={16} />
-            <span className="hidden sm:inline">Auto-Plan</span>
+            <Sparkle size={18} />
+            Auto-Plan
           </Button>
         </div>
       </div>
 
       <AutoMealPlanner open={autoPlannerOpen} onOpenChange={setAutoPlannerOpen} />
 
-      {/* Week Calendar */}
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-2 md:gap-3">
-        {weekDays.map((day) => {
-          const dayMeals = getMealsForDay(day)
-          const dayIsToday = isToday(day)
+      {/* Sub-Tabs */}
+      <Tabs value={subTab} onValueChange={(v) => setSubTab(v as 'plan' | 'recipes')}>
+        <TabsList>
+          <TabsTrigger value="plan" className="gap-1.5">
+            <CalendarBlank size={16} />
+            Meal Plan
+          </TabsTrigger>
+          <TabsTrigger value="recipes" className="gap-1.5">
+            <BookOpen size={16} />
+            Recipes
+          </TabsTrigger>
+        </TabsList>
 
-          return (
-            <Card
-              key={day.toString()}
-              className={`p-3 ${dayIsToday ? 'ring-2 ring-primary bg-primary/5' : ''}`}
-            >
-              <div className="space-y-2">
-                {/* Day Header */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold text-xs text-muted-foreground">{format(day, 'EEE')}</div>
-                    <div className={`text-xl font-bold ${dayIsToday ? 'text-primary' : ''}`}>
-                      {format(day, 'd')}
+        <TabsContent value="plan" className="space-y-6 mt-4">
+          {/* Empty State - shown before the grid when no meals */}
+          {meals.length === 0 && (
+            <EmptyState
+              icon={CalendarBlank}
+              title="No meals planned yet"
+              description="Click the + button on any day to add a meal, or use Auto-Plan"
+              action={{ label: "Auto-Plan Week", onClick: () => setAutoPlannerOpen(true) }}
+            />
+          )}
+
+          {/* Week Calendar */}
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-2 md:gap-3">
+            {weekDays.map((day) => {
+              const dayMeals = getMealsForDay(day)
+              const dayIsToday = isToday(day)
+              const dayIsPast = isBefore(day, startOfDay(new Date())) && !isToday(day)
+
+              return (
+                <Card
+                  key={day.toString()}
+                  className={`p-3 ${dayIsToday ? 'ring-2 ring-primary bg-primary/5' : ''} ${dayIsPast ? 'opacity-50' : ''}`}
+                >
+                  <div className="space-y-2">
+                    {/* Day Header */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold text-xs text-muted-foreground">{format(day, 'EEE')}</div>
+                        <div className={`text-xl font-bold ${dayIsToday ? 'text-primary' : ''}`}>
+                          {format(day, 'd')}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        onClick={() => openAddMealDialog(day)}
+                      >
+                        <Plus size={14} />
+                      </Button>
+                    </div>
+
+                    {/* Meals by Type */}
+                    <div className="space-y-2 min-h-[120px]">
+                      {MEAL_TYPES.map((type) => {
+                        const typeMeals = getMealsByType(dayMeals, type)
+                        // Hide snack row when empty
+                        if (typeMeals.length === 0 && type === 'snack') return null
+
+                        return (
+                          <div key={type} className="space-y-1">
+                            <button
+                              onClick={() => openAddMealDialog(day, type)}
+                              className="text-[10px] font-semibold text-muted-foreground uppercase hover:text-primary transition-colors cursor-pointer"
+                            >
+                              {type}
+                            </button>
+                            {typeMeals.length > 0 ? (
+                              typeMeals.map((meal) => {
+                                const recipe = getRecipe(meal.recipeId)
+                                return (
+                                  <MealCard
+                                    key={meal.id}
+                                    meal={meal}
+                                    recipe={recipe}
+                                    onDelete={() => handleDeleteMeal(meal.id)}
+                                    onViewRecipe={recipe ? () => viewRecipe(recipe) : undefined}
+                                    onAddToShopping={recipe ? () => handleAddToShoppingList(recipe, meal.servings) : undefined}
+                                  />
+                                )
+                              })
+                            ) : (
+                              <button
+                                onClick={() => openAddMealDialog(day, type)}
+                                className="text-xs text-muted-foreground/40 hover:text-primary transition-colors py-0.5"
+                              >
+                                + add
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0"
-                    onClick={() => openAddMealDialog(day)}
-                  >
-                    <Plus size={14} />
-                  </Button>
-                </div>
+                </Card>
+              )
+            })}
+          </div>
+        </TabsContent>
 
-                {/* Meals by Type */}
-                <div className="space-y-2 min-h-[120px]">
-                  {MEAL_TYPES.map((type) => {
-                    const typeMeals = getMealsByType(dayMeals, type)
-                    if (typeMeals.length === 0 && type === 'snack') return null
-                    
-                    return (
-                      <div key={type} className="space-y-1">
-                        <button
-                          onClick={() => openAddMealDialog(day, type)}
-                          className="text-[10px] font-semibold text-muted-foreground uppercase hover:text-primary transition-colors cursor-pointer"
-                        >
-                          {type}
-                        </button>
-                        {typeMeals.length > 0 ? (
-                          typeMeals.map((meal) => {
-                            const recipe = getRecipe(meal.recipeId)
-                            return (
-                              <MealCard
-                                key={meal.id}
-                                meal={meal}
-                                recipe={recipe}
-                                onDelete={() => handleDeleteMeal(meal.id)}
-                                onViewRecipe={recipe ? () => viewRecipe(recipe) : undefined}
-                                onAddToShopping={recipe ? () => handleAddToShoppingList(recipe, meal.servings) : undefined}
-                              />
-                            )
-                          })
-                        ) : (
-                          <div className="text-xs text-muted-foreground/50 italic py-1">—</div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </Card>
-          )
-        })}
-      </div>
+        <TabsContent value="recipes" className="mt-4">
+          <RecipesPanel
+            recipes={recipes}
+            setRecipes={setRecipes}
+            shoppingItemsRaw={shoppingItemsRaw}
+            setShoppingItems={setShoppingItems}
+            tagLibrary={tagLibrary}
+            setTagLibrary={setTagLibrary}
+            initialRecipeId={subTab === 'recipes' ? initialRecipeId : null}
+            onRecipeViewed={onRecipeViewed}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Add Meal Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
@@ -445,7 +508,7 @@ export default function MealsSection() {
               {selectedDate && format(parseISO(selectedDate), 'EEEE, MMMM d')}
             </DialogDescription>
           </DialogHeader>
-          
+
           <Tabs value={addMode} onValueChange={(v) => setAddMode(v as 'recipe' | 'note')}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="recipe" className="gap-1">
@@ -457,7 +520,7 @@ export default function MealsSection() {
                 Note
               </TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="recipe" className="space-y-4 pt-4">
               {/* Meal Type */}
               <div className="space-y-2">
@@ -481,9 +544,9 @@ export default function MealsSection() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Recipe</Label>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="h-6 text-xs gap-1"
                     onClick={() => setQuickRecipeOpen(true)}
                   >
@@ -491,7 +554,7 @@ export default function MealsSection() {
                     New Recipe
                   </Button>
                 </div>
-                
+
                 <Popover open={recipeSearchOpen} onOpenChange={setRecipeSearchOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -506,8 +569,8 @@ export default function MealsSection() {
                   </PopoverTrigger>
                   <PopoverContent className="w-[400px] p-0" align="start">
                     <Command>
-                      <CommandInput 
-                        placeholder="Search recipes..." 
+                      <CommandInput
+                        placeholder="Search recipes..."
                         value={recipeSearch}
                         onValueChange={setRecipeSearch}
                       />
@@ -515,8 +578,8 @@ export default function MealsSection() {
                         <CommandEmpty>
                           <div className="py-4 text-center">
                             <p className="text-sm text-muted-foreground mb-2">No recipes found</p>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
                               onClick={() => {
                                 setQuickRecipeForm(prev => ({ ...prev, name: recipeSearch }))
@@ -528,7 +591,7 @@ export default function MealsSection() {
                             </Button>
                           </div>
                         </CommandEmpty>
-                        
+
                         {/* Suggested recipes based on meal type */}
                         {suggestedRecipes.length > 0 && !recipeSearch && (
                           <CommandGroup heading={`Suggested for ${mealForm.type}`}>
@@ -573,7 +636,7 @@ export default function MealsSection() {
                             ))}
                           </CommandGroup>
                         )}
-                        
+
                         {/* Search results */}
                         {recipeSearch && filteredRecipes.length > 0 && (
                           <CommandGroup heading="Recipes">
@@ -600,7 +663,7 @@ export default function MealsSection() {
                             ))}
                           </CommandGroup>
                         )}
-                        
+
                         {/* All recipes */}
                         {!recipeSearch && recipes.length > 0 && (
                           <CommandGroup heading="All Recipes">
@@ -631,7 +694,7 @@ export default function MealsSection() {
                     </Command>
                   </PopoverContent>
                 </Popover>
-                
+
                 {/* Or enter custom name */}
                 {!mealForm.recipeId && (
                   <div className="pt-2">
@@ -676,7 +739,7 @@ export default function MealsSection() {
                 />
               </div>
             </TabsContent>
-            
+
             <TabsContent value="note" className="space-y-4 pt-4">
               {/* Meal Type */}
               <div className="space-y-2">
@@ -765,7 +828,7 @@ export default function MealsSection() {
                   placeholder="e.g., Chicken Stir Fry"
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Category</Label>
@@ -913,14 +976,14 @@ export default function MealsSection() {
                 <div className="space-y-4 pr-4">
                   {selectedViewRecipe.imageUrl && (
                     <div className="relative w-full h-48 bg-muted rounded-lg overflow-hidden">
-                      <img 
-                        src={selectedViewRecipe.imageUrl} 
+                      <img
+                        src={selectedViewRecipe.imageUrl}
                         alt={selectedViewRecipe.name}
                         className="w-full h-full object-cover"
                       />
                     </div>
                   )}
-                  
+
                   <div className="flex flex-wrap gap-2">
                     {selectedViewRecipe.prepTime && (
                       <Badge variant="outline" className="gap-1">
@@ -941,7 +1004,7 @@ export default function MealsSection() {
                       </Badge>
                     )}
                   </div>
-                  
+
                   <div>
                     <h4 className="font-semibold mb-2">Ingredients</h4>
                     <ul className="space-y-1 text-sm">
@@ -953,7 +1016,7 @@ export default function MealsSection() {
                       ))}
                     </ul>
                   </div>
-                  
+
                   <div>
                     <h4 className="font-semibold mb-2">Instructions</h4>
                     <p className="text-sm whitespace-pre-wrap">{selectedViewRecipe.instructions}</p>
@@ -961,8 +1024,8 @@ export default function MealsSection() {
                 </div>
               </ScrollArea>
               <div className="flex gap-2 pt-4">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="flex-1 gap-1"
                   onClick={() => handleAddToShoppingList(selectedViewRecipe)}
                 >
@@ -974,21 +1037,6 @@ export default function MealsSection() {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Empty State */}
-      {meals.length === 0 && (
-        <Card className="p-12 text-center">
-          <CalendarBlank size={48} className="mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-semibold mb-2">No meals planned yet</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Click the + button on any day to add a meal, or use Auto-Plan
-          </p>
-          <Button onClick={() => setAutoPlannerOpen(true)} className="gap-2">
-            <Sparkle />
-            Auto-Plan Week
-          </Button>
-        </Card>
-      )}
     </div>
   )
 }
@@ -1005,59 +1053,39 @@ interface MealCardProps {
 function MealCard({ meal, recipe, onDelete, onViewRecipe, onAddToShopping }: MealCardProps) {
   return (
     <div className={`
-      bg-secondary/50 rounded-md p-2 group relative
-      ${meal.isNote ? 'border-l-2 border-yellow-500/50 bg-yellow-50/30 dark:bg-yellow-950/20' : ''}
+      flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm
+      ${meal.isNote
+        ? 'bg-yellow-50/50 border border-yellow-200/60 dark:bg-yellow-950/20 dark:border-yellow-800/40'
+        : 'bg-secondary/50 border border-border/40'}
     `}>
-      <div className="text-sm font-medium pr-6 flex items-start gap-1">
-        {meal.isNote && <Note size={14} className="text-yellow-600 mt-0.5 flex-shrink-0" />}
-        <span className="line-clamp-2">{meal.name}</span>
-      </div>
-      
-      {recipe && (
-        <div className="flex items-center gap-1 mt-1">
-          <Badge 
-            variant="outline" 
-            className="text-[10px] px-1 py-0 cursor-pointer hover:bg-primary/10"
-            onClick={(e) => { e.stopPropagation(); onViewRecipe?.(); }}
-          >
-            <CookingPot size={10} className="mr-0.5" />
-            Recipe
-          </Badge>
-          {meal.servings && (
-            <Badge variant="secondary" className="text-[10px] px-1 py-0">
-              <Users size={10} className="mr-0.5" />
-              {meal.servings}
-            </Badge>
+      {meal.isNote && <Note size={12} className="text-yellow-600 flex-shrink-0" />}
+      <span className="flex-1 truncate font-medium">{meal.name}</span>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="h-5 w-5 rounded flex items-center justify-center hover:bg-muted flex-shrink-0">
+            <CaretDown size={12} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-40">
+          {onViewRecipe && (
+            <DropdownMenuItem onClick={onViewRecipe}>
+              <CookingPot size={14} className="mr-2" />
+              View Recipe
+            </DropdownMenuItem>
           )}
-        </div>
-      )}
-      
-      {meal.notes && (
-        <p className="text-[10px] text-muted-foreground mt-1 line-clamp-1">{meal.notes}</p>
-      )}
-      
-      {/* Action buttons */}
-      <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        {onAddToShopping && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-5 w-5 p-0"
-            onClick={(e) => { e.stopPropagation(); onAddToShopping(); }}
-            title="Add to shopping list"
-          >
-            <ShoppingCart size={10} />
-          </Button>
-        )}
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-5 w-5 p-0 hover:text-destructive"
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        >
-          <Trash size={10} />
-        </Button>
-      </div>
+          {onAddToShopping && (
+            <DropdownMenuItem onClick={onAddToShopping}>
+              <ShoppingCart size={14} className="mr-2" />
+              Add to Shopping
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={onDelete} className="text-red-600">
+            <Trash size={14} className="mr-2" />
+            Remove
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

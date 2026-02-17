@@ -2,16 +2,45 @@
   * {
     @apply border-border;
   }
-  
+
   body {
     font-family: 'Karla', sans-serif;
+    font-weight: 400;
+    font-size: 1rem;
+    line-height: 1.6;
     @apply bg-background text-foreground;
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
   }
-  
-  h1, h2, h3, h4, h5, h6 {
+
+  h1 {
     font-family: 'Bitter', serif;
+    font-weight: 700;
+    font-size: 2rem;
+    line-height: 1.1;
+  }
+
+  h2 {
+    font-family: 'Bitter', serif;
+    font-weight: 600;
+    font-size: 1.5rem;
+    line-height: 1.4;
+  }
+
+  h3 {
+    font-family: 'Karla', sans-serif;
+    font-weight: 600;
+    font-size: 1.125rem;
+    line-height: 1.6;
+  }
+
+  h4, h5, h6 {
+    font-family: 'Bitter', serif;
+  }
+
+  small, .text-sm {
+    font-size: 0.875rem;
+    line-height: 1.4;
   }
 
   @supports (padding: max(0px)) {
@@ -139,4 +168,24 @@
   .section-stack {
     gap: 1.5rem;
   }
+}
+
+/* Collapsible animation via Radix data-state */
+@keyframes collapsible-slide-down {
+  from { height: 0; opacity: 0; }
+  to { height: var(--radix-collapsible-content-height); opacity: 1; }
+}
+
+@keyframes collapsible-slide-up {
+  from { height: var(--radix-collapsible-content-height); opacity: 1; }
+  to { height: 0; opacity: 0; }
+}
+
+[data-slot="collapsible-content"][data-state="open"] {
+  animation: collapsible-slide-down 200ms ease-out;
+}
+
+[data-slot="collapsible-content"][data-state="closed"] {
+  animation: collapsible-slide-up 150ms ease-in;
+  overflow: hidden;
 }

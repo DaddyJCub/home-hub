@@ -1,11 +1,16 @@
 import { ComponentProps } from "react"
 import { cn } from "@/lib/utils"
 
-function Card({ className, ...props }: ComponentProps<"div">) {
+const cardVariants = {
+  default: "rounded-xl border border-border/60 bg-card/90 text-card-foreground shadow-lg shadow-black/10 backdrop-blur-sm",
+  flat: "rounded-lg border border-border/40 bg-card/90 text-card-foreground shadow-sm hover:shadow-md hover:-translate-y-px transition-all duration-200",
+}
+
+function Card({ className, variant = "default", ...props }: ComponentProps<"div"> & { variant?: keyof typeof cardVariants }) {
   return (
     <div
       className={cn(
-        "rounded-xl border border-border/60 bg-card/90 text-card-foreground shadow-lg shadow-black/10 backdrop-blur-sm",
+        cardVariants[variant],
         className
       )}
       {...props}
@@ -22,11 +27,11 @@ function CardHeader({ className, ...props }: ComponentProps<"div">) {
   )
 }
 
-function CardTitle({ className, ...props }: ComponentProps<"h3">) {
+function CardTitle({ className, ...props }: ComponentProps<"h2">) {
   return (
-    <h3
+    <h2
       className={cn(
-        "text-2xl font-semibold leading-none tracking-tight",
+        "font-semibold leading-none tracking-tight",
         className
       )}
       {...props}
@@ -62,39 +67,3 @@ function CardFooter({ className, ...props }: ComponentProps<"div">) {
 }
 
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

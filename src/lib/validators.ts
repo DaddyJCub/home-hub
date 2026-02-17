@@ -106,7 +106,7 @@ export function validateShopping(item: ShoppingItem): ValidationResult<ShoppingI
     id: item.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     name: (item.name || '').trim(),
     quantity: item.quantity ?? '1',
-    householdId: item.householdId || '',
+    householdId: item.householdId || 'pending',
     purchased: item.purchased ?? false,
     createdAt: item.createdAt ?? Date.now()
   } as ShoppingItem

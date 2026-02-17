@@ -32,15 +32,15 @@ import {
   ArrowsClockwise,
   Moon,
   Sun,
-  DeviceMobile,
   User,
   Plus,
   X,
   Sparkle,
+  Robot,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { themes, applyTheme, getThemeById, type Theme } from '@/lib/themes'
-import { MobileNavCustomizer } from '@/components/MobileNavCustomizer'
+import { testOllamaConnection, type OllamaConfig } from '@/lib/ollama'
 import { MobileEnhancements } from '@/components/MobileEnhancements'
 import { NotificationSettings } from '@/components/NotificationSettings'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -76,6 +76,9 @@ export default function SettingsSection() {
   const [showUiDiag, setShowUiDiag] = useKV<boolean>('ui-diagnostics-enabled', false)
   const [challengeEnabled, setChallengeEnabled] = useKV<boolean>('challenge-enabled', true)
   const [onboardingStatus, setOnboardingStatus] = useKV<{ completedSteps?: string[]; skipped?: boolean }>('onboarding-status', { completedSteps: [], skipped: false })
+  const [ollamaConfig, setOllamaConfig] = useKV<OllamaConfig>('ollama-config', { url: 'http://localhost:11434', model: 'llama3.2' })
+  const [ollamaTestResult, setOllamaTestResult] = useState<{ ok: boolean; models?: string[]; error?: string } | null>(null)
+  const [ollamaTestLoading, setOllamaTestLoading] = useState(false)
   
   const dashboardWidgets = dashboardWidgetsRaw ?? []
   const resolvedThemeId = currentThemeId || 'warm-home'
@@ -214,7 +217,7 @@ export default function SettingsSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold">Settings</h2>
+        <h1>Settings</h1>
         <p className="text-muted-foreground">Customize your HomeHub experience</p>
       </div>
 
@@ -282,20 +285,72 @@ export default function SettingsSection() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Robot size={24} />
+            AI Configuration
+          </CardTitle>
+          <CardDescription>Connect to a local Ollama instance for recipe parsing and AI features</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="ollama-url">Ollama URL</Label>
+            <Input
+              id="ollama-url"
+              value={ollamaConfig?.url ?? 'http://localhost:11434'}
+              onChange={(e) => setOllamaConfig({ ...(ollamaConfig ?? { url: '', model: 'llama3.2' }), url: e.target.value })}
+              placeholder="http://localhost:11434"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ollama-model">Model</Label>
+            <Input
+              id="ollama-model"
+              value={ollamaConfig?.model ?? 'llama3.2'}
+              onChange={(e) => setOllamaConfig({ ...(ollamaConfig ?? { url: 'http://localhost:11434', model: '' }), model: e.target.value })}
+              placeholder="llama3.2"
+            />
+            <p className="text-xs text-muted-foreground">
+              Model used for recipe parsing and meal planning. Must be pulled in Ollama first.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={ollamaTestLoading}
+              onClick={async () => {
+                setOllamaTestLoading(true)
+                setOllamaTestResult(null)
+                const result = await testOllamaConnection()
+                setOllamaTestResult(result)
+                setOllamaTestLoading(false)
+                if (result.ok) {
+                  toast.success(`Connected! ${result.models?.length ?? 0} model(s) available`)
+                } else {
+                  toast.error(`Connection failed: ${result.error}`)
+                }
+              }}
+            >
+              {ollamaTestLoading ? 'Testing...' : 'Test Connection'}
+            </Button>
+            {ollamaTestResult && (
+              <Badge variant={ollamaTestResult.ok ? 'default' : 'destructive'}>
+                {ollamaTestResult.ok ? 'Connected' : 'Failed'}
+              </Badge>
+            )}
+          </div>
+          {ollamaTestResult?.ok && ollamaTestResult.models && ollamaTestResult.models.length > 0 && (
+            <div className="text-xs text-muted-foreground">
+              Available models: {ollamaTestResult.models.join(', ')}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {isMobile && (
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DeviceMobile size={24} />
-                Mobile Navigation
-              </CardTitle>
-              <CardDescription>Customize your bottom navigation bar</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <MobileNavCustomizer />
-            </CardContent>
-          </Card>
 
           <MobileEnhancements />
         </>

@@ -47,8 +47,16 @@ if (typeof window !== 'undefined') {
       set: async (key: string, value: any) => writeValue(key, value),
       delete: async (key: string) => deleteValue(key),
     },
-    llmPrompt: undefined,
-    llm: undefined,
+    llmPrompt: (parts: string[], content: string) => {
+      // Combine template parts around the content
+      return parts.length > 1 ? parts[0] + content + parts[1] : parts[0] + content
+    },
+    llm: async (prompt: any, _model?: string, _streaming?: boolean) => {
+      // Forward to Ollama via the ollama module
+      const { ollamaGenerate } = await import('@/lib/ollama')
+      const promptStr = typeof prompt === 'string' ? prompt : String(prompt)
+      return ollamaGenerate(promptStr)
+    },
     user: async () => null
   }
 }

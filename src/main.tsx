@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from "react-error-boundary";
-import "@github/spark/spark"
+import "./shims/spark-shim"
 import { Toaster } from 'sonner'
 
 import App from './App.tsx'

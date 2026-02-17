@@ -10,8 +10,9 @@ import { Progress } from '@/components/ui/progress'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent, ChoreCompletion } from '@/lib/types'
+import type { DashboardWidget } from '@/components/DashboardCustomizer'
 import { format, isToday, isAfter, isSameDay, startOfDay, addDays, parseISO, isTomorrow, formatDistanceToNow } from 'date-fns'
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, Fragment } from 'react'
 import { NotificationSummary } from '@/components/NotificationSummary'
 import { useAuth } from '@/lib/AuthContext'
 import { toast } from 'sonner'
@@ -34,13 +35,6 @@ const getGreeting = () => {
   return { text: 'Good evening', icon: Moon }
 }
 
-// Priority colors
-const priorityColors = {
-  high: 'bg-red-500/20 text-red-700 border-red-300 dark:text-red-300',
-  medium: 'bg-yellow-500/20 text-yellow-700 border-yellow-300 dark:text-yellow-300',
-  low: 'bg-green-500/20 text-green-700 border-green-300 dark:text-green-300'
-}
-
 export default function DashboardSection({ onNavigate, onViewRecipe, highlightChoreId }: DashboardSectionProps) {
   const { householdMembers, currentHousehold, currentUser } = useAuth()
   const [roomsRaw] = useKV<string[]>('rooms', [])
@@ -54,10 +48,10 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   const memberFilter = selectedMember ?? 'all'
   const [challengeEnabled, setChallengeEnabled] = useKV<boolean>('challenge-enabled', true)
 
-  // Collapsible states
-  const [showAllChores, setShowAllChores] = useState(false)
-  const [showAllEvents, setShowAllEvents] = useState(false)
-  const [showShoppingPanel, setShowShoppingPanel] = useState(true)
+  // Collapsible states (persisted)
+  const [showAllChores, setShowAllChores] = useKV<boolean>('dashboard-show-all-chores', false)
+  const [showAllEvents, setShowAllEvents] = useKV<boolean>('dashboard-show-all-events', false)
+  const [showShoppingPanel, setShowShoppingPanel] = useKV<boolean>('dashboard-show-shopping', true)
 
   const allChores = choresRaw ?? []
   const allCompletions = completionsRaw ?? []
@@ -319,8 +313,602 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
     return empty || onboardingStatus?.force
   }, [currentHousehold, chores.length, shoppingItems.length, meals.length, recipes.length, events.length, onboardingStatus])
 
+  // Widget ordering from DashboardCustomizer
+  const [dashboardWidgetsRaw] = useKV<DashboardWidget[]>('dashboard-widgets', undefined)
+
+  const isWidgetEnabled = useCallback((id: string) => {
+    if (!dashboardWidgetsRaw || dashboardWidgetsRaw.length === 0) return true
+    const w = dashboardWidgetsRaw.find(w => w.id === id)
+    return w ? w.enabled !== false : true
+  }, [dashboardWidgetsRaw])
+
+  // Default widget order matches current hardcoded layout
+  const DEFAULT_WIDGET_ORDER = ['stats', 'weekly-chore-schedule', 'priorities', 'todays-events', 'today-meals', 'room-chores', 'shopping-preview', 'upcoming-events', 'member-stats']
+
+  const sortedWidgetIds = useMemo(() => {
+    if (!dashboardWidgetsRaw || dashboardWidgetsRaw.length === 0) {
+      return DEFAULT_WIDGET_ORDER
+    }
+    return [...dashboardWidgetsRaw]
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map(w => w.id)
+  }, [dashboardWidgetsRaw])
+
+  // Widget renderer - maps widget IDs to their JSX
+  const renderWidget = useCallback((id: string): React.ReactNode => {
+    if (!isWidgetEnabled(id)) return null
+
+    switch (id) {
+      case 'stats':
+        return (
+          <div key="stats" className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4 sm:overflow-visible">
+            <QuickStatPill
+              icon={Broom}
+              label="Chores"
+              value={pendingChores.length}
+              subtext={completionRate > 0 ? `${completionRate}% done` : undefined}
+              highlight={highPriorityChores.length > 0}
+              onClick={() => onNavigate?.('chores')}
+            />
+            {showShoppingTab && (
+              <QuickStatPill
+                icon={ShoppingCart}
+                label="Shopping"
+                value={unpurchasedItems.length}
+                subtext="items"
+                onClick={() => onNavigate?.('shopping')}
+              />
+            )}
+            {showCalendar && (
+              <QuickStatPill
+                icon={CalendarBlank}
+                label="Today"
+                value={todaysEvents.length}
+                subtext="events"
+                highlight={todaysEvents.length > 0}
+                onClick={() => onNavigate?.('calendar')}
+              />
+            )}
+            {showMeals && (
+              <QuickStatPill
+                icon={CookingPot}
+                label="Meals"
+                value={todaysMeals.length}
+                subtext="planned"
+                onClick={() => onNavigate?.('meals')}
+              />
+            )}
+          </div>
+        )
+
+      case 'weekly-chore-schedule':
+        return (
+          <Card key="weekly-chore-schedule" className="border-primary/30 bg-primary/5">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Sparkle className="text-primary" />
+                  <div>
+                    <p className="text-sm font-semibold">This week's chore challenge</p>
+                    <p className="text-xs text-muted-foreground">Complete {challenge.goal} chores this week</p>
+                  </div>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => setChallengeEnabled(!challengeEnabled)}>
+                  {challengeEnabled ? 'Hide' : 'Show'}
+                </Button>
+              </div>
+              {challengeEnabled && (
+                <>
+                  <Progress value={challenge.percent} className="h-2" />
+                  <div className="flex items-center justify-between text-sm">
+                    <span>{challenge.progress} of {challenge.goal} completed</span>
+                    {challenge.done ? (
+                      <Badge variant="secondary" className="gap-1">
+                        <Fire size={12} />
+                        Complete!
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">{challenge.goal - challenge.progress} to go</span>
+                    )}
+                  </div>
+                  {challenge.done && (
+                    <div className="text-sm text-green-700 dark:text-green-300">
+                      Nice work! You hit this week's goal.
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )
+
+      case 'priorities':
+        return (
+          <Fragment key="priorities">
+            {/* Alert: High Priority Chores */}
+            {highPriorityChores.length > 0 && (
+              <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <Warning size={18} className="text-red-600 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-red-700 dark:text-red-300">
+                        {highPriorityChores.length} high priority {highPriorityChores.length === 1 ? 'task' : 'tasks'}
+                      </span>
+                      <span className="text-xs text-red-600/80 dark:text-red-400/80 ml-2">
+                        {highPriorityChores[0]?.title}
+                        {highPriorityChores.length > 1 && ` +${highPriorityChores.length - 1} more`}
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-700 hover:bg-red-100 dark:text-red-300 px-2"
+                      onClick={() => onNavigate?.('chores')}
+                    >
+                      <ArrowRight size={16} />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Pending Chores - Collapsible */}
+            <Collapsible open={showAllChores} onOpenChange={setShowAllChores}>
+              <Card>
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="pb-2 pt-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors">
+                    <CardTitle className="text-base flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <CheckCircle size={18} className="text-primary" />
+                        Pending Chores
+                        <Badge variant="secondary" className="ml-1">{pendingChores.length}</Badge>
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {pendingChores.length > 3 && (
+                          showAllChores ? <CaretUp size={16} /> : <CaretDown size={16} />
+                        )}
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CardContent className="px-4 pb-3 space-y-3">
+                  {(overdueChores.length + dueTodayChores.length + upcomingShort.length) > 0 ? (
+                    <>
+                      {overdueChores.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-red-600 mb-1 flex items-center gap-1">
+                            <Warning size={12} /> Overdue
+                          </p>
+                          <div className="space-y-1.5">
+                            {overdueChores.map(({ chore }) => (
+                              <ChoreItem key={chore.id} chore={chore} highlight={highlightChoreId === chore.id} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {dueTodayChores.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-primary mb-1">Due Today</p>
+                          <div className="space-y-1.5">
+                            {dueTodayChores.map(({ chore }) => (
+                              <ChoreItem key={chore.id} chore={chore} highlight={highlightChoreId === chore.id} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {upcomingShort.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-muted-foreground mb-1">Upcoming</p>
+                          <div className="space-y-1.5">
+                            {upcomingShort.map(({ chore }) => (
+                              <ChoreItem key={chore.id} chore={chore} highlight={highlightChoreId === chore.id} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
+                            ))}
+                          </div>
+                          {upcomingChores.length > 2 && (
+                            <p className="text-[11px] text-muted-foreground mt-1">+{upcomingChores.length - 2} more later</p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-4">
+                      <Sparkle size={24} className="mx-auto text-primary mb-2" />
+                      <p className="text-sm text-muted-foreground">All caught up!</p>
+                    </div>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-3"
+                    onClick={() => onNavigate?.('chores')}
+                  >
+                    Manage Chores <ArrowRight size={14} className="ml-1" />
+                  </Button>
+                </CardContent>
+              </Card>
+            </Collapsible>
+
+            {/* Completed Recently */}
+            {recentCompletions.length > 0 && (
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Card className="cursor-pointer">
+                    <CardHeader className="pb-2 pt-3 px-4 flex items-center justify-between">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <CheckCircle size={18} className="text-green-500" />
+                        Completed Recently
+                      </CardTitle>
+                      <CaretDown size={14} className="ui-open:rotate-180 transition-transform" />
+                    </CardHeader>
+                  </Card>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <Card>
+                    <CardContent className="px-4 pb-3 space-y-2">
+                      {recentCompletions.slice(0, 5).map(({ completion, chore }) => (
+                        <button
+                          key={completion.id}
+                          className="flex items-center justify-between w-full p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-left hover:bg-green-100/80 dark:hover:bg-green-900/40 transition-colors"
+                          onClick={() => chore && setDetailChore(chore)}
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{chore?.title || 'Chore'}</p>
+                            <p className="text-[11px] text-muted-foreground">
+                              Done {formatDistanceToNow(completion.completedAt, { addSuffix: true })}
+                              {completion.completedBy && ` by ${completion.completedBy}`}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-[11px] px-2 py-1">Open</Badge>
+                        </button>
+                      ))}
+                    </CardContent>
+                  </Card>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+          </Fragment>
+        )
+
+      case 'todays-events':
+        if (todaysEvents.length === 0 && todaysMeals.length === 0) return null
+        return (
+          <Card key="todays-events">
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-base flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Sun size={18} className="text-primary" />
+                  Today's Schedule
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => onNavigate?.('calendar')}
+                >
+                  View All <ArrowRight size={12} className="ml-1" />
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-3 space-y-2">
+              {/* Today's Events */}
+              {todaysEvents.slice(0, showAllEvents ? undefined : 3).map(event => (
+                <div
+                  key={event.id}
+                  className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                  onClick={() => setDetailEvent(event)}
+                >
+                  <div className="w-12 text-center flex-shrink-0">
+                    {event.isAllDay ? (
+                      <span className="text-xs font-medium text-muted-foreground">All day</span>
+                    ) : event.startTime ? (
+                      <span className="text-sm font-semibold">{event.startTime}</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">--:--</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{event.title}</p>
+                    {event.location && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin size={10} />
+                        {event.location}
+                      </p>
+                    )}
+                  </div>
+                  <Badge variant="outline" className="text-xs flex-shrink-0">
+                    {event.category}
+                  </Badge>
+                </div>
+              ))}
+
+              {/* Meals (shown if today-meals widget is also enabled) */}
+              {isWidgetEnabled('today-meals') && todaysMeals.length > 0 && (
+                <div className="flex gap-2 mt-2 pt-2 border-t overflow-x-auto">
+                  {['breakfast', 'lunch', 'dinner'].map(type => {
+                    const meal = todaysMeals.find(m => m.type === type)
+                    const hasRecipe = meal?.recipeId
+                    return (
+                      <div
+                        key={type}
+                        className={`flex-1 min-w-[100px] p-2 rounded-lg text-center transition-colors ${
+                          meal ? 'bg-primary/10' : 'bg-muted/30'
+                        } ${hasRecipe ? 'cursor-pointer hover:bg-primary/20 active:bg-primary/25' : ''}`}
+                        onClick={() => {
+                          if (hasRecipe && onViewRecipe) {
+                            onViewRecipe(meal.recipeId!)
+                          } else if (meal) {
+                            onNavigate?.('meals')
+                          }
+                        }}
+                      >
+                        <p className="text-[10px] uppercase font-semibold text-muted-foreground">{type}</p>
+                        <p className={`text-xs truncate ${meal ? 'font-medium' : 'text-muted-foreground italic'}`}>
+                          {meal?.name || '-'}
+                        </p>
+                        {hasRecipe && (
+                          <p className="text-[10px] text-primary mt-0.5">View recipe</p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {todaysEvents.length > 3 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full h-7 text-xs"
+                  onClick={() => setShowAllEvents(!showAllEvents)}
+                >
+                  {showAllEvents ? (
+                    <>Show Less <CaretUp size={12} className="ml-1" /></>
+                  ) : (
+                    <>Show {todaysEvents.length - 3} More <CaretDown size={12} className="ml-1" /></>
+                  )}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )
+
+      case 'today-meals':
+        // Meals are rendered inside the todays-events card when both are enabled.
+        // Only render standalone meals card if todays-events is disabled.
+        if (isWidgetEnabled('todays-events')) return null
+        if (todaysMeals.length === 0) return null
+        return (
+          <Card key="today-meals">
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-base flex items-center gap-2">
+                <CookingPot size={18} className="text-primary" />
+                Today's Meals
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-3">
+              <div className="flex gap-2 overflow-x-auto">
+                {['breakfast', 'lunch', 'dinner'].map(type => {
+                  const meal = todaysMeals.find(m => m.type === type)
+                  const hasRecipe = meal?.recipeId
+                  return (
+                    <div
+                      key={type}
+                      className={`flex-1 min-w-[100px] p-2 rounded-lg text-center transition-colors ${
+                        meal ? 'bg-primary/10' : 'bg-muted/30'
+                      } ${hasRecipe ? 'cursor-pointer hover:bg-primary/20 active:bg-primary/25' : ''}`}
+                      onClick={() => {
+                        if (hasRecipe && onViewRecipe) {
+                          onViewRecipe(meal.recipeId!)
+                        } else if (meal) {
+                          onNavigate?.('meals')
+                        }
+                      }}
+                    >
+                      <p className="text-[10px] uppercase font-semibold text-muted-foreground">{type}</p>
+                      <p className={`text-xs truncate ${meal ? 'font-medium' : 'text-muted-foreground italic'}`}>
+                        {meal?.name || '-'}
+                      </p>
+                      {hasRecipe && (
+                        <p className="text-[10px] text-primary mt-0.5">View recipe</p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )
+
+      case 'room-chores':
+        if (roomProgress.length === 0) return null
+        return (
+          <Card key="room-chores">
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-base flex items-center gap-2">
+                <House size={18} className="text-primary" />
+                Room Progress (today & week)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 space-y-2">
+              {roomProgress.map(room => (
+                <div key={room.room} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+                    <span className="font-medium">{room.room}</span>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-[11px]">Today: {room.dueToday}</Badge>
+                      {room.overdue > 0 && <Badge variant="destructive" className="text-[11px]">Overdue: {room.overdue}</Badge>}
+                      <Badge variant="outline" className="text-[11px]">This week: {room.completedThisWeek} done</Badge>
+                      <span className="text-muted-foreground">
+                        {room.total - room.pending}/{room.total} done
+                      </span>
+                    </div>
+                  </div>
+                  <Progress value={room.completion} />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )
+
+      case 'shopping-preview':
+        if (!showShoppingTab || unpurchasedItems.length === 0) return null
+        return (
+          <Collapsible key="shopping-preview" open={showShoppingPanel} onOpenChange={setShowShoppingPanel}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="pb-2 pt-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors">
+                  <CardTitle className="text-base flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <ShoppingCart size={18} className="text-primary" />
+                      Shopping List
+                      <Badge variant="secondary" className="ml-1">{unpurchasedItems.length}</Badge>
+                    </span>
+                    {showShoppingPanel ? <CaretUp size={16} /> : <CaretDown size={16} />}
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="px-4 pb-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {unpurchasedItems.slice(0, 12).map(item => (
+                      <Badge
+                        key={item.id}
+                        variant="outline"
+                        className="text-xs py-1 cursor-pointer"
+                        onClick={() => setDetailItem(item)}
+                      >
+                        {item.name}
+                        {item.quantity && item.quantity !== '1' && (
+                          <span className="ml-1 opacity-60">{item.quantity}</span>
+                        )}
+                      </Badge>
+                    ))}
+                    {unpurchasedItems.length > 12 && (
+                      <Badge variant="secondary" className="text-xs">
+                        +{unpurchasedItems.length - 12} more
+                      </Badge>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-3"
+                    onClick={() => onNavigate?.('shopping')}
+                  >
+                    Go Shopping <ArrowRight size={14} className="ml-1" />
+                  </Button>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        )
+
+      case 'upcoming-events':
+        if (upcomingEvents.length === 0) return null
+        return (
+          <Card key="upcoming-events">
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-base flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <CalendarBlank size={18} className="text-primary" />
+                  Coming Up
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => onNavigate?.('calendar')}
+                >
+                  Calendar <ArrowRight size={12} className="ml-1" />
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-3">
+              <div className="space-y-1">
+                {upcomingEvents.map(event => {
+                  const eventDate = parseISO(event.date)
+                  const isTmrw = isTomorrow(eventDate)
+                  return (
+                    <div
+                      key={event.id}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() => setDetailEvent(event)}
+                    >
+                      <div className="w-10 text-center flex-shrink-0">
+                        <p className="text-xs text-muted-foreground">
+                          {isTmrw ? 'TMR' : format(eventDate, 'EEE').toUpperCase()}
+                        </p>
+                        <p className="text-sm font-bold">{format(eventDate, 'd')}</p>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{event.title}</p>
+                      </div>
+                      {event.startTime && (
+                        <span className="text-xs text-muted-foreground">{event.startTime}</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )
+
+      case 'member-stats':
+        if (members.length <= 1 || selectedMember !== 'all') return null
+        return (
+          <Card key="member-stats">
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-base flex items-center gap-2">
+                <User size={18} className="text-primary" />
+                Family Progress
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-3">
+              <div className="space-y-3">
+                {members.slice(0, 4).map(member => {
+                  const memberChores = chores.filter(c => c.assignedTo === member.displayName)
+                  const memberPending = memberChores.filter(c => !c.completed).length
+                  const memberCompleted = memberChores.filter(c => c.completed).length
+                  const rate = memberChores.length > 0
+                    ? Math.round((memberCompleted / memberChores.length) * 100)
+                    : 0
+
+                  return (
+                    <div key={member.id} className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs font-semibold text-primary">
+                          {member.displayName.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium truncate">{member.displayName}</span>
+                          <span className="text-xs text-muted-foreground">{memberPending} pending</span>
+                        </div>
+                        <Progress value={rate} className="h-1.5" />
+                      </div>
+                      <span className="text-xs font-semibold text-primary w-8 text-right">{rate}%</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )
+
+      default:
+        return null
+    }
+  }, [isWidgetEnabled, pendingChores, completionRate, highPriorityChores, showShoppingTab, unpurchasedItems,
+      showCalendar, todaysEvents, showMeals, todaysMeals, challenge, challengeEnabled, showAllChores,
+      overdueChores, dueTodayChores, upcomingShort, upcomingChores, recentCompletions, roomProgress,
+      showShoppingPanel, upcomingEvents, members, selectedMember, chores, showAllEvents,
+      highlightChoreId, onNavigate, onViewRecipe])
+
   return (
-    <div className="space-y-4 pb-20">
+    <div className="space-y-6 pb-20">
       {showOnboarding && <OnboardingChecklist />}
 
       {/* Greeting Header - Compact */}
@@ -330,7 +918,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
             <GreetingIcon size={20} className="text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold">{greeting.text}</h2>
+            <h1>{greeting.text}</h1>
             <p className="text-xs text-muted-foreground">
               {format(new Date(), 'EEEE, MMMM d')}
             </p>
@@ -347,113 +935,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
       {/* Notification Summary - If any */}
       <NotificationSummary />
 
-      {/* Quick Stats Row - Horizontal scroll on mobile */}
-      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4 sm:overflow-visible">
-        <QuickStatPill
-          icon={Broom}
-          label="Chores"
-          value={pendingChores.length}
-          subtext={completionRate > 0 ? `${completionRate}% done` : undefined}
-          highlight={highPriorityChores.length > 0}
-          onClick={() => onNavigate?.('chores')}
-        />
-        {showShoppingTab && (
-          <QuickStatPill
-            icon={ShoppingCart}
-            label="Shopping"
-            value={unpurchasedItems.length}
-            subtext="items"
-            onClick={() => onNavigate?.('shopping')}
-          />
-        )}
-        {showCalendar && (
-          <QuickStatPill
-            icon={CalendarBlank}
-            label="Today"
-            value={todaysEvents.length}
-            subtext="events"
-            highlight={todaysEvents.length > 0}
-            onClick={() => onNavigate?.('calendar')}
-          />
-        )}
-        {showMeals && (
-          <QuickStatPill
-            icon={CookingPot}
-            label="Meals"
-            value={todaysMeals.length}
-            subtext="planned"
-            onClick={() => onNavigate?.('meals')}
-          />
-        )}
-      </div>
-
-      {/* Weekly Challenge */}
-      <Card className="border-primary/30 bg-primary/5">
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Sparkle className="text-primary" />
-              <div>
-                <p className="text-sm font-semibold">This week’s chore challenge</p>
-                <p className="text-xs text-muted-foreground">Complete {challenge.goal} chores this week</p>
-              </div>
-            </div>
-            <Button size="sm" variant="ghost" onClick={() => setChallengeEnabled(!challengeEnabled)}>
-              {challengeEnabled ? 'Hide' : 'Show'}
-            </Button>
-          </div>
-          {challengeEnabled && (
-            <>
-              <Progress value={challenge.percent} className="h-2" />
-              <div className="flex items-center justify-between text-sm">
-                <span>{challenge.progress} of {challenge.goal} completed</span>
-                {challenge.done ? (
-                  <Badge variant="secondary" className="gap-1">
-                    <Fire size={12} />
-                    Complete!
-                  </Badge>
-                ) : (
-                  <span className="text-muted-foreground">{challenge.goal - challenge.progress} to go</span>
-                )}
-              </div>
-              {challenge.done && (
-                <div className="text-sm text-green-700 dark:text-green-300">
-                  Nice work! You hit this week’s goal.
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Alert: High Priority Chores */}
-      {highPriorityChores.length > 0 && (
-        <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <Warning size={18} className="text-red-600 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <span className="text-sm font-medium text-red-700 dark:text-red-300">
-                  {highPriorityChores.length} high priority {highPriorityChores.length === 1 ? 'task' : 'tasks'}
-                </span>
-                <span className="text-xs text-red-600/80 dark:text-red-400/80 ml-2">
-                  {highPriorityChores[0]?.title}
-                  {highPriorityChores.length > 1 && ` +${highPriorityChores.length - 1} more`}
-                </span>
-              </div>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                className="text-red-700 hover:bg-red-100 dark:text-red-300 px-2"
-                onClick={() => onNavigate?.('chores')}
-              >
-                <ArrowRight size={16} />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
+      {/* Detail Dialogs (portals - always rendered) */}
       <Dialog open={!!detailChore} onOpenChange={() => setDetailChore(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -552,396 +1034,8 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         </DialogContent>
       </Dialog>
 
-      {/* Today's Schedule - Combined Events & Meals */}
-      {(todaysEvents.length > 0 || todaysMeals.length > 0) && (
-        <Card>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-base flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Sun size={18} className="text-primary" />
-                Today's Schedule
-              </span>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => onNavigate?.('calendar')}
-              >
-                View All <ArrowRight size={12} className="ml-1" />
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3 space-y-2">
-            {/* Today's Events */}
-            {todaysEvents.slice(0, showAllEvents ? undefined : 3).map(event => (
-              <div 
-                key={event.id}
-                className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
-                onClick={() => setDetailEvent(event)}
-              >
-                <div className="w-12 text-center flex-shrink-0">
-                  {event.isAllDay ? (
-                    <span className="text-xs font-medium text-muted-foreground">All day</span>
-                  ) : event.startTime ? (
-                    <span className="text-sm font-semibold">{event.startTime}</span>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">--:--</span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{event.title}</p>
-                  {event.location && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <MapPin size={10} />
-                      {event.location}
-                    </p>
-                  )}
-                </div>
-                <Badge variant="outline" className="text-xs flex-shrink-0">
-                  {event.category}
-                </Badge>
-              </div>
-            ))}
-
-            {/* Meals */}
-            {todaysMeals.length > 0 && (
-              <div className="flex gap-2 mt-2 pt-2 border-t overflow-x-auto">
-                {['breakfast', 'lunch', 'dinner'].map(type => {
-                  const meal = todaysMeals.find(m => m.type === type)
-                  const hasRecipe = meal?.recipeId
-                  return (
-                    <div 
-                      key={type}
-                      className={`flex-1 min-w-[100px] p-2 rounded-lg text-center transition-colors ${
-                        meal ? 'bg-primary/10' : 'bg-muted/30'
-                      } ${hasRecipe ? 'cursor-pointer hover:bg-primary/20 active:bg-primary/25' : ''}`}
-                      onClick={() => {
-                        if (hasRecipe && onViewRecipe) {
-                          onViewRecipe(meal.recipeId!)
-                        } else if (meal) {
-                          onNavigate?.('meals')
-                        }
-                      }}
-                    >
-                      <p className="text-[10px] uppercase font-semibold text-muted-foreground">{type}</p>
-                      <p className={`text-xs truncate ${meal ? 'font-medium' : 'text-muted-foreground italic'}`}>
-                        {meal?.name || '-'}
-                      </p>
-                      {hasRecipe && (
-                        <p className="text-[10px] text-primary mt-0.5">View recipe →</p>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            {todaysEvents.length > 3 && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="w-full h-7 text-xs"
-                onClick={() => setShowAllEvents(!showAllEvents)}
-              >
-                {showAllEvents ? (
-                  <>Show Less <CaretUp size={12} className="ml-1" /></>
-                ) : (
-                  <>Show {todaysEvents.length - 3} More <CaretDown size={12} className="ml-1" /></>
-                )}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Pending Chores - Collapsible */}
-      <Collapsible open={showAllChores} onOpenChange={setShowAllChores}>
-        <Card>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="pb-2 pt-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors">
-              <CardTitle className="text-base flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <CheckCircle size={18} className="text-primary" />
-                  Pending Chores
-                  <Badge variant="secondary" className="ml-1">{pendingChores.length}</Badge>
-                </span>
-                <div className="flex items-center gap-2">
-                  {pendingChores.length > 3 && (
-                    showAllChores ? <CaretUp size={16} /> : <CaretDown size={16} />
-                  )}
-                </div>
-              </CardTitle>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CardContent className="px-4 pb-3 space-y-3">
-      {(overdueChores.length + dueTodayChores.length + upcomingShort.length) > 0 ? (
-              <>
-                {overdueChores.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-red-600 mb-1 flex items-center gap-1">
-                      <Warning size={12} /> Overdue
-                    </p>
-                    <div className="space-y-1.5">
-                      {overdueChores.map(({ chore }) => (
-                        <ChoreItem key={chore.id} chore={chore} highlight={highlightChoreId === chore.id} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {dueTodayChores.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-primary mb-1">Due Today</p>
-                    <div className="space-y-1.5">
-                      {dueTodayChores.map(({ chore }) => (
-                        <ChoreItem key={chore.id} chore={chore} highlight={highlightChoreId === chore.id} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {upcomingShort.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground mb-1">Upcoming</p>
-                    <div className="space-y-1.5">
-                      {upcomingShort.map(({ chore }) => (
-                        <ChoreItem key={chore.id} chore={chore} highlight={highlightChoreId === chore.id} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
-                      ))}
-                    </div>
-                    {upcomingChores.length > 2 && (
-                      <p className="text-[11px] text-muted-foreground mt-1">+{upcomingChores.length - 2} more later</p>
-                    )}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="text-center py-4">
-                <Sparkle size={24} className="mx-auto text-primary mb-2" />
-                <p className="text-sm text-muted-foreground">All caught up! 🎉</p>
-              </div>
-            )}
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full mt-3"
-              onClick={() => onNavigate?.('chores')}
-            >
-              Manage Chores <ArrowRight size={14} className="ml-1" />
-            </Button>
-          </CardContent>
-        </Card>
-      </Collapsible>
-
-      {/* Completed Recently */}
-      {recentCompletions.length > 0 && (
-        <Collapsible>
-          <CollapsibleTrigger asChild>
-            <Card className="cursor-pointer">
-              <CardHeader className="pb-2 pt-3 px-4 flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <CheckCircle size={18} className="text-green-500" />
-                  Completed Recently
-                </CardTitle>
-                <CaretDown size={14} className="ui-open:rotate-180 transition-transform" />
-              </CardHeader>
-            </Card>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <Card>
-              <CardContent className="px-4 pb-3 space-y-2">
-                {recentCompletions.slice(0, 5).map(({ completion, chore }) => (
-                  <button
-                    key={completion.id}
-                    className="flex items-center justify-between w-full p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-left hover:bg-green-100/80 dark:hover:bg-green-900/40 transition-colors"
-                    onClick={() => chore && setDetailChore(chore)}
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{chore?.title || 'Chore'}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Done {formatDistanceToNow(completion.completedAt, { addSuffix: true })}
-                        {completion.completedBy && ` by ${completion.completedBy}`}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="text-[11px] px-2 py-1">Open</Badge>
-                  </button>
-                ))}
-              </CardContent>
-            </Card>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-
-      {/* Room Progress */}
-      {roomProgress.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-base flex items-center gap-2">
-              <House size={18} className="text-primary" />
-              Room Progress (today & week)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-2">
-            {roomProgress.map(room => (
-              <div key={room.room} className="space-y-1">
-                <div className="flex items-center justify-between text-xs flex-wrap gap-2">
-                  <span className="font-medium">{room.room}</span>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="text-[11px]">Today: {room.dueToday}</Badge>
-                    {room.overdue > 0 && <Badge variant="destructive" className="text-[11px]">Overdue: {room.overdue}</Badge>}
-                    <Badge variant="outline" className="text-[11px]">This week: {room.completedThisWeek} done</Badge>
-                    <span className="text-muted-foreground">
-                      {room.total - room.pending}/{room.total} done
-                    </span>
-                  </div>
-                </div>
-                <Progress value={room.completion} />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Shopping List - Compact */}
-      {showShoppingTab && unpurchasedItems.length > 0 && (
-        <Collapsible open={showShoppingPanel} onOpenChange={setShowShoppingPanel}>
-          <Card>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="pb-2 pt-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors">
-                <CardTitle className="text-base flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <ShoppingCart size={18} className="text-primary" />
-                    Shopping List
-                    <Badge variant="secondary" className="ml-1">{unpurchasedItems.length}</Badge>
-                  </span>
-                  {showShoppingPanel ? <CaretUp size={16} /> : <CaretDown size={16} />}
-                </CardTitle>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="px-4 pb-3">
-                <div className="flex flex-wrap gap-1.5">
-                  {unpurchasedItems.slice(0, 12).map(item => (
-                    <Badge 
-                      key={item.id} 
-                      variant="outline"
-                      className="text-xs py-1 cursor-pointer"
-                      onClick={() => setDetailItem(item)}
-                    >
-                      {item.name}
-                      {item.quantity && item.quantity !== '1' && (
-                        <span className="ml-1 opacity-60">×{item.quantity}</span>
-                      )}
-                    </Badge>
-                  ))}
-                  {unpurchasedItems.length > 12 && (
-                    <Badge variant="secondary" className="text-xs">
-                      +{unpurchasedItems.length - 12} more
-                    </Badge>
-                  )}
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full mt-3"
-                  onClick={() => onNavigate?.('shopping')}
-                >
-                  Go Shopping <ArrowRight size={14} className="ml-1" />
-                </Button>
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
-      )}
-
-      {/* Upcoming Events - Compact List */}
-      {upcomingEvents.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-base flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <CalendarBlank size={18} className="text-primary" />
-                Coming Up
-              </span>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => onNavigate?.('calendar')}
-              >
-                Calendar <ArrowRight size={12} className="ml-1" />
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3">
-            <div className="space-y-1">
-              {upcomingEvents.map(event => {
-                const eventDate = parseISO(event.date)
-                const isTmrw = isTomorrow(eventDate)
-                return (
-                  <div 
-                    key={event.id}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
-                    onClick={() => setDetailEvent(event)}
-                  >
-                    <div className="w-10 text-center flex-shrink-0">
-                      <p className="text-xs text-muted-foreground">
-                        {isTmrw ? 'TMR' : format(eventDate, 'EEE').toUpperCase()}
-                      </p>
-                      <p className="text-sm font-bold">{format(eventDate, 'd')}</p>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm truncate">{event.title}</p>
-                    </div>
-                    {event.startTime && (
-                      <span className="text-xs text-muted-foreground">{event.startTime}</span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Household Members - Compact */}
-      {members.length > 1 && selectedMember === 'all' && (
-        <Card>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-base flex items-center gap-2">
-              <User size={18} className="text-primary" />
-              Family Progress
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3">
-            <div className="space-y-3">
-              {members.slice(0, 4).map(member => {
-                const memberChores = chores.filter(c => c.assignedTo === member.displayName)
-                const memberPending = memberChores.filter(c => !c.completed).length
-                const memberCompleted = memberChores.filter(c => c.completed).length
-                const rate = memberChores.length > 0 
-                  ? Math.round((memberCompleted / memberChores.length) * 100)
-                  : 0
-
-                return (
-                  <div key={member.id} className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-semibold text-primary">
-                        {member.displayName.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium truncate">{member.displayName}</span>
-                        <span className="text-xs text-muted-foreground">{memberPending} pending</span>
-                      </div>
-                      <Progress value={rate} className="h-1.5" />
-                    </div>
-                    <span className="text-xs font-semibold text-primary w-8 text-right">{rate}%</span>
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Dashboard Widgets - rendered in customizer order */}
+      {sortedWidgetIds.map(id => renderWidget(id))}
 
       {/* Empty State */}
       {pendingChores.length === 0 && todaysEvents.length === 0 && unpurchasedItems.length === 0 && (
@@ -1017,7 +1111,10 @@ function ChoreItem({ chore, onComplete, onClick, highlight }: ChoreItemProps & {
   const primaryRooms = rooms.slice(0, 2)
   const extraRooms = rooms.length > 2 ? rooms.length - 2 : 0
   return (
-    <div className={`flex items-center gap-2 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group cursor-pointer min-h-[44px] ${highlight ? 'ring-2 ring-primary' : ''}`} onClick={onClick}>
+    <div className={`flex items-center gap-2 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group cursor-pointer min-h-[44px] border-l-4 ${
+      chore.priority === 'high' ? 'border-l-red-500' :
+      chore.priority === 'medium' ? 'border-l-yellow-500' : 'border-l-green-500'
+    } ${highlight ? 'ring-2 ring-primary' : ''}`} onClick={onClick}>
       {/* Complete Button */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -1048,10 +1145,6 @@ function ChoreItem({ chore, onComplete, onClick, highlight }: ChoreItemProps & {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-        chore.priority === 'high' ? 'bg-red-500' :
-        chore.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-      }`} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{chore.title}</p>
         <p className="text-[11px] text-muted-foreground truncate">

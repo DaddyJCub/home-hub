@@ -458,12 +458,12 @@ export default function CalendarSection() {
     })
   }, [expandedEvents, memberFilter])
 
-  const toggleAttendee = (memberId: string) => {
+  const toggleAttendee = (memberName: string) => {
     setEventForm((prev) => ({
       ...prev,
-      attendees: prev.attendees.includes(memberId)
-        ? prev.attendees.filter((id) => id !== memberId)
-        : [...prev.attendees, memberId]
+      attendees: prev.attendees.includes(memberName)
+        ? prev.attendees.filter((name) => name !== memberName)
+        : [...prev.attendees, memberName]
     }))
   }
 
@@ -529,7 +529,7 @@ export default function CalendarSection() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold">Calendar</h2>
+          <h1>Calendar</h1>
           <p className="text-sm text-muted-foreground">
             {memberFilter === 'all'
               ? 'Shared household events and bookings'
@@ -958,14 +958,11 @@ export default function CalendarSection() {
                   <div>
                     <Label className="text-xs text-muted-foreground">Attendees</Label>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {showEventDetails.attendees.map(id => {
-                        const member = members.find(m => m.id === id)
-                        return (
-                          <Badge key={id} variant="secondary">
-                            {member?.displayName || id}
-                          </Badge>
-                        )
-                      })}
+                      {showEventDetails.attendees.map(name => (
+                        <Badge key={name} variant="secondary">
+                          {name}
+                        </Badge>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -1211,15 +1208,15 @@ export default function CalendarSection() {
                   {members.map((member, idx) => (
                     <Badge
                       key={member.id}
-                      variant={eventForm.attendees.includes(member.id) ? 'default' : 'outline'}
+                      variant={eventForm.attendees.includes(member.displayName) ? 'default' : 'outline'}
                       className={`cursor-pointer transition-all ${
-                        eventForm.attendees.includes(member.id) 
+                        eventForm.attendees.includes(member.displayName)
                           ? memberColors[idx % memberColors.length] + ' text-white'
                           : ''
                       }`}
-                      onClick={() => toggleAttendee(member.id)}
+                      onClick={() => toggleAttendee(member.displayName)}
                     >
-                      {eventForm.attendees.includes(member.id) && <Check size={12} className="mr-1" />}
+                      {eventForm.attendees.includes(member.displayName) && <Check size={12} className="mr-1" />}
                       {member.displayName}
                     </Badge>
                   ))}

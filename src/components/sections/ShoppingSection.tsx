@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { ShoppingItem, Meal, Recipe } from '@/lib/types'
+import EmptyState from '@/components/EmptyState'
 import { toast } from 'sonner'
 import { showUserFriendlyError, validateRequired } from '@/lib/error-helpers'
 import { startOfWeek, addDays, format } from 'date-fns'
@@ -324,7 +325,7 @@ export default function ShoppingSection() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-semibold">Shopping List</h2>
+          <h1>Shopping List</h1>
           <p className="text-sm text-muted-foreground">
             {activeItems.length} to buy, {purchasedItems.length} purchased
           </p>
@@ -678,21 +679,17 @@ export default function ShoppingSection() {
       )}
 
       {items.length === 0 ? (
-        <Card className="p-12 text-center">
-          <ShoppingCart size={48} className="mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-semibold mb-2">Your shopping list is empty</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Add items you need to buy
-          </p>
-        </Card>
+        <EmptyState
+          icon={ShoppingCart}
+          title="Your shopping list is empty"
+          description="Add items you need to buy"
+        />
       ) : activeItems.length === 0 && purchasedItems.length === 0 ? (
-        <Card className="p-12 text-center">
-          <Funnel size={48} className="mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-semibold mb-2">No items match your filters</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Try adjusting your filters to see more items
-          </p>
-        </Card>
+        <EmptyState
+          icon={Funnel}
+          title="No items match your filters"
+          description="Try adjusting your filters to see more items"
+        />
       ) : (
         <>
           {activeItems.length > 0 && (
@@ -704,7 +701,7 @@ export default function ShoppingSection() {
                     {category}
                   </h4>
                   {categoryItems.map((item) => (
-                    <Card key={item.id} className="p-4">
+                    <Card key={item.id} variant="flat" className="p-4">
                       <div className="flex items-start gap-3">
                         <Checkbox
                           id={`item-${item.id}`}
@@ -777,7 +774,7 @@ export default function ShoppingSection() {
                 </Button>
               </div>
               {purchasedItems.map((item) => (
-                <Card key={item.id} className="p-4 opacity-60">
+                <Card key={item.id} variant="flat" className="p-4 opacity-60">
                   <div className="flex items-center gap-3">
                     <Checkbox
                       id={`item-${item.id}`}

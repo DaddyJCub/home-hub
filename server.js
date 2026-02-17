@@ -38,13 +38,16 @@ const PORT = process.env.PORT || 4173;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = process.env.DATA_DIR || '/data';
 const SESSION_COOKIE_NAME = 'hh_session';
+const NODE_ENV = process.env.NODE_ENV || 'development';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-homehub-session-secret';
+if (SESSION_SECRET === 'dev-homehub-session-secret' && NODE_ENV === 'production') {
+  console.warn('WARNING: Using default SESSION_SECRET in production. Set SESSION_SECRET env var for security.');
+}
 const SESSION_MAX_AGE_SECONDS =
   Number(process.env.SESSION_MAX_AGE_SECONDS) ||
   Number(process.env.SESSION_MAX_AGE_DAYS || 14) * 24 * 60 * 60;
-const NODE_ENV = process.env.NODE_ENV || 'development';
 const devResetEnabled = NODE_ENV === 'development' && process.env.ALLOW_DEV_RESET === 'true';
-const rateLimitEnabled = process.env.RATE_LIMIT_ENABLED === 'true';
+const rateLimitEnabled = process.env.RATE_LIMIT_ENABLED !== 'false';
 
 // SMTP configuration for password reset emails (optional)
 const SMTP_HOST = process.env.SMTP_HOST || null;
@@ -825,16 +828,30 @@ app.get('/api/migrations', (_req, res) => {
 
 app.get('/api/backup', requireAuth, (req, res) => {
   try {
-    const tables = ['users', 'households', 'household_members', 'sessions', 'user_preferences', 'household_data', 'kv_store'];
+    const userId = req.auth?.userId;
+    const householdId = req.auth?.householdId;
+    if (!userId || !householdId) {
+      return sendError(res, 403, 'No household selected', 'FORBIDDEN');
+    }
     const payload = {};
-    tables.forEach((table) => {
-      try {
-        payload[table] = db.prepare(`SELECT * FROM ${table}`).all();
-      } catch {
-        payload[table] = [];
-      }
-    });
-    log('INFO', 'Backup export created', { user: req.auth?.userId, household: req.auth?.householdId });
+    // Only export the current user's data and their household's data
+    try {
+      const userRow = db.prepare('SELECT id, email, display_name, created_at FROM users WHERE id = ?').get(userId);
+      payload.user = userRow || null;
+    } catch { payload.user = null; }
+    try {
+      payload.household = db.prepare('SELECT id, name, invite_code, created_at FROM households WHERE id = ?').get(householdId) || null;
+    } catch { payload.household = null; }
+    try {
+      payload.household_members = db.prepare('SELECT id, household_id, user_id, display_name, role, created_at FROM household_members WHERE household_id = ?').all(householdId);
+    } catch { payload.household_members = []; }
+    try {
+      payload.user_preferences = db.prepare('SELECT key, value FROM user_preferences WHERE user_id = ?').all(userId);
+    } catch { payload.user_preferences = []; }
+    try {
+      payload.household_data = db.prepare('SELECT key, value FROM household_data WHERE household_id = ?').all(householdId);
+    } catch { payload.household_data = []; }
+    log('INFO', 'Backup export created', { user: userId, household: householdId });
     res.json({ exported_at: new Date().toISOString(), data: payload });
   } catch (err) {
     log('ERROR', 'Backup export failed', { error: err.message });
@@ -894,12 +911,12 @@ app.post('/api/auth/login', async (req, res) => {
       .prepare('SELECT id, email, password_hash, password_algo, display_name, created_at FROM users WHERE lower(email) = lower(?)')
       .get(normalizedEmail);
     if (!userRow) {
-      return sendError(res, 404, 'Account not found', 'ACCOUNT_NOT_FOUND');
+      return sendError(res, 401, 'Invalid email or password', 'INVALID_CREDENTIALS');
     }
 
     const isValid = await verifyPassword(password, userRow.password_hash, userRow.password_algo);
     if (!isValid) {
-      return sendError(res, 401, 'Incorrect password', 'INVALID_CREDENTIALS');
+      return sendError(res, 401, 'Invalid email or password', 'INVALID_CREDENTIALS');
     }
 
     if (userRow.password_algo !== 'bcrypt' || !userRow.password_hash.startsWith('$2')) {
@@ -952,7 +969,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     // Always return success to prevent email enumeration
     const successResponse = (emailSent, resetLink = null) => {
       const response = { success: true, emailSent };
-      if (resetLink && !emailSent) response.resetLink = resetLink;
+      if (resetLink && !emailSent && NODE_ENV === 'development') response.resetLink = resetLink;
       return res.json(response);
     };
 
