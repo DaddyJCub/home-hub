@@ -765,6 +765,25 @@ app.use((req, res, next) => {
   next();
 });
 
+// Request logging for API routes
+app.use('/api', (req, res, next) => {
+  const start = Date.now();
+  const onFinish = () => {
+    res.removeListener('finish', onFinish);
+    const duration = Date.now() - start;
+    const level = res.statusCode >= 500 ? 'ERROR' : res.statusCode >= 400 ? 'WARN' : 'INFO';
+    log(level, `${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`, {
+      method: req.method,
+      path: req.originalUrl,
+      status: res.statusCode,
+      duration,
+      user: req.auth?.userId || null
+    });
+  };
+  res.on('finish', onFinish);
+  next();
+});
+
 if (rateLimitEnabled) {
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -892,6 +911,7 @@ app.post('/api/auth/signup', async (req, res) => {
     const { sessionId } = createSession(user.id, householdId);
     setSessionCookie(res, sessionId);
 
+    log('INFO', 'User signed up', { userId: user.id, email: user.email });
     const payload = buildAuthPayload(user.id, householdId, sessionId);
     return res.json(payload);
   } catch (err) {
@@ -911,11 +931,13 @@ app.post('/api/auth/login', async (req, res) => {
       .prepare('SELECT id, email, password_hash, password_algo, display_name, created_at FROM users WHERE lower(email) = lower(?)')
       .get(normalizedEmail);
     if (!userRow) {
+      log('WARN', 'Login failed: unknown email', { email: normalizedEmail });
       return sendError(res, 401, 'Invalid email or password', 'INVALID_CREDENTIALS');
     }
 
     const isValid = await verifyPassword(password, userRow.password_hash, userRow.password_algo);
     if (!isValid) {
+      log('WARN', 'Login failed: wrong password', { userId: userRow.id, email: normalizedEmail });
       return sendError(res, 401, 'Invalid email or password', 'INVALID_CREDENTIALS');
     }
 
@@ -929,6 +951,7 @@ app.post('/api/auth/login', async (req, res) => {
     const { sessionId } = createSession(userRow.id, householdId);
     setSessionCookie(res, sessionId);
 
+    log('INFO', 'User logged in', { userId: userRow.id, email: normalizedEmail });
     const payload = buildAuthPayload(userRow.id, householdId, sessionId);
     return res.json(payload);
   } catch (err) {
@@ -939,10 +962,12 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/logout', (req, res) => {
   try {
+    const userId = req.auth?.userId;
     if (req.auth?.sessionId) {
       db.prepare('DELETE FROM sessions WHERE id = ?').run(req.auth.sessionId);
     }
     clearSessionCookie(res);
+    log('INFO', 'User logged out', { userId });
     return res.json({ success: true });
   } catch (err) {
     log('ERROR', 'Logout failed', { error: err.message });
@@ -1091,6 +1116,7 @@ app.post('/api/households', requireAuth, (req, res) => {
       setSessionCookie(res, req.auth.sessionId);
     }
 
+    log('INFO', 'Household created', { householdId: household.id, name: name.trim(), userId: req.auth.userId });
     const payload = buildAuthPayload(req.auth.userId, household.id, req.auth.sessionId);
     return res.json(payload);
   } catch (err) {
@@ -1122,6 +1148,7 @@ app.post('/api/households/join', requireAuth, (req, res) => {
       setSessionCookie(res, req.auth.sessionId);
     }
 
+    log('INFO', 'User joined household', { householdId: household.id, householdName: household.name, userId: req.auth.userId });
     const payload = buildAuthPayload(req.auth.userId, household.id, req.auth.sessionId);
     return res.json(payload);
   } catch (err) {
@@ -1144,6 +1171,7 @@ app.post('/api/households/members', requireAuth, (req, res) => {
       return sendError(res, 403, 'Only owners or admins can add members', 'PERMISSION_DENIED');
 
     addMembership(targetHousehold, `local_${generateId()}`, displayName.trim(), role, true);
+    log('INFO', 'Member added', { householdId: targetHousehold, displayName: displayName.trim(), role, addedBy: req.auth.userId });
     const payload = buildAuthPayload(req.auth.userId, targetHousehold, req.auth.sessionId);
     return res.json(payload);
   } catch (err) {
@@ -1173,6 +1201,7 @@ app.delete('/api/households/members/:id', requireAuth, (req, res) => {
     }
 
     db.prepare('DELETE FROM household_members WHERE id = ?').run(memberId);
+    log('INFO', 'Member removed', { householdId: targetHousehold, memberId, removedBy: req.auth.userId });
     const payload = buildAuthPayload(req.auth.userId, targetHousehold, req.auth.sessionId);
     return res.json(payload);
   } catch (err) {
@@ -1287,6 +1316,7 @@ app.all('/api/ollama/*', requireAuth, async (req, res) => {
     }
     const upstream = await fetch(targetUrl, { ...fetchOpts, signal: AbortSignal.timeout(120000) });
     const data = await upstream.text();
+    log('INFO', 'Ollama proxy', { path: ollamaPath, target: ollamaUrl, status: upstream.status });
     res.status(upstream.status).set('Content-Type', upstream.headers.get('content-type') || 'application/json').send(data);
   } catch (err) {
     log('ERROR', 'Ollama proxy error', { error: err.message });
