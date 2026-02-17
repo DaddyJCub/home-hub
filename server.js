@@ -765,11 +765,19 @@ app.use((req, res, next) => {
   next();
 });
 
-// Request logging for API routes
+// Request logging for API routes (skip noisy reads/304s)
 app.use('/api', (req, res, next) => {
   const start = Date.now();
   const onFinish = () => {
     res.removeListener('finish', onFinish);
+    // Skip logging for routine data polling (GET /api/data/* with 200/304)
+    if (req.method === 'GET' && req.originalUrl.startsWith('/api/data/') && res.statusCode < 400) {
+      return;
+    }
+    // Skip 304 Not Modified responses (cache hits)
+    if (res.statusCode === 304) {
+      return;
+    }
     const duration = Date.now() - start;
     const level = res.statusCode >= 500 ? 'ERROR' : res.statusCode >= 400 ? 'WARN' : 'INFO';
     log(level, `${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`, {

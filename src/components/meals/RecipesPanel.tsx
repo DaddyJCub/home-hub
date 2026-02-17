@@ -852,11 +852,11 @@ Return ONLY a valid JSON object with these fields. Extract actual content from t
           {filteredRecipes.map((recipe) => (
             <Card
               key={recipe.id}
-              className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+              className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow flex flex-col"
               onClick={() => viewRecipe(recipe)}
             >
               {recipe.imageUrl && (
-                <div className="relative w-full h-48 bg-muted overflow-hidden">
+                <div className="relative w-full aspect-[16/10] bg-muted overflow-hidden">
                   <img
                     src={recipe.imageUrl}
                     alt={recipe.name}
@@ -867,81 +867,62 @@ Return ONLY a valid JSON object with these fields. Extract actual content from t
                   />
                 </div>
               )}
-              <div className="p-4 space-y-3">
+              <div className="p-3 flex flex-col gap-2 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg">{recipe.name}</h3>
-                    {recipe.category && (
-                      <span className="text-xs text-muted-foreground capitalize">{recipe.category}</span>
-                    )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold leading-tight truncate">{recipe.name}</h3>
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                      {recipe.category && <span className="capitalize">{recipe.category}</span>}
+                      {(recipe.prepTime || recipe.cookTime) && (
+                        <span className="flex items-center gap-0.5">
+                          <Clock size={11} />
+                          {[recipe.prepTime && `Prep ${recipe.prepTime}`, recipe.cookTime && `Cook ${recipe.cookTime}`].filter(Boolean).join(' · ')}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    {recipe.rating && recipe.rating > 0 && (
-                      <div className="flex items-center gap-0.5">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            size={12}
-                            weight={star <= recipe.rating! ? 'fill' : 'regular'}
-                            className={star <= recipe.rating! ? 'text-yellow-500' : 'text-muted-foreground/30'}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    {recipe.sourceUrl && (
-                      <LinkIcon size={16} className="text-muted-foreground flex-shrink-0" />
-                    )}
-                  </div>
+                  {recipe.rating && recipe.rating > 0 && (
+                    <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5">
+                      <Star size={12} weight="fill" className="text-yellow-500" />
+                      <span className="text-xs font-medium">{recipe.rating}</span>
+                    </div>
+                  )}
                 </div>
 
                 {recipe.tags && recipe.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1">
-                    {recipe.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="text-xs">
+                    {recipe.tags.slice(0, 3).map((tag) => (
+                      <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">
                         {tag}
                       </Badge>
                     ))}
+                    {recipe.tags.length > 3 && (
+                      <span className="text-[10px] text-muted-foreground self-center">+{recipe.tags.length - 3}</span>
+                    )}
                   </div>
                 )}
 
-                <div className="flex flex-wrap gap-2">
-                  {recipe.prepTime && (
-                    <Badge variant="outline" className="gap-1">
-                      <Clock size={14} />
-                      Prep: {recipe.prepTime}
-                    </Badge>
-                  )}
-                  {recipe.cookTime && (
-                    <Badge variant="outline" className="gap-1">
-                      <Clock size={14} />
-                      Cook: {recipe.cookTime}
-                    </Badge>
-                  )}
-                  {recipe.servings && (
-                    <Badge variant="outline" className="gap-1">
-                      <Users size={14} />
-                      {recipe.servings}
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">
+                <div className="flex items-center justify-between mt-auto pt-1 border-t border-border/50">
+                  <p className="text-xs text-muted-foreground">
                     {recipe.ingredients.length} ingredient{recipe.ingredients.length !== 1 ? 's' : ''}
-                    {recipe.timesCooked ? ` \u2022 Cooked ${recipe.timesCooked}x` : ''}
+                    {recipe.servings ? ` · ${recipe.servings} servings` : ''}
+                    {recipe.timesCooked ? ` · ${recipe.timesCooked}x` : ''}
                   </p>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 items-center">
+                    {recipe.sourceUrl && (
+                      <LinkIcon size={12} className="text-muted-foreground" />
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 p-0"
+                      className="h-6 w-6 p-0"
                       onClick={(e) => {
                         e.stopPropagation()
                         handleAddToShoppingList(recipe)
                       }}
                       title="Add to shopping list"
                     >
-                      <ShoppingCart size={14} />
+                      <ShoppingCart size={12} />
                     </Button>
                   </div>
                 </div>
@@ -951,16 +932,16 @@ Return ONLY a valid JSON object with these fields. Extract actual content from t
         </div>
       ) : (
         /* List view */
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {filteredRecipes.map((recipe) => (
             <Card
               key={recipe.id}
               className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => viewRecipe(recipe)}
             >
-              <div className="flex items-center gap-4 p-4">
+              <div className="flex items-center gap-3 p-3">
                 {recipe.imageUrl && (
-                  <div className="relative w-16 h-16 bg-muted rounded-lg overflow-hidden flex-shrink-0">
+                  <div className="relative w-12 h-12 bg-muted rounded-md overflow-hidden flex-shrink-0">
                     <img
                       src={recipe.imageUrl}
                       alt={recipe.name}
@@ -973,44 +954,35 @@ Return ONLY a valid JSON object with these fields. Extract actual content from t
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold truncate">{recipe.name}</h3>
+                    <h3 className="font-semibold text-sm truncate">{recipe.name}</h3>
                     {recipe.rating && recipe.rating > 0 && (
                       <div className="flex items-center gap-0.5 flex-shrink-0">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            size={10}
-                            weight={star <= recipe.rating! ? 'fill' : 'regular'}
-                            className={star <= recipe.rating! ? 'text-yellow-500' : 'text-muted-foreground/30'}
-                          />
-                        ))}
+                        <Star size={11} weight="fill" className="text-yellow-500" />
+                        <span className="text-[11px] font-medium">{recipe.rating}</span>
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     {recipe.category && <span className="capitalize">{recipe.category}</span>}
-                    {recipe.prepTime && <span>Prep: {recipe.prepTime}</span>}
-                    {recipe.cookTime && <span>Cook: {recipe.cookTime}</span>}
+                    {recipe.category && (recipe.prepTime || recipe.cookTime || recipe.ingredients.length > 0) && <span>·</span>}
+                    {recipe.prepTime && <span>Prep {recipe.prepTime}</span>}
+                    {recipe.cookTime && <span>Cook {recipe.cookTime}</span>}
                     <span>{recipe.ingredients.length} ingredient{recipe.ingredients.length !== 1 ? 's' : ''}</span>
                   </div>
-                  {recipe.tags && recipe.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {recipe.tags.map((tag) => (
-                        <Badge key={tag} variant="secondary" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
+                  {recipe.tags && recipe.tags.length > 0 && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 hidden sm:inline-flex">
+                      {recipe.tags[0]}{recipe.tags.length > 1 ? ` +${recipe.tags.length - 1}` : ''}
+                    </Badge>
+                  )}
                   {recipe.sourceUrl && (
-                    <LinkIcon size={16} className="text-muted-foreground" />
+                    <LinkIcon size={14} className="text-muted-foreground" />
                   )}
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 w-7 p-0"
+                    className="h-6 w-6 p-0"
                     onClick={(e) => {
                       e.stopPropagation()
                       handleAddToShoppingList(recipe)
