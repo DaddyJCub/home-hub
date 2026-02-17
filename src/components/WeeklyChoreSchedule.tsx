@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -109,6 +109,18 @@ export default function WeeklyChoreSchedule() {
     low: 'bg-secondary text-secondary-foreground border-border'
   }
 
+  // Auto-scroll to today on mount
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const todayRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (todayRef.current && scrollRef.current) {
+      const container = scrollRef.current
+      const todayEl = todayRef.current
+      const scrollLeft = todayEl.offsetLeft - container.offsetWidth / 2 + todayEl.offsetWidth / 2
+      container.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' })
+    }
+  }, [])
+
   return (
     <>
       <Card>
@@ -118,8 +130,12 @@ export default function WeeklyChoreSchedule() {
             Weekly Chore Schedule
           </CardTitle>
         </CardHeader>
-        <CardContent className="px-3 pb-3">
-          <div className="grid grid-cols-7 gap-1.5">
+        <CardContent className="px-0 sm:px-3 pb-3">
+          {/* Mobile: horizontal scroll strip. Desktop: 7-col grid */}
+          <div
+            ref={scrollRef}
+            className="flex gap-2 overflow-x-auto px-3 pb-2 snap-x snap-mandatory sm:grid sm:grid-cols-7 sm:gap-1.5 sm:px-0 sm:pb-0 sm:overflow-visible"
+          >
             {daysOfWeek.map((day, dayIndex) => {
               const dayChores = getChoresForDay(dayIndex)
               const isDayToday = isToday(day)
@@ -129,31 +145,35 @@ export default function WeeklyChoreSchedule() {
               return (
                 <div
                   key={day.toString()}
-                  className={`rounded-lg border-2 p-1.5 min-h-[120px] flex flex-col ${
-                    isDayToday ? 'border-primary bg-primary/5' : 'border-border bg-card'
-                  }`}
+                  ref={isDayToday ? todayRef : undefined}
+                  className={`rounded-lg border-2 p-2 sm:p-1.5 flex flex-col snap-center
+                    min-w-[160px] sm:min-w-0 min-h-[140px] sm:min-h-[120px]
+                    ${isDayToday ? 'border-primary bg-primary/5' : 'border-border bg-card'}
+                  `}
                 >
+                  {/* Day header */}
                   <div className="text-center mb-1.5 pb-1 border-b border-border/50">
-                    <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                    <div className="text-xs sm:text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                       {format(day, 'EEE')}
                     </div>
-                    <div className={`text-base font-bold leading-tight ${isDayToday ? 'text-primary' : 'text-foreground'}`}>
+                    <div className={`text-lg sm:text-base font-bold leading-tight ${isDayToday ? 'text-primary' : 'text-foreground'}`}>
                       {format(day, 'd')}
                     </div>
                     {dayChores.length > 0 && (
                       <div className="flex items-center justify-center gap-1 mt-0.5">
-                        <span className={`text-[10px] font-medium ${completedCount === dayChores.length ? 'text-green-500' : 'text-muted-foreground'}`}>
+                        <span className={`text-xs sm:text-[10px] font-medium ${completedCount === dayChores.length && dayChores.length > 0 ? 'text-green-500' : 'text-muted-foreground'}`}>
                           {completedCount}/{dayChores.length}
                         </span>
                         {totalTime > 0 && (
-                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                            <Clock size={8} />{totalTime}m
+                          <span className="text-xs sm:text-[10px] text-muted-foreground flex items-center gap-0.5">
+                            <Clock size={10} className="sm:w-2 sm:h-2" />{totalTime}m
                           </span>
                         )}
                       </div>
                     )}
                   </div>
                   
+                  {/* Chore list */}
                   <div className="space-y-1 flex-1">
                     {dayChores.length > 0 ? (
                       dayChores.map((chore) => {
@@ -173,21 +193,21 @@ export default function WeeklyChoreSchedule() {
                                 : `hover:scale-[1.02] active:scale-95 ${priorityColors[chore.priority || 'low']}`
                             }`}
                           >
-                            <div className="flex items-start gap-1">
+                            <div className="flex items-start gap-1.5">
                               {doneForDay ? (
-                                <CheckCircle size={12} className="flex-shrink-0 mt-0.5 text-green-500" weight="fill" />
+                                <CheckCircle size={14} className="flex-shrink-0 mt-0.5 text-green-500" weight="fill" />
                               ) : (
-                                <Circle size={12} className="flex-shrink-0 mt-0.5" />
+                                <Circle size={14} className="flex-shrink-0 mt-0.5" />
                               )}
                               <div className="flex-1 min-w-0">
-                                <div className={`text-[10px] font-medium leading-tight truncate ${
+                                <div className={`text-xs sm:text-[10px] font-medium leading-tight truncate ${
                                   doneForDay ? 'line-through opacity-60' : ''
                                 }`}>
                                   {chore.title}
                                 </div>
                                 {chore.assignedTo && selectedMember === 'all' && (
-                                  <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground mt-0.5">
-                                    <User size={8} />
+                                  <div className="flex items-center gap-0.5 text-[10px] sm:text-[9px] text-muted-foreground mt-0.5">
+                                    <User size={9} />
                                     <span className="truncate">{chore.assignedTo}</span>
                                   </div>
                                 )}
@@ -197,7 +217,7 @@ export default function WeeklyChoreSchedule() {
                         )
                       })
                     ) : (
-                      <div className="text-center py-3 text-[10px] text-muted-foreground italic">
+                      <div className="text-center py-3 text-xs sm:text-[10px] text-muted-foreground italic">
                         No chores
                       </div>
                     )}
