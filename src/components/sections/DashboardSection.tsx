@@ -341,12 +341,12 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
     switch (id) {
       case 'stats':
         return (
-          <div key="stats" className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4 sm:overflow-visible">
+          <div key="stats" className="lg:col-span-2 flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4 sm:overflow-visible">
             <QuickStatPill
               icon={Broom}
               label="Chores"
               value={pendingChores.length}
-              subtext={completionRate > 0 ? `${completionRate}% done` : undefined}
+              subtext={completionRate > 0 ? `${completionRate}% done` : 'pending'}
               highlight={highPriorityChores.length > 0}
               onClick={() => onNavigate?.('chores')}
             />
@@ -383,48 +383,39 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
 
       case 'weekly-chore-schedule':
         return (
-          <Card key="weekly-chore-schedule" className="border-primary/30 bg-primary/5">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Sparkle className="text-primary" />
-                  <div>
-                    <p className="text-sm font-semibold">This week's chore challenge</p>
-                    <p className="text-xs text-muted-foreground">Complete {challenge.goal} chores this week</p>
-                  </div>
-                </div>
-                <Button size="sm" variant="ghost" onClick={() => setChallengeEnabled(!challengeEnabled)}>
-                  {challengeEnabled ? 'Hide' : 'Show'}
-                </Button>
+          <div key="weekly-chore-schedule" className="lg:col-span-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+            <div className="flex items-center gap-3">
+              <Sparkle size={16} className="text-primary flex-shrink-0" />
+              <span className="text-sm font-medium flex-shrink-0">Weekly Challenge</span>
+              <div className="flex-1 min-w-0">
+                <Progress value={challenge.percent} className="h-2" />
               </div>
-              {challengeEnabled && (
-                <>
-                  <Progress value={challenge.percent} className="h-2" />
-                  <div className="flex items-center justify-between text-sm">
-                    <span>{challenge.progress} of {challenge.goal} completed</span>
-                    {challenge.done ? (
-                      <Badge variant="secondary" className="gap-1">
-                        <Fire size={12} />
-                        Complete!
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">{challenge.goal - challenge.progress} to go</span>
-                    )}
-                  </div>
-                  {challenge.done && (
-                    <div className="text-sm text-green-700 dark:text-green-300">
-                      Nice work! You hit this week's goal.
-                    </div>
-                  )}
-                </>
+              <span className="text-sm font-semibold text-primary flex-shrink-0">
+                {challenge.progress}/{challenge.goal}
+              </span>
+              {challenge.done ? (
+                <Badge variant="secondary" className="gap-1 flex-shrink-0">
+                  <Fire size={12} />
+                  Done!
+                </Badge>
+              ) : (
+                <span className="text-xs text-muted-foreground flex-shrink-0">{challenge.goal - challenge.progress} to go</span>
               )}
-            </CardContent>
-          </Card>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 flex-shrink-0" onClick={() => setChallengeEnabled(!challengeEnabled)}>
+                {challengeEnabled ? <CaretUp size={14} /> : <CaretDown size={14} />}
+              </Button>
+            </div>
+            {challengeEnabled && challenge.done && (
+              <p className="text-xs text-green-700 dark:text-green-300 mt-1 ml-7">
+                Nice work! You hit this week's goal.
+              </p>
+            )}
+          </div>
         )
 
       case 'priorities':
         return (
-          <Fragment key="priorities">
+          <div key="priorities" className="lg:col-span-2 space-y-4">
             {/* Alert: High Priority Chores */}
             {highPriorityChores.length > 0 && (
               <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
@@ -457,8 +448,8 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
             <Collapsible open={showAllChores} onOpenChange={setShowAllChores}>
               <Card>
                 <CollapsibleTrigger asChild>
-                  <CardHeader className="pb-2 pt-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors">
-                    <CardTitle className="text-base flex items-center justify-between">
+                  <CardHeader className="p-4 pb-2 cursor-pointer hover:bg-muted/30 transition-colors">
+                    <CardTitle className="text-sm font-semibold flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <CheckCircle size={18} className="text-primary" />
                         Pending Chores
@@ -472,15 +463,15 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                     </CardTitle>
                   </CardHeader>
                 </CollapsibleTrigger>
-                <CardContent className="px-4 pb-3 space-y-3">
+                <CardContent className="px-4 pb-4 space-y-3">
                   {(overdueChores.length + dueTodayChores.length + upcomingShort.length) > 0 ? (
                     <>
                       {overdueChores.length > 0 && (
                         <div>
-                          <p className="text-xs font-semibold text-red-600 mb-1 flex items-center gap-1">
+                          <p className="text-xs font-semibold text-red-600 mb-1.5 flex items-center gap-1">
                             <Warning size={12} /> Overdue
                           </p>
-                          <div className="space-y-1.5">
+                          <div className="space-y-2">
                             {overdueChores.map(({ chore }) => (
                               <ChoreItem key={chore.id} chore={chore} highlight={highlightChoreId === chore.id} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
                             ))}
@@ -489,8 +480,8 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                       )}
                       {dueTodayChores.length > 0 && (
                         <div>
-                          <p className="text-xs font-semibold text-primary mb-1">Due Today</p>
-                          <div className="space-y-1.5">
+                          <p className="text-xs font-semibold text-primary mb-1.5">Due Today</p>
+                          <div className="space-y-2">
                             {dueTodayChores.map(({ chore }) => (
                               <ChoreItem key={chore.id} chore={chore} highlight={highlightChoreId === chore.id} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
                             ))}
@@ -499,14 +490,14 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                       )}
                       {upcomingShort.length > 0 && (
                         <div>
-                          <p className="text-xs font-semibold text-muted-foreground mb-1">Upcoming</p>
-                          <div className="space-y-1.5">
+                          <p className="text-xs font-semibold text-muted-foreground mb-1.5">Upcoming</p>
+                          <div className="space-y-2">
                             {upcomingShort.map(({ chore }) => (
                               <ChoreItem key={chore.id} chore={chore} highlight={highlightChoreId === chore.id} onComplete={handleCompleteChore} onClick={() => setDetailChore(chore)} />
                             ))}
                           </div>
                           {upcomingChores.length > 2 && (
-                            <p className="text-[11px] text-muted-foreground mt-1">+{upcomingChores.length - 2} more later</p>
+                            <p className="text-xs text-muted-foreground mt-1">+{upcomingChores.length - 2} more later</p>
                           )}
                         </div>
                       )}
@@ -517,10 +508,35 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                       <p className="text-sm text-muted-foreground">All caught up!</p>
                     </div>
                   )}
+
+                  {/* Completed Recently - inline */}
+                  {recentCompletions.length > 0 && (
+                    <div className="pt-2 border-t">
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                        <CheckCircle size={12} className="inline mr-1 text-green-500" />
+                        {recentCompletions.length} completed in last 24h
+                      </p>
+                      <div className="space-y-1">
+                        {recentCompletions.slice(0, 3).map(({ completion, chore }) => (
+                          <button
+                            key={completion.id}
+                            className="flex items-center justify-between w-full px-2 py-1.5 rounded text-left hover:bg-muted/50 transition-colors text-xs"
+                            onClick={() => chore && setDetailChore(chore)}
+                          >
+                            <span className="truncate text-muted-foreground">{chore?.title || 'Chore'}</span>
+                            <span className="text-muted-foreground/60 flex-shrink-0 ml-2">
+                              {formatDistanceToNow(completion.completedAt, { addSuffix: true })}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full mt-3"
+                    className="w-full"
                     onClick={() => onNavigate?.('chores')}
                   >
                     Manage Chores <ArrowRight size={14} className="ml-1" />
@@ -528,54 +544,15 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                 </CardContent>
               </Card>
             </Collapsible>
-
-            {/* Completed Recently */}
-            {recentCompletions.length > 0 && (
-              <Collapsible>
-                <CollapsibleTrigger asChild>
-                  <Card className="cursor-pointer">
-                    <CardHeader className="pb-2 pt-3 px-4 flex items-center justify-between">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <CheckCircle size={18} className="text-green-500" />
-                        Completed Recently
-                      </CardTitle>
-                      <CaretDown size={14} className="ui-open:rotate-180 transition-transform" />
-                    </CardHeader>
-                  </Card>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <Card>
-                    <CardContent className="px-4 pb-3 space-y-2">
-                      {recentCompletions.slice(0, 5).map(({ completion, chore }) => (
-                        <button
-                          key={completion.id}
-                          className="flex items-center justify-between w-full p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-left hover:bg-green-100/80 dark:hover:bg-green-900/40 transition-colors"
-                          onClick={() => chore && setDetailChore(chore)}
-                        >
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{chore?.title || 'Chore'}</p>
-                            <p className="text-[11px] text-muted-foreground">
-                              Done {formatDistanceToNow(completion.completedAt, { addSuffix: true })}
-                              {completion.completedBy && ` by ${completion.completedBy}`}
-                            </p>
-                          </div>
-                          <Badge variant="outline" className="text-[11px] px-2 py-1">Open</Badge>
-                        </button>
-                      ))}
-                    </CardContent>
-                  </Card>
-                </CollapsibleContent>
-              </Collapsible>
-            )}
-          </Fragment>
+          </div>
         )
 
       case 'todays-events':
         if (todaysEvents.length === 0 && todaysMeals.length === 0) return null
         return (
           <Card key="todays-events">
-            <CardHeader className="pb-2 pt-3 px-4">
-              <CardTitle className="text-base flex items-center justify-between">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <Sun size={18} className="text-primary" />
                   Today's Schedule
@@ -590,8 +567,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                 </Button>
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-3 space-y-2">
-              {/* Today's Events */}
+            <CardContent className="px-4 pb-4 space-y-2">
               {todaysEvents.slice(0, showAllEvents ? undefined : 3).map(event => (
                 <div
                   key={event.id}
@@ -631,7 +607,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                     return (
                       <div
                         key={type}
-                        className={`flex-1 min-w-[100px] p-2 rounded-lg text-center transition-colors ${
+                        className={`flex-1 min-w-[100px] p-2.5 rounded-lg text-center transition-colors ${
                           meal ? 'bg-primary/10' : 'bg-muted/30'
                         } ${hasRecipe ? 'cursor-pointer hover:bg-primary/20 active:bg-primary/25' : ''}`}
                         onClick={() => {
@@ -642,13 +618,10 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                           }
                         }}
                       >
-                        <p className="text-[10px] uppercase font-semibold text-muted-foreground">{type}</p>
-                        <p className={`text-xs truncate ${meal ? 'font-medium' : 'text-muted-foreground italic'}`}>
+                        <p className="text-xs uppercase font-semibold text-muted-foreground">{type}</p>
+                        <p className={`text-sm truncate ${meal ? 'font-medium' : 'text-muted-foreground italic'}`}>
                           {meal?.name || '-'}
                         </p>
-                        {hasRecipe && (
-                          <p className="text-[10px] text-primary mt-0.5">View recipe</p>
-                        )}
                       </div>
                     )
                   })}
@@ -680,13 +653,13 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         if (todaysMeals.length === 0) return null
         return (
           <Card key="today-meals">
-            <CardHeader className="pb-2 pt-3 px-4">
-              <CardTitle className="text-base flex items-center gap-2">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <CookingPot size={18} className="text-primary" />
                 Today's Meals
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-3">
+            <CardContent className="px-4 pb-4">
               <div className="flex gap-2 overflow-x-auto">
                 {['breakfast', 'lunch', 'dinner'].map(type => {
                   const meal = todaysMeals.find(m => m.type === type)
@@ -694,7 +667,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                   return (
                     <div
                       key={type}
-                      className={`flex-1 min-w-[100px] p-2 rounded-lg text-center transition-colors ${
+                      className={`flex-1 min-w-[100px] p-2.5 rounded-lg text-center transition-colors ${
                         meal ? 'bg-primary/10' : 'bg-muted/30'
                       } ${hasRecipe ? 'cursor-pointer hover:bg-primary/20 active:bg-primary/25' : ''}`}
                       onClick={() => {
@@ -705,13 +678,10 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                         }
                       }}
                     >
-                      <p className="text-[10px] uppercase font-semibold text-muted-foreground">{type}</p>
-                      <p className={`text-xs truncate ${meal ? 'font-medium' : 'text-muted-foreground italic'}`}>
+                      <p className="text-xs uppercase font-semibold text-muted-foreground">{type}</p>
+                      <p className={`text-sm truncate ${meal ? 'font-medium' : 'text-muted-foreground italic'}`}>
                         {meal?.name || '-'}
                       </p>
-                      {hasRecipe && (
-                        <p className="text-[10px] text-primary mt-0.5">View recipe</p>
-                      )}
                     </div>
                   )
                 })}
@@ -724,27 +694,23 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         if (roomProgress.length === 0) return null
         return (
           <Card key="room-chores">
-            <CardHeader className="pb-2 pt-3 px-4">
-              <CardTitle className="text-base flex items-center gap-2">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <House size={18} className="text-primary" />
-                Room Progress (today & week)
+                Room Progress
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-3">
               {roomProgress.map(room => (
                 <div key={room.room} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center justify-between text-sm">
                     <span className="font-medium">{room.room}</span>
-                    <span className="text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {room.total - room.pending}/{room.total} done
+                      {room.overdue > 0 && <span className="text-red-500 ml-1.5">{room.overdue} overdue</span>}
                     </span>
                   </div>
                   <Progress value={room.completion} />
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {room.overdue > 0 && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Overdue: {room.overdue}</Badge>}
-                    {room.dueToday > 0 && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Due today: {room.dueToday}</Badge>}
-                    {room.completedThisWeek > 0 && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{room.completedThisWeek} this week</Badge>}
-                  </div>
                 </div>
               ))}
             </CardContent>
@@ -757,8 +723,8 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
           <Collapsible key="shopping-preview" open={showShoppingPanel} onOpenChange={setShowShoppingPanel}>
             <Card>
               <CollapsibleTrigger asChild>
-                <CardHeader className="pb-2 pt-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors">
-                  <CardTitle className="text-base flex items-center justify-between">
+                <CardHeader className="p-4 pb-2 cursor-pointer hover:bg-muted/30 transition-colors">
+                  <CardTitle className="text-sm font-semibold flex items-center justify-between">
                     <span className="flex items-center gap-2">
                       <ShoppingCart size={18} className="text-primary" />
                       Shopping List
@@ -769,25 +735,32 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                 </CardHeader>
               </CollapsibleTrigger>
               <CollapsibleContent>
-                <CardContent className="px-4 pb-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {unpurchasedItems.slice(0, 12).map(item => (
-                      <Badge
+                <CardContent className="px-4 pb-4">
+                  <div className="space-y-1">
+                    {unpurchasedItems.slice(0, 8).map(item => (
+                      <div
                         key={item.id}
-                        variant="outline"
-                        className="text-xs py-1 cursor-pointer"
-                        onClick={() => setDetailItem(item)}
+                        className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 transition-colors group"
                       >
-                        {item.name}
+                        <button
+                          className="h-5 w-5 rounded border border-border flex items-center justify-center flex-shrink-0 hover:bg-primary/10 hover:border-primary transition-colors"
+                          onClick={() => {
+                            const updated = { ...item, purchased: true }
+                            setShoppingItems((prev) => (prev ?? []).map(i => i.id === item.id ? updated : i))
+                            toast.success('Purchased', { description: item.name })
+                          }}
+                          title="Mark as purchased"
+                        >
+                          <Check size={10} className="opacity-0 group-hover:opacity-40" />
+                        </button>
+                        <span className="text-sm truncate flex-1">{item.name}</span>
                         {item.quantity && item.quantity !== '1' && (
-                          <span className="ml-1 opacity-60">{item.quantity}</span>
+                          <span className="text-xs text-muted-foreground flex-shrink-0">{item.quantity}</span>
                         )}
-                      </Badge>
+                      </div>
                     ))}
-                    {unpurchasedItems.length > 12 && (
-                      <Badge variant="secondary" className="text-xs">
-                        +{unpurchasedItems.length - 12} more
-                      </Badge>
+                    {unpurchasedItems.length > 8 && (
+                      <p className="text-xs text-muted-foreground px-2 pt-1">+{unpurchasedItems.length - 8} more items</p>
                     )}
                   </div>
                   <Button
@@ -808,8 +781,8 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         if (upcomingEvents.length === 0) return null
         return (
           <Card key="upcoming-events">
-            <CardHeader className="pb-2 pt-3 px-4">
-              <CardTitle className="text-base flex items-center justify-between">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <CalendarBlank size={18} className="text-primary" />
                   Coming Up
@@ -824,7 +797,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                 </Button>
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-3">
+            <CardContent className="px-4 pb-4">
               <div className="space-y-1">
                 {upcomingEvents.map(event => {
                   const eventDate = parseISO(event.date)
@@ -859,13 +832,13 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         if (members.length <= 1 || selectedMember !== 'all') return null
         return (
           <Card key="member-stats">
-            <CardHeader className="pb-2 pt-3 px-4">
-              <CardTitle className="text-base flex items-center gap-2">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <User size={18} className="text-primary" />
                 Family Progress
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-3">
+            <CardContent className="px-4 pb-4">
               <div className="space-y-3">
                 {members.slice(0, 4).map(member => {
                   const memberChores = chores.filter(c => c.assignedTo === member.displayName)
@@ -911,14 +884,12 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
     <div className="space-y-6 pb-20">
       {showOnboarding && <OnboardingChecklist />}
 
-      {/* Greeting Header - Compact */}
+      {/* Greeting Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <GreetingIcon size={20} className="text-primary" />
-          </div>
+        <div className="flex items-center gap-2">
+          <GreetingIcon size={18} className="text-primary" />
           <div>
-            <h1>{greeting.text}</h1>
+            <h1 className="text-base font-semibold">{greeting.text}{currentUser?.displayName ? `, ${currentUser.displayName.split(' ')[0]}` : ''}</h1>
             <p className="text-xs text-muted-foreground">
               {format(new Date(), 'EEEE, MMMM d')}
             </p>
@@ -1034,8 +1005,10 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         </DialogContent>
       </Dialog>
 
-      {/* Dashboard Widgets - rendered in customizer order */}
-      {sortedWidgetIds.map(id => renderWidget(id))}
+      {/* Dashboard Widgets - rendered in customizer order, 2-col on desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
+        {sortedWidgetIds.map(id => renderWidget(id))}
+      </div>
 
       {/* Empty State */}
       {pendingChores.length === 0 && todaysEvents.length === 0 && unpurchasedItems.length === 0 && (
@@ -1084,7 +1057,7 @@ function QuickStatPill({ icon: Icon, label, value, subtext, highlight, onClick }
     >
       <Icon size={16} className={highlight ? 'text-primary' : 'text-muted-foreground'} />
       <span className="text-lg font-bold">{value}</span>
-      <span className="text-xs text-muted-foreground hidden sm:inline">
+      <span className="text-xs text-muted-foreground">
         {subtext || label}
       </span>
     </button>
@@ -1108,8 +1081,7 @@ function ChoreItem({ chore, onComplete, onClick, highlight }: ChoreItemProps & {
         ? 'Due tomorrow'
         : `Due ${formatDistanceToNow(new Date(status.dueAt || Date.now()), { addSuffix: true })}`
   const rooms = chore.rooms?.length ? chore.rooms : (chore.room ? [chore.room] : [])
-  const primaryRooms = rooms.slice(0, 2)
-  const extraRooms = rooms.length > 2 ? rooms.length - 2 : 0
+  const roomText = rooms.length > 0 ? rooms.slice(0, 3).join(', ') + (rooms.length > 3 ? ` +${rooms.length - 3}` : '') : ''
   return (
     <div className={`flex items-center gap-2 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group cursor-pointer min-h-[44px] border-l-4 ${
       chore.priority === 'high' ? 'border-l-red-500' :
@@ -1147,37 +1119,22 @@ function ChoreItem({ chore, onComplete, onClick, highlight }: ChoreItemProps & {
       </DropdownMenu>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{chore.title}</p>
-        <p className="text-[11px] text-muted-foreground truncate">
-          {friendly}
+        <p className="text-xs text-muted-foreground truncate">
+          {friendly}{roomText ? ` · ${roomText}` : ''}
         </p>
-        <div className="flex gap-1 mt-1">
-          {status.isOverdue && <Badge variant="destructive" className="h-5 px-2 text-[11px]">Overdue</Badge>}
-          {status.isDueToday && !status.isOverdue && <Badge variant="secondary" className="h-5 px-2 text-[11px]">Today</Badge>}
-          {primaryRooms.map((room) => (
-            <Badge key={room} variant="outline" className="h-5 px-2 text-[11px] max-w-[90px] truncate">
-              {room}
-            </Badge>
-          ))}
-          {extraRooms > 0 && (
-            <Badge variant="outline" className="h-5 px-2 text-[11px]">+{extraRooms} more</Badge>
-          )}
-          {chore.assignedTo && <Badge variant="outline" className="h-5 px-2 text-[11px]">Assigned: {chore.assignedTo}</Badge>}
-        </div>
+        {chore.assignedTo && (
+          <p className="text-xs text-muted-foreground truncate">Assigned: {chore.assignedTo}</p>
+        )}
       </div>
       {chore.streak && chore.streak >= 2 && (
-        <Badge className="text-[10px] px-1 py-0 gap-0.5 bg-orange-500">
-          <Fire size={8} />
+        <Badge className="text-xs px-1.5 py-0 gap-0.5 bg-orange-500 flex-shrink-0">
+          <Fire size={10} />
           {chore.streak}
         </Badge>
       )}
-      {chore.assignedTo && (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-          {chore.assignedTo}
-        </Badge>
-      )}
       {chore.estimatedMinutes && (
-        <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-          <Clock size={10} />
+        <span className="text-xs text-muted-foreground flex items-center gap-0.5 flex-shrink-0">
+          <Clock size={12} />
           {chore.estimatedMinutes}m
         </span>
       )}
