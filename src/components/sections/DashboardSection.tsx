@@ -1,7 +1,8 @@
 import { 
   CalendarBlank, CheckCircle, ShoppingCart, CookingPot, Broom, 
   Clock, User, ArrowRight, CaretDown, CaretUp, House, Sparkle,
-  Sun, Moon, CloudSun, MapPin, Bell, Warning, Check, Fire
+  Sun, Moon, CloudSun, MapPin, Bell, Warning, Check, Fire,
+  Trophy, Lightning, Star, Medal, Target
 } from '@phosphor-icons/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -16,7 +17,7 @@ import DashboardCustomizer from '@/components/DashboardCustomizer'
 import WeeklyChoreSchedule from '@/components/WeeklyChoreSchedule'
 import { format, isToday, isAfter, isSameDay, startOfDay, addDays, parseISO, isTomorrow, formatDistanceToNow } from 'date-fns'
 import { useState, useMemo, useCallback, Fragment } from 'react'
-import { NotificationSummary } from '@/components/NotificationSummary'
+// NotificationSummary removed - its role is now handled by the todays-events widget
 import { useAuth } from '@/lib/AuthContext'
 import { toast } from 'sonner'
 import { computeNextDueAt, getChoreStatus, normalizeChore, isCompletedForToday } from '@/lib/chore-utils'
@@ -235,7 +236,31 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
     const progress = Math.min(goal, recent.length)
     const percent = Math.round((progress / goal) * 100)
     const done = progress >= goal
-    return { goal, progress, percent, done }
+
+    // Milestones for visual markers
+    const milestones = [
+      { at: 3, label: 'Warm Up', icon: 'star' as const },
+      { at: 5, label: 'Halfway', icon: 'lightning' as const },
+      { at: 8, label: 'Almost!', icon: 'medal' as const },
+      { at: 10, label: 'Champion', icon: 'trophy' as const },
+    ]
+    const currentMilestone = [...milestones].reverse().find(m => progress >= m.at)
+    const nextMilestone = milestones.find(m => progress < m.at)
+
+    // Motivational message based on progress
+    let message = ''
+    if (done) message = 'You crushed it this week! 🏆'
+    else if (percent >= 80) message = 'So close! Just push a little more!'
+    else if (percent >= 50) message = 'Over halfway — keep the momentum!'
+    else if (percent >= 30) message = 'Great start, keep going!'
+    else if (progress > 0) message = 'Every chore counts. You got this!'
+    else message = 'Start your week strong!'
+
+    // Today's completions for "today's contribution"
+    const todayCutoff = startOfDay(new Date()).getTime()
+    const todayCount = recent.filter(c => c.completedAt >= todayCutoff).length
+
+    return { goal, progress, percent, done, milestones, currentMilestone, nextMilestone, message, todayCount }
   }, [completions, currentHousehold])
 
   const choreById = useMemo(() => {
@@ -382,37 +407,154 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         )
 
       case 'weekly-chore-schedule':
+        const milestoneIcon = (type: string, size: number, className?: string) => {
+          switch (type) {
+            case 'star': return <Star size={size} weight="fill" className={className} />
+            case 'lightning': return <Lightning size={size} weight="fill" className={className} />
+            case 'medal': return <Medal size={size} weight="fill" className={className} />
+            case 'trophy': return <Trophy size={size} weight="fill" className={className} />
+            default: return <Target size={size} className={className} />
+          }
+        }
         return (
           <div key="weekly-chore-schedule" className="lg:col-span-2 space-y-3">
-            {/* Weekly Challenge Banner */}
-            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-              <div className="flex items-center gap-3">
-                <Sparkle size={16} className="text-primary flex-shrink-0" />
-                <span className="text-sm font-medium flex-shrink-0">Weekly Challenge</span>
-                <div className="flex-1 min-w-0">
-                  <Progress value={challenge.percent} className="h-2" />
+            {/* Weekly Challenge Card */}
+            <Card className={`overflow-hidden ${challenge.done ? 'border-green-500/40 bg-gradient-to-br from-green-500/5 via-emerald-500/5 to-teal-500/5' : 'border-primary/30'}`}>
+              <CardContent className="p-4 space-y-3">
+                {/* Header row */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {challenge.done ? (
+                      <div className="h-8 w-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                        <Trophy size={18} weight="fill" className="text-green-500" />
+                      </div>
+                    ) : (
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Target size={18} className="text-primary" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-semibold">Weekly Challenge</p>
+                      <p className="text-xs text-muted-foreground">{challenge.message}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {challenge.todayCount > 0 && (
+                      <Badge variant="outline" className="gap-1 text-xs">
+                        <Lightning size={10} weight="fill" className="text-yellow-500" />
+                        +{challenge.todayCount} today
+                      </Badge>
+                    )}
+                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setChallengeEnabled(!challengeEnabled)}>
+                      {challengeEnabled ? <CaretUp size={14} /> : <CaretDown size={14} />}
+                    </Button>
+                  </div>
                 </div>
-                <span className="text-sm font-semibold text-primary flex-shrink-0">
-                  {challenge.progress}/{challenge.goal}
-                </span>
-                {challenge.done ? (
-                  <Badge variant="secondary" className="gap-1 flex-shrink-0">
-                    <Fire size={12} />
-                    Done!
-                  </Badge>
-                ) : (
-                  <span className="text-xs text-muted-foreground flex-shrink-0">{challenge.goal - challenge.progress} to go</span>
+
+                {/* Progress section with milestone markers */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className={`font-semibold ${challenge.done ? 'text-green-600 dark:text-green-400' : 'text-primary'}`}>
+                      {challenge.progress}/{challenge.goal} chores
+                    </span>
+                    {challenge.nextMilestone && !challenge.done && (
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        Next: {milestoneIcon(challenge.nextMilestone.icon, 10)} {challenge.nextMilestone.label} ({challenge.nextMilestone.at - challenge.progress} more)
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Milestone progress track */}
+                  <div className="relative">
+                    <Progress value={challenge.percent} className={`h-3 ${challenge.done ? '[&>div]:bg-green-500' : ''}`} />
+                    {/* Milestone markers */}
+                    <div className="absolute inset-0 flex items-center pointer-events-none">
+                      {challenge.milestones.map(m => (
+                        <div
+                          key={m.at}
+                          className="absolute flex items-center justify-center"
+                          style={{ left: `${(m.at / challenge.goal) * 100}%`, transform: 'translateX(-50%)' }}
+                        >
+                          <div className={`h-5 w-5 rounded-full flex items-center justify-center border-2 transition-all ${
+                            challenge.progress >= m.at
+                              ? 'bg-background border-primary scale-110 shadow-sm'
+                              : 'bg-muted/80 border-muted-foreground/20 opacity-40'
+                          }`}>
+                            {milestoneIcon(m.icon, 10, challenge.progress >= m.at ? 'text-primary' : 'text-muted-foreground/50')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Milestone badges row */}
+                  <div className="flex items-center justify-between px-1">
+                    {challenge.milestones.map(m => (
+                      <div
+                        key={m.at}
+                        className={`flex flex-col items-center gap-0.5 transition-opacity ${
+                          challenge.progress >= m.at ? 'opacity-100' : 'opacity-30'
+                        }`}
+                        style={{ width: `${100 / challenge.milestones.length}%` }}
+                      >
+                        <span className={`text-[10px] font-medium ${challenge.progress >= m.at ? 'text-primary' : 'text-muted-foreground'}`}>
+                          {m.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Expanded celebration or detail */}
+                {challengeEnabled && (
+                  <div className={`rounded-lg p-3 ${challenge.done ? 'bg-green-500/10 border border-green-500/20' : 'bg-muted/30 border border-border/50'}`}>
+                    {challenge.done ? (
+                      <div className="flex items-center gap-3">
+                        <div className="flex -space-x-1">
+                          {challenge.milestones.map(m => (
+                            <div key={m.at} className="h-6 w-6 rounded-full bg-green-500/20 flex items-center justify-center border-2 border-background">
+                              {milestoneIcon(m.icon, 10, 'text-green-500')}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-green-600 dark:text-green-400">All milestones unlocked!</p>
+                          <p className="text-xs text-muted-foreground">You completed {challenge.progress} chores this week. Amazing effort!</p>
+                        </div>
+                        <Fire size={20} weight="fill" className="text-orange-500 animate-pulse" />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            {challenge.currentMilestone ? (
+                              <>
+                                {milestoneIcon(challenge.currentMilestone.icon, 14, 'text-primary')}
+                                <span className="text-xs font-semibold text-primary">{challenge.currentMilestone.label} unlocked!</span>
+                              </>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Complete {challenge.milestones[0].at} chores to unlock your first milestone</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {challenge.goal - challenge.progress} chore{challenge.goal - challenge.progress !== 1 ? 's' : ''} left this week
+                            {challenge.todayCount > 0 ? ` · ${challenge.todayCount} done today` : ''}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs gap-1"
+                          onClick={() => onNavigate?.('chores')}
+                        >
+                          <Broom size={12} /> Do Chores
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 )}
-                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 flex-shrink-0" onClick={() => setChallengeEnabled(!challengeEnabled)}>
-                  {challengeEnabled ? <CaretUp size={14} /> : <CaretDown size={14} />}
-                </Button>
-              </div>
-              {challengeEnabled && challenge.done && (
-                <p className="text-xs text-green-700 dark:text-green-300 mt-1 ml-7">
-                  Nice work! You hit this week's goal.
-                </p>
-              )}
-            </div>
+              </CardContent>
+            </Card>
             {/* Actual Weekly Chore Schedule - 7-day view */}
             <WeeklyChoreSchedule />
           </div>
@@ -1099,8 +1241,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         </div>
       </div>
 
-      {/* Notification Summary - If any */}
-      <NotificationSummary />
+      {/* NotificationSummary removed - todays-events widget handles this now */}
 
       {/* Detail Dialogs (portals - always rendered) */}
       <Dialog open={!!detailChore} onOpenChange={() => setDetailChore(null)}>
