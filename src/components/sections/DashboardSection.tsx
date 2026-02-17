@@ -555,42 +555,63 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         )
 
       case 'todays-events':
+        // Combine overdue + due today for the actionable chore list
+        const actionableChores = [...overdueChores, ...dueTodayChores]
+        const totalDayChores = actionableChores.length + recentCompletions.length
+        const dayProgress = totalDayChores > 0 ? Math.round((recentCompletions.length / totalDayChores) * 100) : 0
         return (
           <Card key="todays-events" className="lg:col-span-2">
-            <CardHeader className="p-4 pb-2">
+            <CardHeader className="p-4 pb-3">
               <CardTitle className="text-sm font-semibold flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <Sun size={18} className="text-primary" />
                   Today's Summary
                 </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => onNavigate?.('calendar')}
-                >
-                  View All <ArrowRight size={12} className="ml-1" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  {totalDayChores > 0 && (
+                    <Badge variant={dayProgress === 100 ? 'default' : 'secondary'} className="text-xs gap-1">
+                      {dayProgress === 100 ? <CheckCircle size={12} weight="fill" /> : <Clock size={12} />}
+                      {recentCompletions.length}/{totalDayChores} done
+                    </Badge>
+                  )}
+                </div>
               </CardTitle>
+              {/* Day progress bar */}
+              {totalDayChores > 0 && (
+                <Progress value={dayProgress} className="h-1.5 mt-2" />
+              )}
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-3">
-              {/* Due Today Chores - quick complete */}
-              {dueTodayChores.length > 0 && (
+              {/* Actionable Chores - overdue + due today with inline complete */}
+              {actionableChores.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-primary mb-1.5 flex items-center gap-1">
-                    <Broom size={12} /> {dueTodayChores.length} chore{dueTodayChores.length !== 1 ? 's' : ''} due today
+                  <p className="text-xs font-semibold text-primary mb-2 flex items-center gap-1">
+                    <Broom size={12} />
+                    {overdueChores.length > 0 && dueTodayChores.length > 0
+                      ? `${overdueChores.length} overdue + ${dueTodayChores.length} due today`
+                      : overdueChores.length > 0
+                        ? `${overdueChores.length} overdue`
+                        : `${dueTodayChores.length} due today`
+                    }
                   </p>
-                  <div className="space-y-1">
-                    {dueTodayChores.slice(0, 4).map(({ chore }) => (
-                      <div key={chore.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group">
+                  <div className="space-y-1.5">
+                    {actionableChores.slice(0, 6).map(({ chore, status }) => (
+                      <div
+                        key={chore.id}
+                        className={`flex items-center gap-2 p-2.5 rounded-lg transition-colors group ${
+                          status.isOverdue
+                            ? 'bg-red-500/5 border border-red-500/20 hover:bg-red-500/10'
+                            : 'bg-muted/30 hover:bg-muted/50'
+                        }`}
+                      >
                         <Button
                           size="icon"
                           variant="outline"
-                          className="h-7 w-7 flex-shrink-0"
+                          className="h-8 w-8 flex-shrink-0"
                           onClick={() => handleCompleteChore(chore)}
                           title="Complete"
                         >
-                          <Check size={12} />
+                          <Check size={14} />
                         </Button>
                         <button
                           className="flex-1 min-w-0 text-left"
@@ -598,40 +619,53 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                         >
                           <p className="text-sm font-medium truncate">{chore.title}</p>
                           <p className="text-xs text-muted-foreground truncate">
+                            {status.isOverdue && (
+                              <span className="text-red-500 font-medium">
+                                Overdue {status.daysOverdue > 0 ? `${status.daysOverdue}d` : ''} ·{' '}
+                              </span>
+                            )}
                             {chore.assignedTo || 'Unassigned'}
+                            {chore.room ? ` · ${chore.room}` : ''}
                             {chore.estimatedMinutes ? ` · ${chore.estimatedMinutes}m` : ''}
                           </p>
                         </button>
-                        {chore.priority === 'high' && (
-                          <Badge variant="destructive" className="text-[10px] px-1 py-0 flex-shrink-0">!</Badge>
-                        )}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {chore.priority === 'high' && (
+                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">!</Badge>
+                          )}
+                          {chore.streak && chore.streak >= 2 && (
+                            <Badge className="text-[10px] px-1 py-0 gap-0.5 bg-orange-500">
+                              <Fire size={8} />{chore.streak}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     ))}
-                    {dueTodayChores.length > 4 && (
+                    {actionableChores.length > 6 && (
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="w-full h-6 text-xs text-muted-foreground"
+                        className="w-full h-7 text-xs text-muted-foreground"
                         onClick={() => onNavigate?.('chores')}
                       >
-                        +{dueTodayChores.length - 4} more chores
+                        +{actionableChores.length - 6} more · Open Chores <ArrowRight size={10} className="ml-0.5" />
                       </Button>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* Overdue chores alert */}
-              {overdueChores.length > 0 && (
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
-                  <Warning size={14} className="text-red-500 flex-shrink-0" />
-                  <span className="text-xs font-medium text-red-600 dark:text-red-400 flex-1">
-                    {overdueChores.length} overdue chore{overdueChores.length !== 1 ? 's' : ''}
+              {/* Recently completed */}
+              {recentCompletions.length > 0 && (
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-green-500/5 border border-green-500/20">
+                  <CheckCircle size={14} className="text-green-500 flex-shrink-0" weight="fill" />
+                  <span className="text-xs font-medium text-green-600 dark:text-green-400 flex-1">
+                    {recentCompletions.length} completed today
                   </span>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-xs text-red-600 hover:text-red-700 px-2"
+                    className="h-6 text-xs text-green-600 hover:text-green-700 px-2"
                     onClick={() => onNavigate?.('chores')}
                   >
                     View <ArrowRight size={10} className="ml-0.5" />
@@ -693,44 +727,52 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                 </div>
               )}
 
-              {/* Meals (shown if today-meals widget is also enabled) */}
-              {isWidgetEnabled('today-meals') && todaysMeals.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
+              {/* Meals - always show slots */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
                     <CookingPot size={12} /> Meals
-                  </p>
-                  <div className="flex gap-2 overflow-x-auto">
-                    {['breakfast', 'lunch', 'dinner'].map(type => {
-                      const meal = todaysMeals.find(m => m.type === type)
-                      const hasRecipe = meal?.recipeId
-                      return (
-                        <div
-                          key={type}
-                          className={`flex-1 min-w-[100px] p-2.5 rounded-lg text-center transition-colors ${
-                            meal ? 'bg-primary/10' : 'bg-muted/30'
-                          } ${hasRecipe ? 'cursor-pointer hover:bg-primary/20 active:bg-primary/25' : ''}`}
-                          onClick={() => {
-                            if (hasRecipe && onViewRecipe) {
-                              onViewRecipe(meal.recipeId!)
-                            } else if (meal) {
-                              onNavigate?.('meals')
-                            }
-                          }}
-                        >
-                          <p className="text-xs uppercase font-semibold text-muted-foreground">{type}</p>
-                          <p className={`text-sm truncate ${meal ? 'font-medium' : 'text-muted-foreground italic'}`}>
-                            {meal?.name || '-'}
-                          </p>
-                        </div>
-                      )
-                    })}
-                  </div>
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 text-[10px] px-1.5 text-muted-foreground"
+                    onClick={() => onNavigate?.('meals')}
+                  >
+                    Plan <ArrowRight size={8} className="ml-0.5" />
+                  </Button>
+                </p>
+                <div className="flex gap-2 overflow-x-auto">
+                  {['breakfast', 'lunch', 'dinner'].map(type => {
+                    const meal = todaysMeals.find(m => m.type === type)
+                    const hasRecipe = meal?.recipeId
+                    return (
+                      <div
+                        key={type}
+                        className={`flex-1 min-w-[100px] p-2.5 rounded-lg text-center transition-colors ${
+                          meal ? 'bg-primary/10 border border-primary/20' : 'bg-muted/30 border border-border/50'
+                        } ${hasRecipe ? 'cursor-pointer hover:bg-primary/20 active:bg-primary/25' : meal ? '' : 'cursor-pointer hover:bg-muted/50'}`}
+                        onClick={() => {
+                          if (hasRecipe && onViewRecipe) {
+                            onViewRecipe(meal.recipeId!)
+                          } else {
+                            onNavigate?.('meals')
+                          }
+                        }}
+                      >
+                        <p className="text-[10px] uppercase font-semibold text-muted-foreground">{type}</p>
+                        <p className={`text-sm truncate ${meal ? 'font-medium' : 'text-muted-foreground italic'}`}>
+                          {meal?.name || 'Not planned'}
+                        </p>
+                      </div>
+                    )
+                  })}
                 </div>
-              )}
+              </div>
 
               {/* Shopping reminder */}
               {showShoppingTab && unpurchasedItems.length > 0 && (
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 border border-border/50">
                   <ShoppingCart size={14} className="text-muted-foreground flex-shrink-0" />
                   <span className="text-xs text-muted-foreground flex-1">
                     {unpurchasedItems.length} item{unpurchasedItems.length !== 1 ? 's' : ''} on shopping list
@@ -746,50 +788,52 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                 </div>
               )}
 
-              {/* Empty state */}
-              {todaysEvents.length === 0 && dueTodayChores.length === 0 && todaysMeals.length === 0 && overdueChores.length === 0 && (
-                <div className="text-center py-4">
-                  <Sparkle size={24} className="mx-auto text-primary mb-2" />
-                  <p className="text-sm text-muted-foreground">Nothing scheduled for today</p>
+              {/* All clear state */}
+              {actionableChores.length === 0 && todaysEvents.length === 0 && recentCompletions.length === 0 && (
+                <div className="text-center py-3">
+                  <Sparkle size={20} className="mx-auto text-primary mb-1" />
+                  <p className="text-xs text-muted-foreground">No chores or events scheduled today</p>
                 </div>
               )}
 
               {/* Quick Nav Actions */}
-              <div className="flex gap-2 pt-2 border-t border-border/50">
+              <div className="grid grid-cols-4 gap-2 pt-3 border-t border-border/50">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 h-8 text-xs gap-1"
+                  className="h-10 text-xs gap-1.5 flex-col py-1"
                   onClick={() => onNavigate?.('chores')}
                 >
-                  <Broom size={14} /> Chores
+                  <Broom size={16} />
+                  <span>Chores</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 h-8 text-xs gap-1"
+                  className="h-10 text-xs gap-1.5 flex-col py-1"
                   onClick={() => onNavigate?.('calendar')}
                 >
-                  <CalendarBlank size={14} /> Calendar
+                  <CalendarBlank size={16} />
+                  <span>Calendar</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 h-8 text-xs gap-1"
+                  className="h-10 text-xs gap-1.5 flex-col py-1"
                   onClick={() => onNavigate?.('meals')}
                 >
-                  <CookingPot size={14} /> Meals
+                  <CookingPot size={16} />
+                  <span>Meals</span>
                 </Button>
-                {showShoppingTab && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 h-8 text-xs gap-1"
-                    onClick={() => onNavigate?.('shopping')}
-                  >
-                    <ShoppingCart size={14} /> Shop
-                  </Button>
-                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-10 text-xs gap-1.5 flex-col py-1"
+                  onClick={() => onNavigate?.('shopping')}
+                >
+                  <ShoppingCart size={16} />
+                  <span>Shop</span>
+                </Button>
               </div>
             </CardContent>
           </Card>
