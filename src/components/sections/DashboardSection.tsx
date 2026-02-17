@@ -555,14 +555,13 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         )
 
       case 'todays-events':
-        if (todaysEvents.length === 0 && todaysMeals.length === 0) return null
         return (
-          <Card key="todays-events">
+          <Card key="todays-events" className="lg:col-span-2">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-sm font-semibold flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <Sun size={18} className="text-primary" />
-                  Today's Schedule
+                  Today's Summary
                 </span>
                 <Button
                   variant="ghost"
@@ -574,81 +573,224 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                 </Button>
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-2">
-              {todaysEvents.slice(0, showAllEvents ? undefined : 3).map(event => (
-                <div
-                  key={event.id}
-                  className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
-                  onClick={() => setDetailEvent(event)}
-                >
-                  <div className="w-12 text-center flex-shrink-0">
-                    {event.isAllDay ? (
-                      <span className="text-xs font-medium text-muted-foreground">All day</span>
-                    ) : event.startTime ? (
-                      <span className="text-sm font-semibold">{event.startTime}</span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">--:--</span>
+            <CardContent className="px-4 pb-4 space-y-3">
+              {/* Due Today Chores - quick complete */}
+              {dueTodayChores.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-primary mb-1.5 flex items-center gap-1">
+                    <Broom size={12} /> {dueTodayChores.length} chore{dueTodayChores.length !== 1 ? 's' : ''} due today
+                  </p>
+                  <div className="space-y-1">
+                    {dueTodayChores.slice(0, 4).map(({ chore }) => (
+                      <div key={chore.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-7 w-7 flex-shrink-0"
+                          onClick={() => handleCompleteChore(chore)}
+                          title="Complete"
+                        >
+                          <Check size={12} />
+                        </Button>
+                        <button
+                          className="flex-1 min-w-0 text-left"
+                          onClick={() => setDetailChore(chore)}
+                        >
+                          <p className="text-sm font-medium truncate">{chore.title}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {chore.assignedTo || 'Unassigned'}
+                            {chore.estimatedMinutes ? ` · ${chore.estimatedMinutes}m` : ''}
+                          </p>
+                        </button>
+                        {chore.priority === 'high' && (
+                          <Badge variant="destructive" className="text-[10px] px-1 py-0 flex-shrink-0">!</Badge>
+                        )}
+                      </div>
+                    ))}
+                    {dueTodayChores.length > 4 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full h-6 text-xs text-muted-foreground"
+                        onClick={() => onNavigate?.('chores')}
+                      >
+                        +{dueTodayChores.length - 4} more chores
+                      </Button>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{event.title}</p>
-                    {event.location && (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <MapPin size={10} />
-                        {event.location}
-                      </p>
-                    )}
-                  </div>
-                  <Badge variant="outline" className="text-xs flex-shrink-0">
-                    {event.category}
-                  </Badge>
                 </div>
-              ))}
+              )}
+
+              {/* Overdue chores alert */}
+              {overdueChores.length > 0 && (
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <Warning size={14} className="text-red-500 flex-shrink-0" />
+                  <span className="text-xs font-medium text-red-600 dark:text-red-400 flex-1">
+                    {overdueChores.length} overdue chore{overdueChores.length !== 1 ? 's' : ''}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-red-600 hover:text-red-700 px-2"
+                    onClick={() => onNavigate?.('chores')}
+                  >
+                    View <ArrowRight size={10} className="ml-0.5" />
+                  </Button>
+                </div>
+              )}
+
+              {/* Today's Events */}
+              {todaysEvents.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
+                    <CalendarBlank size={12} /> {todaysEvents.length} event{todaysEvents.length !== 1 ? 's' : ''}
+                  </p>
+                  <div className="space-y-1">
+                    {todaysEvents.slice(0, showAllEvents ? undefined : 3).map(event => (
+                      <div
+                        key={event.id}
+                        className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                        onClick={() => setDetailEvent(event)}
+                      >
+                        <div className="w-12 text-center flex-shrink-0">
+                          {event.isAllDay ? (
+                            <span className="text-xs font-medium text-muted-foreground">All day</span>
+                          ) : event.startTime ? (
+                            <span className="text-sm font-semibold">{event.startTime}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">--:--</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{event.title}</p>
+                          {event.location && (
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <MapPin size={10} />
+                              {event.location}
+                            </p>
+                          )}
+                        </div>
+                        <Badge variant="outline" className="text-xs flex-shrink-0">
+                          {event.category}
+                        </Badge>
+                      </div>
+                    ))}
+                    {todaysEvents.length > 3 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full h-6 text-xs"
+                        onClick={() => setShowAllEvents(!showAllEvents)}
+                      >
+                        {showAllEvents ? (
+                          <>Show Less <CaretUp size={12} className="ml-1" /></>
+                        ) : (
+                          <>+{todaysEvents.length - 3} more events <CaretDown size={12} className="ml-1" /></>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Meals (shown if today-meals widget is also enabled) */}
               {isWidgetEnabled('today-meals') && todaysMeals.length > 0 && (
-                <div className="flex gap-2 mt-2 pt-2 border-t overflow-x-auto">
-                  {['breakfast', 'lunch', 'dinner'].map(type => {
-                    const meal = todaysMeals.find(m => m.type === type)
-                    const hasRecipe = meal?.recipeId
-                    return (
-                      <div
-                        key={type}
-                        className={`flex-1 min-w-[100px] p-2.5 rounded-lg text-center transition-colors ${
-                          meal ? 'bg-primary/10' : 'bg-muted/30'
-                        } ${hasRecipe ? 'cursor-pointer hover:bg-primary/20 active:bg-primary/25' : ''}`}
-                        onClick={() => {
-                          if (hasRecipe && onViewRecipe) {
-                            onViewRecipe(meal.recipeId!)
-                          } else if (meal) {
-                            onNavigate?.('meals')
-                          }
-                        }}
-                      >
-                        <p className="text-xs uppercase font-semibold text-muted-foreground">{type}</p>
-                        <p className={`text-sm truncate ${meal ? 'font-medium' : 'text-muted-foreground italic'}`}>
-                          {meal?.name || '-'}
-                        </p>
-                      </div>
-                    )
-                  })}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
+                    <CookingPot size={12} /> Meals
+                  </p>
+                  <div className="flex gap-2 overflow-x-auto">
+                    {['breakfast', 'lunch', 'dinner'].map(type => {
+                      const meal = todaysMeals.find(m => m.type === type)
+                      const hasRecipe = meal?.recipeId
+                      return (
+                        <div
+                          key={type}
+                          className={`flex-1 min-w-[100px] p-2.5 rounded-lg text-center transition-colors ${
+                            meal ? 'bg-primary/10' : 'bg-muted/30'
+                          } ${hasRecipe ? 'cursor-pointer hover:bg-primary/20 active:bg-primary/25' : ''}`}
+                          onClick={() => {
+                            if (hasRecipe && onViewRecipe) {
+                              onViewRecipe(meal.recipeId!)
+                            } else if (meal) {
+                              onNavigate?.('meals')
+                            }
+                          }}
+                        >
+                          <p className="text-xs uppercase font-semibold text-muted-foreground">{type}</p>
+                          <p className={`text-sm truncate ${meal ? 'font-medium' : 'text-muted-foreground italic'}`}>
+                            {meal?.name || '-'}
+                          </p>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 
-              {todaysEvents.length > 3 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full h-7 text-xs"
-                  onClick={() => setShowAllEvents(!showAllEvents)}
-                >
-                  {showAllEvents ? (
-                    <>Show Less <CaretUp size={12} className="ml-1" /></>
-                  ) : (
-                    <>Show {todaysEvents.length - 3} More <CaretDown size={12} className="ml-1" /></>
-                  )}
-                </Button>
+              {/* Shopping reminder */}
+              {showShoppingTab && unpurchasedItems.length > 0 && (
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
+                  <ShoppingCart size={14} className="text-muted-foreground flex-shrink-0" />
+                  <span className="text-xs text-muted-foreground flex-1">
+                    {unpurchasedItems.length} item{unpurchasedItems.length !== 1 ? 's' : ''} on shopping list
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs px-2"
+                    onClick={() => onNavigate?.('shopping')}
+                  >
+                    View <ArrowRight size={10} className="ml-0.5" />
+                  </Button>
+                </div>
               )}
+
+              {/* Empty state */}
+              {todaysEvents.length === 0 && dueTodayChores.length === 0 && todaysMeals.length === 0 && overdueChores.length === 0 && (
+                <div className="text-center py-4">
+                  <Sparkle size={24} className="mx-auto text-primary mb-2" />
+                  <p className="text-sm text-muted-foreground">Nothing scheduled for today</p>
+                </div>
+              )}
+
+              {/* Quick Nav Actions */}
+              <div className="flex gap-2 pt-2 border-t border-border/50">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 h-8 text-xs gap-1"
+                  onClick={() => onNavigate?.('chores')}
+                >
+                  <Broom size={14} /> Chores
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 h-8 text-xs gap-1"
+                  onClick={() => onNavigate?.('calendar')}
+                >
+                  <CalendarBlank size={14} /> Calendar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 h-8 text-xs gap-1"
+                  onClick={() => onNavigate?.('meals')}
+                >
+                  <CookingPot size={14} /> Meals
+                </Button>
+                {showShoppingTab && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8 text-xs gap-1"
+                    onClick={() => onNavigate?.('shopping')}
+                  >
+                    <ShoppingCart size={14} /> Shop
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         )

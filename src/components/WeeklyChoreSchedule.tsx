@@ -1,19 +1,25 @@
+import { useState } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { CheckCircle, Circle, Clock, User } from '@phosphor-icons/react'
-import type { Chore } from '@/lib/types'
-import { format, startOfWeek, addDays, isToday } from 'date-fns'
+import { CheckCircle, Circle, Clock, User, Check, X } from '@phosphor-icons/react'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import type { Chore, ChoreCompletion } from '@/lib/types'
+import { format, startOfWeek, addDays, isToday, isSameDay, startOfDay } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
 import { normalizeChore, computeNextDueAt } from '@/lib/chore-utils'
+import { toast } from 'sonner'
 
 export default function WeeklyChoreSchedule() {
-  const { currentHousehold } = useAuth()
+  const { currentHousehold, currentUser } = useAuth()
   const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
+  const [completionsRaw, setCompletions] = useKV<ChoreCompletion[]>('chore-completions', [])
   const [selectedMember] = useKV<string>('selected-member-filter', 'all')
   const allChores = choresRaw ?? []
+  const allCompletions = completionsRaw ?? []
   const chores = currentHousehold ? allChores.filter(c => c.householdId === currentHousehold.id).map(normalizeChore) : []
+  const completions = currentHousehold ? allCompletions.filter(c => c.householdId === currentHousehold.id) : []
 
   const filteredChores = selectedMember === 'all' 
     ? chores 
@@ -22,9 +28,23 @@ export default function WeeklyChoreSchedule() {
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 })
   const daysOfWeek = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
+  // Confirmation dialog state
+  const [confirmChore, setConfirmChore] = useState<{ chore: Chore; day: Date; dayIndex: number } | null>(null)
+
+  // Check if a chore has a completion record for a specific day
+  const isCompletedForDay = (choreId: string, day: Date): boolean => {
+    const dayStart = startOfDay(day)
+    return completions.some(c => 
+      c.choreId === choreId && 
+      !c.skipped &&
+      isSameDay(new Date(c.completedAt), dayStart)
+    )
+  }
+
   const getChoresForDay = (dayIndex: number) => {
     return filteredChores.filter((chore) => {
-      if (chore.completed) return false
+      // Once-off chores that are done shouldn't show
+      if (chore.frequency === 'once' && chore.completed) return false
       
       if (chore.frequency === 'daily') return true
       
@@ -38,29 +58,49 @@ export default function WeeklyChoreSchedule() {
     })
   }
 
-  const toggleChoreCompletion = (choreId: string) => {
-    setChores((currentChores) => {
-      if (!currentChores) return []
-      return currentChores.map((chore) => {
-        if (chore.id !== choreId) return chore
-        const now = Date.now()
-        const normalized = normalizeChore(chore as Chore)
-        const toggled = !normalized.completed
-        const updated: any = {
-          ...normalized,
-          completed: toggled ? true : false,
+  const handleCompleteChore = () => {
+    if (!confirmChore || !currentHousehold) return
+    const { chore, day } = confirmChore
+    const now = Date.now()
+    const dayDate = format(day, 'yyyy-MM-dd')
+
+    // Add a completion record for this specific day
+    const newCompletion: ChoreCompletion = {
+      id: `${chore.id}-${dayDate}-${now}`,
+      choreId: chore.id,
+      completedBy: currentUser?.displayName || 'Unknown',
+      householdId: currentHousehold.id,
+      completedAt: day.getTime(),
+      scheduledFor: dayDate,
+    }
+    setCompletions([...allCompletions, newCompletion])
+
+    // Only update the chore's lastCompletedAt / dueAt if completing for today
+    if (isToday(day)) {
+      setChores(allChores.map(c => {
+        if (c.id !== chore.id) return c
+        const updated = { ...normalizeChore(c) }
+        updated.lastCompletedAt = now
+        updated.lastCompletedBy = currentUser?.displayName || 'Unknown'
+        updated.totalCompletions = (updated.totalCompletions || 0) + 1
+        updated.streak = (updated.streak || 0) + 1
+        if ((updated.streak || 0) > (updated.bestStreak || 0)) {
+          updated.bestStreak = updated.streak
         }
-        if (toggled) {
-          updated.lastCompletedAt = now
-          if (normalized.frequency !== 'once') {
-            updated.dueAt = computeNextDueAt(updated as Chore, now)
-          }
+        if (chore.frequency === 'once') {
+          updated.completed = true
         } else {
-          // if unchecking, keep dueAt as-is
+          updated.completed = false
+          updated.dueAt = computeNextDueAt(updated as Chore, now)
         }
         return updated
-      })
+      }))
+    }
+
+    toast.success(`Completed "${chore.title}"`, {
+      description: isToday(day) ? 'Nice work!' : `Marked done for ${format(day, 'EEE, MMM d')}`,
     })
+    setConfirmChore(null)
   }
 
   const priorityColors = {
@@ -70,91 +110,146 @@ export default function WeeklyChoreSchedule() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <CheckCircle size={24} />
-          Weekly Chore Schedule
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-7 gap-2">
-          {daysOfWeek.map((day, dayIndex) => {
-            const dayChores = getChoresForDay(dayIndex)
-            const isDayToday = isToday(day)
-            const totalTime = dayChores.reduce((acc, c) => acc + (c.estimatedMinutes || 0), 0)
+    <>
+      <Card>
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+            <CheckCircle size={18} className="text-primary" />
+            Weekly Chore Schedule
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-3 pb-3">
+          <div className="grid grid-cols-7 gap-1.5">
+            {daysOfWeek.map((day, dayIndex) => {
+              const dayChores = getChoresForDay(dayIndex)
+              const isDayToday = isToday(day)
+              const totalTime = dayChores.reduce((acc, c) => acc + (c.estimatedMinutes || 0), 0)
+              const completedCount = dayChores.filter(c => isCompletedForDay(c.id, day)).length
 
-            return (
-              <div
-                key={day.toString()}
-                className={`rounded-lg border-2 p-2 ${
-                  isDayToday ? 'border-primary bg-primary/5' : 'border-border bg-card'
-                }`}
-              >
-                <div className="text-center mb-2 pb-2 border-b">
-                  <div className="text-xs font-semibold text-muted-foreground uppercase">
-                    {format(day, 'EEE')}
-                  </div>
-                  <div className={`text-lg font-bold ${isDayToday ? 'text-primary' : 'text-foreground'}`}>
-                    {format(day, 'd')}
-                  </div>
-                  {totalTime > 0 && (
-                    <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mt-1">
-                      <Clock size={12} />
-                      {totalTime}m
+              return (
+                <div
+                  key={day.toString()}
+                  className={`rounded-lg border-2 p-1.5 min-h-[120px] flex flex-col ${
+                    isDayToday ? 'border-primary bg-primary/5' : 'border-border bg-card'
+                  }`}
+                >
+                  <div className="text-center mb-1.5 pb-1 border-b border-border/50">
+                    <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                      {format(day, 'EEE')}
                     </div>
-                  )}
-                </div>
-                
-                <div className="space-y-1.5">
-                  {dayChores.length > 0 ? (
-                    dayChores.map((chore) => (
-                      <button
-                        key={chore.id}
-                        onClick={() => toggleChoreCompletion(chore.id)}
-                        className={`w-full text-left p-2 rounded border transition-all hover:scale-105 ${
-                          priorityColors[chore.priority || 'low']
-                        }`}
-                      >
-                        <div className="flex items-start gap-1.5">
-                          {chore.completed ? (
-                            <CheckCircle size={14} className="flex-shrink-0 mt-0.5" weight="fill" />
-                          ) : (
-                            <Circle size={14} className="flex-shrink-0 mt-0.5" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className={`text-xs font-medium leading-tight truncate ${
-                              chore.completed ? 'line-through opacity-60' : ''
-                            }`}>
-                              {chore.title}
+                    <div className={`text-base font-bold leading-tight ${isDayToday ? 'text-primary' : 'text-foreground'}`}>
+                      {format(day, 'd')}
+                    </div>
+                    {dayChores.length > 0 && (
+                      <div className="flex items-center justify-center gap-1 mt-0.5">
+                        <span className={`text-[10px] font-medium ${completedCount === dayChores.length ? 'text-green-500' : 'text-muted-foreground'}`}>
+                          {completedCount}/{dayChores.length}
+                        </span>
+                        {totalTime > 0 && (
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                            <Clock size={8} />{totalTime}m
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-1 flex-1">
+                    {dayChores.length > 0 ? (
+                      dayChores.map((chore) => {
+                        const doneForDay = isCompletedForDay(chore.id, day)
+                        return (
+                          <button
+                            key={chore.id}
+                            onClick={() => {
+                              if (!doneForDay) {
+                                setConfirmChore({ chore, day, dayIndex })
+                              }
+                            }}
+                            disabled={doneForDay}
+                            className={`w-full text-left p-1.5 rounded border transition-all ${
+                              doneForDay
+                                ? 'bg-green-500/10 border-green-500/30 opacity-70'
+                                : `hover:scale-[1.02] active:scale-95 ${priorityColors[chore.priority || 'low']}`
+                            }`}
+                          >
+                            <div className="flex items-start gap-1">
+                              {doneForDay ? (
+                                <CheckCircle size={12} className="flex-shrink-0 mt-0.5 text-green-500" weight="fill" />
+                              ) : (
+                                <Circle size={12} className="flex-shrink-0 mt-0.5" />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className={`text-[10px] font-medium leading-tight truncate ${
+                                  doneForDay ? 'line-through opacity-60' : ''
+                                }`}>
+                                  {chore.title}
+                                </div>
+                                {chore.assignedTo && selectedMember === 'all' && (
+                                  <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground mt-0.5">
+                                    <User size={8} />
+                                    <span className="truncate">{chore.assignedTo}</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            {chore.assignedTo && selectedMember === 'all' && (
-                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
-                                <User size={10} />
-                                <span className="truncate">{chore.assignedTo}</span>
-                              </div>
-                            )}
-                            {chore.estimatedMinutes && (
-                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
-                                <Clock size={10} />
-                                {chore.estimatedMinutes}m
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="text-center py-4 text-xs text-muted-foreground italic">
-                      No chores
-                    </div>
+                          </button>
+                        )
+                      })
+                    ) : (
+                      <div className="text-center py-3 text-[10px] text-muted-foreground italic">
+                        No chores
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Completion Confirmation Dialog */}
+      <Dialog open={!!confirmChore} onOpenChange={() => setConfirmChore(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle size={20} className="text-primary" />
+              Complete Chore?
+            </DialogTitle>
+            <DialogDescription>
+              Mark this chore as done{confirmChore && !isToday(confirmChore.day) ? ` for ${format(confirmChore.day, 'EEEE, MMM d')}` : ' for today'}?
+            </DialogDescription>
+          </DialogHeader>
+          {confirmChore && (
+            <div className="space-y-3">
+              <div className={`p-3 rounded-lg border ${priorityColors[confirmChore.chore.priority || 'low']}`}>
+                <p className="font-medium text-sm">{confirmChore.chore.title}</p>
+                {confirmChore.chore.description && (
+                  <p className="text-xs text-muted-foreground mt-1">{confirmChore.chore.description}</p>
+                )}
+                <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                  {confirmChore.chore.assignedTo && (
+                    <span className="flex items-center gap-1"><User size={12} /> {confirmChore.chore.assignedTo}</span>
                   )}
+                  {confirmChore.chore.estimatedMinutes && (
+                    <span className="flex items-center gap-1"><Clock size={12} /> {confirmChore.chore.estimatedMinutes}m</span>
+                  )}
+                  <Badge variant="outline" className="text-[10px]">{confirmChore.chore.priority || 'low'}</Badge>
                 </div>
               </div>
-            )
-          })}
-        </div>
-      </CardContent>
-    </Card>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button variant="outline" size="sm" onClick={() => setConfirmChore(null)}>
+                  <X size={14} className="mr-1" /> Cancel
+                </Button>
+                <Button size="sm" onClick={handleCompleteChore}>
+                  <Check size={14} className="mr-1" /> Complete
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

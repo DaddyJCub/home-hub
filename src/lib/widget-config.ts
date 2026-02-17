@@ -34,9 +34,9 @@ export const defaultWidgets: DashboardWidget[] = [
   },
   {
     id: 'todays-events',
-    label: "Today's Events",
+    label: "Today's Summary",
     iconName: 'CalendarBlank',
-    description: 'Events scheduled for today',
+    description: 'Daily overview with chores, events, meals & quick nav',
     enabled: true,
     order: 3,
   },
