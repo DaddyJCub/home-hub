@@ -13,8 +13,8 @@ export function getOllamaConfig(): OllamaConfig {
     if (raw) {
       const parsed = JSON.parse(raw)
       return {
-        url: parsed?.url || DEFAULT_OLLAMA_URL,
-        model: parsed?.model || DEFAULT_MODEL,
+        url: (parsed?.url || DEFAULT_OLLAMA_URL).trim().replace(/\/+$/, ''),
+        model: (parsed?.model || DEFAULT_MODEL).trim(),
       }
     }
   } catch {

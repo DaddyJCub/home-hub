@@ -47,7 +47,7 @@ const SESSION_MAX_AGE_SECONDS =
   Number(process.env.SESSION_MAX_AGE_SECONDS) ||
   Number(process.env.SESSION_MAX_AGE_DAYS || 14) * 24 * 60 * 60;
 const devResetEnabled = NODE_ENV === 'development' && process.env.ALLOW_DEV_RESET === 'true';
-const rateLimitEnabled = process.env.RATE_LIMIT_ENABLED !== 'false';
+const rateLimitEnabled = process.env.RATE_LIMIT_ENABLED === 'true';
 
 // SMTP configuration for password reset emails (optional)
 const SMTP_HOST = process.env.SMTP_HOST || null;

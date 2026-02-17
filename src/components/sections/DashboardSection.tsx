@@ -281,12 +281,12 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         room,
         total: data.total,
         pending: data.pending,
-        completion: data.total === 0 ? 100 : Math.round(((data.total - data.pending) / data.total) * 100),
+        completion: data.total === 0 ? 0 : Math.round(((data.total - data.pending) / data.total) * 100),
         dueToday,
         overdue,
         completedThisWeek
       }
-    }).sort((a, b) => b.total - a.total)
+    }).filter(r => r.total > 0).sort((a, b) => b.total - a.total)
   }, [chores, roomsRaw, completions])
 
   const [detailChore, setDetailChore] = useState<Chore | null>(null)
@@ -730,21 +730,21 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                 Room Progress (today & week)
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-2">
+            <CardContent className="px-4 pb-4 space-y-3">
               {roomProgress.map(room => (
                 <div key={room.room} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+                  <div className="flex items-center justify-between text-xs">
                     <span className="font-medium">{room.room}</span>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="text-[11px]">Today: {room.dueToday}</Badge>
-                      {room.overdue > 0 && <Badge variant="destructive" className="text-[11px]">Overdue: {room.overdue}</Badge>}
-                      <Badge variant="outline" className="text-[11px]">This week: {room.completedThisWeek} done</Badge>
-                      <span className="text-muted-foreground">
-                        {room.total - room.pending}/{room.total} done
-                      </span>
-                    </div>
+                    <span className="text-muted-foreground">
+                      {room.total - room.pending}/{room.total} done
+                    </span>
                   </div>
                   <Progress value={room.completion} />
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {room.overdue > 0 && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Overdue: {room.overdue}</Badge>}
+                    {room.dueToday > 0 && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Due today: {room.dueToday}</Badge>}
+                    {room.completedThisWeek > 0 && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{room.completedThisWeek} this week</Badge>}
+                  </div>
                 </div>
               ))}
             </CardContent>
