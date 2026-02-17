@@ -54,12 +54,7 @@ import IntegrityDiagnostics from '@/components/IntegrityDiagnostics'
 import UIDiagnostics from '@/components/UIDiagnostics'
 import MigrationStatus from '@/components/MigrationStatus'
 import { Switch as Toggle } from '@/components/ui/switch'
-
-interface DashboardWidget {
-  id: string
-  label: string
-  enabled: boolean
-}
+import { defaultWidgets, type DashboardWidget } from '@/lib/widget-config'
 
 export default function SettingsSection() {
   const { currentHousehold, householdMembers, joinHousehold } = useAuth()
@@ -92,16 +87,6 @@ export default function SettingsSection() {
 
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<'all' | 'chores' | 'shopping' | 'meals' | 'recipes' | 'events' | null>(null)
-
-  const defaultWidgets: DashboardWidget[] = [
-    { id: 'stats', label: 'Statistics Cards', enabled: true },
-    { id: 'todays-events', label: "Today's Events", enabled: true },
-    { id: 'today-meals', label: "Today's Meals", enabled: true },
-    { id: 'priorities', label: 'Top Priorities', enabled: true },
-    { id: 'upcoming-events', label: 'Upcoming Events', enabled: true },
-    { id: 'weekly-calendar', label: 'Weekly Meal Calendar', enabled: true },
-    { id: 'shopping-preview', label: 'Shopping List Preview', enabled: true },
-  ]
 
   const widgetSettings = dashboardWidgets.length > 0 ? dashboardWidgets : defaultWidgets
 

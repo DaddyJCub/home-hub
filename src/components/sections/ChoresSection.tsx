@@ -366,8 +366,8 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
           {/* Done Today (collapsible) */}
           {completedTodayChores.length > 0 && (
             <Collapsible defaultOpen={false}>
-              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2 w-full">
-                <CaretDown size={14} className="transition-transform ui-open:rotate-180" />
+              <CollapsibleTrigger className="group flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2 w-full">
+                <CaretDown size={14} className="transition-transform group-data-[state=open]:rotate-180" />
                 <CheckCircle size={14} className="text-green-500" />
                 <span>Done Today ({completedTodayChores.length})</span>
               </CollapsibleTrigger>

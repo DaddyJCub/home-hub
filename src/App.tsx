@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Broom, ShoppingCart, CookingPot, House, Gear } from '@phosphor-icons/react'
+import { Broom, ShoppingCart, CookingPot, House, Gear, CalendarBlank } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useIsTablet } from '@/hooks/use-tablet'
@@ -22,8 +22,9 @@ import ChoresSection from '@/components/sections/ChoresSection'
 import ShoppingSection from '@/components/sections/ShoppingSection'
 import MealsSection from '@/components/sections/MealsSection'
 import SettingsSection from '@/components/sections/SettingsSection'
+import CalendarSection from '@/components/sections/CalendarSection'
 
-type TabId = 'dashboard' | 'chores' | 'meals' | 'shopping'
+type TabId = 'dashboard' | 'chores' | 'meals' | 'shopping' | 'calendar'
 
 interface TabConfig {
   id: TabId
@@ -36,21 +37,22 @@ interface TabConfig {
 export const TAB_CONFIGS: TabConfig[] = [
   { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', icon: House, enabled: true },
   { id: 'chores', label: 'Chores', shortLabel: 'Chores', icon: Broom, enabled: true },
+  { id: 'calendar', label: 'Calendar', shortLabel: 'Calendar', icon: CalendarBlank, enabled: true },
   { id: 'meals', label: 'Meals', shortLabel: 'Meals', icon: CookingPot, enabled: true },
   { id: 'shopping', label: 'Shopping', shortLabel: 'Shop', icon: ShoppingCart, enabled: true },
 ]
 
-const VALID_TABS = ['dashboard', 'chores', 'shopping', 'meals', 'settings']
+const VALID_TABS = ['dashboard', 'chores', 'calendar', 'shopping', 'meals', 'settings']
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     const tabParam = params.get('tab')
-    // Redirect old calendar/recipes tabs to meals
-    if (tabParam === 'calendar' || tabParam === 'recipes') return 'meals'
+    // Redirect old recipes tab to meals
+    if (tabParam === 'recipes') return 'meals'
     if (tabParam && VALID_TABS.includes(tabParam)) return tabParam
     const stored = window.localStorage.getItem('hh_last_tab')
-    if (stored === 'calendar' || stored === 'recipes') return 'meals'
+    if (stored === 'recipes') return 'meals'
     return stored && VALID_TABS.includes(stored) ? stored : 'dashboard'
   })
   const [highlightTarget] = useState(() => {
@@ -195,7 +197,7 @@ function AppContent() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Desktop Navigation */}
           {!isMobile && !isTablet && (
-            <TabsList className="grid w-full grid-cols-4 mb-6 bg-card/70 backdrop-blur-sm p-1 rounded-2xl border border-border/60 shadow-md">
+            <TabsList className="grid w-full grid-cols-5 mb-6 bg-card/70 backdrop-blur-sm p-1 rounded-2xl border border-border/60 shadow-md">
               {TAB_CONFIGS.map(tab => {
                 const IconComponent = tab.icon
                 return (
@@ -251,6 +253,10 @@ function AppContent() {
                 <ChoresSection highlightChoreId={highlightTarget?.tab === 'chores' ? highlightTarget.id : undefined} />
               </TabsContent>
 
+              <TabsContent value="calendar" className="mt-0">
+                <CalendarSection />
+              </TabsContent>
+
               <TabsContent value="meals" className="mt-0">
                 <MealsSection
                   initialRecipeId={viewRecipeId}
@@ -276,7 +282,7 @@ function AppContent() {
           className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border shadow-2xl z-20"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
-          <div className="grid max-w-screen-sm mx-auto grid-cols-5">
+          <div className="grid max-w-screen-sm mx-auto grid-cols-6">
             {TAB_CONFIGS.map((tab) => {
               const IconComponent = tab.icon
               return (

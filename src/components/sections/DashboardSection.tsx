@@ -10,7 +10,10 @@ import { Progress } from '@/components/ui/progress'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent, ChoreCompletion } from '@/lib/types'
-import type { DashboardWidget } from '@/components/DashboardCustomizer'
+import type { DashboardWidget } from '@/lib/widget-config'
+import { DEFAULT_WIDGET_ORDER } from '@/lib/widget-config'
+import DashboardCustomizer from '@/components/DashboardCustomizer'
+import WeeklyChoreSchedule from '@/components/WeeklyChoreSchedule'
 import { format, isToday, isAfter, isSameDay, startOfDay, addDays, parseISO, isTomorrow, formatDistanceToNow } from 'date-fns'
 import { useState, useMemo, useCallback, Fragment } from 'react'
 import { NotificationSummary } from '@/components/NotificationSummary'
@@ -50,7 +53,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
 
   // Collapsible states (persisted)
   const [showAllChores, setShowAllChores] = useKV<boolean>('dashboard-show-all-chores', false)
-  const [showAllEvents, setShowAllEvents] = useKV<boolean>('dashboard-show-all-events', false)
+  const [showAllEvents, setShowAllEvents] = useState(false)
   const [showShoppingPanel, setShowShoppingPanel] = useKV<boolean>('dashboard-show-shopping', true)
 
   const allChores = choresRaw ?? []
@@ -322,9 +325,6 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
     return w ? w.enabled !== false : true
   }, [dashboardWidgetsRaw])
 
-  // Default widget order matches current hardcoded layout
-  const DEFAULT_WIDGET_ORDER = ['stats', 'weekly-chore-schedule', 'priorities', 'todays-events', 'today-meals', 'room-chores', 'shopping-preview', 'upcoming-events', 'member-stats']
-
   const sortedWidgetIds = useMemo(() => {
     if (!dashboardWidgetsRaw || dashboardWidgetsRaw.length === 0) {
       return DEFAULT_WIDGET_ORDER
@@ -383,33 +383,38 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
 
       case 'weekly-chore-schedule':
         return (
-          <div key="weekly-chore-schedule" className="lg:col-span-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
-            <div className="flex items-center gap-3">
-              <Sparkle size={16} className="text-primary flex-shrink-0" />
-              <span className="text-sm font-medium flex-shrink-0">Weekly Challenge</span>
-              <div className="flex-1 min-w-0">
-                <Progress value={challenge.percent} className="h-2" />
+          <div key="weekly-chore-schedule" className="lg:col-span-2 space-y-3">
+            {/* Weekly Challenge Banner */}
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+              <div className="flex items-center gap-3">
+                <Sparkle size={16} className="text-primary flex-shrink-0" />
+                <span className="text-sm font-medium flex-shrink-0">Weekly Challenge</span>
+                <div className="flex-1 min-w-0">
+                  <Progress value={challenge.percent} className="h-2" />
+                </div>
+                <span className="text-sm font-semibold text-primary flex-shrink-0">
+                  {challenge.progress}/{challenge.goal}
+                </span>
+                {challenge.done ? (
+                  <Badge variant="secondary" className="gap-1 flex-shrink-0">
+                    <Fire size={12} />
+                    Done!
+                  </Badge>
+                ) : (
+                  <span className="text-xs text-muted-foreground flex-shrink-0">{challenge.goal - challenge.progress} to go</span>
+                )}
+                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 flex-shrink-0" onClick={() => setChallengeEnabled(!challengeEnabled)}>
+                  {challengeEnabled ? <CaretUp size={14} /> : <CaretDown size={14} />}
+                </Button>
               </div>
-              <span className="text-sm font-semibold text-primary flex-shrink-0">
-                {challenge.progress}/{challenge.goal}
-              </span>
-              {challenge.done ? (
-                <Badge variant="secondary" className="gap-1 flex-shrink-0">
-                  <Fire size={12} />
-                  Done!
-                </Badge>
-              ) : (
-                <span className="text-xs text-muted-foreground flex-shrink-0">{challenge.goal - challenge.progress} to go</span>
+              {challengeEnabled && challenge.done && (
+                <p className="text-xs text-green-700 dark:text-green-300 mt-1 ml-7">
+                  Nice work! You hit this week's goal.
+                </p>
               )}
-              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 flex-shrink-0" onClick={() => setChallengeEnabled(!challengeEnabled)}>
-                {challengeEnabled ? <CaretUp size={14} /> : <CaretDown size={14} />}
-              </Button>
             </div>
-            {challengeEnabled && challenge.done && (
-              <p className="text-xs text-green-700 dark:text-green-300 mt-1 ml-7">
-                Nice work! You hit this week's goal.
-              </p>
-            )}
+            {/* Actual Weekly Chore Schedule - 7-day view */}
+            <WeeklyChoreSchedule />
           </div>
         )
 
@@ -463,6 +468,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                     </CardTitle>
                   </CardHeader>
                 </CollapsibleTrigger>
+                <CollapsibleContent>
                 <CardContent className="px-4 pb-4 space-y-3">
                   {(overdueChores.length + dueTodayChores.length + upcomingShort.length) > 0 ? (
                     <>
@@ -542,6 +548,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                     Manage Chores <ArrowRight size={14} className="ml-1" />
                   </Button>
                 </CardContent>
+                </CollapsibleContent>
               </Card>
             </Collapsible>
           </div>
@@ -895,12 +902,15 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
             </p>
           </div>
         </div>
-        {currentHousehold && (
-          <Badge variant="outline" className="gap-1">
-            <House size={12} />
-            <span className="hidden sm:inline">{currentHousehold.name}</span>
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          <DashboardCustomizer />
+          {currentHousehold && (
+            <Badge variant="outline" className="gap-1">
+              <House size={12} />
+              <span className="hidden sm:inline">{currentHousehold.name}</span>
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Notification Summary - If any */}
