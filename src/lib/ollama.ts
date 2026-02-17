@@ -23,6 +23,26 @@ export function getOllamaConfig(): OllamaConfig {
   return { url: DEFAULT_OLLAMA_URL, model: DEFAULT_MODEL }
 }
 
+/**
+ * Route requests through the server-side proxy to avoid CORS issues.
+ * The proxy forwards to the user-configured Ollama URL.
+ */
+async function ollamaFetch(
+  apiPath: string,
+  options: RequestInit = {},
+): Promise<Response> {
+  const config = getOllamaConfig()
+  return fetch(`/api/ollama${apiPath}`, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Content-Type': 'application/json',
+      'X-Ollama-Url': config.url,
+    },
+    credentials: 'include',
+  })
+}
+
 export async function ollamaGenerate(
   prompt: string,
   systemPrompt?: string,
@@ -37,9 +57,8 @@ export async function ollamaGenerate(
     body.system = systemPrompt
   }
 
-  const response = await fetch(`${config.url}/api/generate`, {
+  const response = await ollamaFetch('/api/generate', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
 
@@ -59,9 +78,8 @@ export async function ollamaChat(
 ): Promise<string> {
   const config = getOllamaConfig()
 
-  const response = await fetch(`${config.url}/api/chat`, {
+  const response = await ollamaFetch('/api/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: config.model,
       messages,
@@ -85,13 +103,13 @@ export async function testOllamaConnection(): Promise<{
   models?: string[]
   error?: string
 }> {
-  const config = getOllamaConfig()
   try {
-    const response = await fetch(`${config.url}/api/tags`, {
-      signal: AbortSignal.timeout(5000),
+    const response = await ollamaFetch('/api/tags', {
+      signal: AbortSignal.timeout(10000),
     })
     if (!response.ok) {
-      return { ok: false, error: `HTTP ${response.status}` }
+      const text = await response.text().catch(() => '')
+      return { ok: false, error: `HTTP ${response.status}: ${text || response.statusText}` }
     }
     const data = await response.json()
     const models = (data.models ?? []).map(

@@ -1268,6 +1268,32 @@ app.post('/_debug/auth-log', (req, res) => {
   res.json({ ok: true });
 });
 
+// Ollama proxy - avoids CORS issues with direct browser-to-Ollama requests
+const ALLOWED_OLLAMA_PATHS = ['/api/tags', '/api/generate', '/api/chat', '/api/version'];
+app.all('/api/ollama/*', requireAuth, async (req, res) => {
+  try {
+    const ollamaPath = '/' + req.params[0];
+    if (!ALLOWED_OLLAMA_PATHS.some(p => ollamaPath.startsWith(p))) {
+      return sendError(res, 400, 'Invalid Ollama API path', 'VALIDATION_ERROR');
+    }
+    const ollamaUrl = (req.headers['x-ollama-url'] || '').toString().trim().replace(/\/+$/, '');
+    if (!ollamaUrl || (!ollamaUrl.startsWith('http://') && !ollamaUrl.startsWith('https://'))) {
+      return sendError(res, 400, 'Missing or invalid X-Ollama-Url header', 'VALIDATION_ERROR');
+    }
+    const targetUrl = `${ollamaUrl}${ollamaPath}`;
+    const fetchOpts = { method: req.method, headers: { 'Content-Type': 'application/json' } };
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
+      fetchOpts.body = JSON.stringify(req.body);
+    }
+    const upstream = await fetch(targetUrl, { ...fetchOpts, signal: AbortSignal.timeout(120000) });
+    const data = await upstream.text();
+    res.status(upstream.status).set('Content-Type', upstream.headers.get('content-type') || 'application/json').send(data);
+  } catch (err) {
+    log('ERROR', 'Ollama proxy error', { error: err.message });
+    sendError(res, 502, `Ollama unreachable: ${err.message}`, 'PROXY_ERROR');
+  }
+});
+
 // Health check
 app.get('/healthz.txt', (req, res) => {
   res.send('ok');
