@@ -380,7 +380,14 @@ export default function MealsSection({ initialRecipeId, onRecipeViewed }: MealsS
         </div>
       </div>
 
-      <AutoMealPlanner open={autoPlannerOpen} onOpenChange={setAutoPlannerOpen} />
+      <AutoMealPlanner
+        open={autoPlannerOpen}
+        onOpenChange={setAutoPlannerOpen}
+        recipes={recipes}
+        meals={meals}
+        setMeals={setMeals}
+        householdId={currentHousehold?.id ?? ''}
+      />
 
       {/* Sub-Tabs */}
       <Tabs value={subTab} onValueChange={(v) => setSubTab(v as 'plan' | 'recipes')}>

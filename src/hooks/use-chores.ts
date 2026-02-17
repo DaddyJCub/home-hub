@@ -659,6 +659,49 @@ export function useChores() {
   }, [allChores, setChores])
 
   // ---------------------------------------------------------------------------
+  // AI batch helpers
+  // ---------------------------------------------------------------------------
+
+  const addChoresBatch = useCallback((newChores: Chore[]) => {
+    if (newChores.length === 0) return
+    const normalized = newChores.map(c => normalizeChore(c))
+    setChores([...allChores, ...normalized])
+    toast.success(`Added ${newChores.length} chore${newChores.length === 1 ? '' : 's'}`)
+  }, [allChores, setChores])
+
+  const updateChoreAssignments = useCallback((updates: Array<{ choreId: string; assignedTo: string }>) => {
+    if (updates.length === 0) return
+    const updateMap = new Map(updates.map(u => [u.choreId, u.assignedTo]))
+    const updated = allChores.map(c => {
+      const newAssignee = updateMap.get(c.id)
+      if (newAssignee !== undefined) {
+        return normalizeChore({ ...c, assignedTo: newAssignee })
+      }
+      return c
+    })
+    setChores(updated)
+    toast.success(`Reassigned ${updates.length} chore${updates.length === 1 ? '' : 's'}`)
+  }, [allChores, setChores])
+
+  const updateChoreFrequencies = useCallback((updates: Array<{ choreId: string; frequency: ChoreFrequency; customIntervalDays?: number }>) => {
+    if (updates.length === 0) return
+    const updateMap = new Map(updates.map(u => [u.choreId, u]))
+    const updated = allChores.map(c => {
+      const upd = updateMap.get(c.id)
+      if (upd) {
+        return normalizeChore({
+          ...c,
+          frequency: upd.frequency,
+          customIntervalDays: upd.customIntervalDays ?? c.customIntervalDays,
+        })
+      }
+      return c
+    })
+    setChores(updated)
+    toast.success(`Updated schedule for ${updates.length} chore${updates.length === 1 ? '' : 's'}`)
+  }, [allChores, setChores])
+
+  // ---------------------------------------------------------------------------
   // Return value
   // ---------------------------------------------------------------------------
 
@@ -728,6 +771,11 @@ export function useChores() {
     handleDeleteRoom,
     handleDuplicateChore,
     setRooms,
+
+    // AI batch helpers
+    addChoresBatch,
+    updateChoreAssignments,
+    updateChoreFrequencies,
 
     // Utilities
     describeDue,

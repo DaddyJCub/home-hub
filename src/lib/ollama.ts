@@ -98,6 +98,44 @@ export async function ollamaChat(
   return data.message?.content ?? ''
 }
 
+/**
+ * Generate a response and parse it as JSON. Retries once if parsing fails.
+ */
+export async function ollamaGenerateJSON<T = unknown>(
+  prompt: string,
+  systemPrompt?: string,
+): Promise<T> {
+  const jsonSystemPrompt = [
+    systemPrompt,
+    'IMPORTANT: You MUST respond with valid JSON only. No markdown, no code fences, no extra text.',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+
+  const raw = await ollamaGenerate(prompt, jsonSystemPrompt)
+
+  // Strip common markdown code-fence wrappers
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/, '')
+    .trim()
+
+  try {
+    return JSON.parse(cleaned) as T
+  } catch {
+    // Retry once, asking the model to fix its output
+    const retryRaw = await ollamaGenerate(
+      `The following was supposed to be valid JSON but failed to parse. Please output ONLY the corrected JSON with no other text:\n\n${raw}`,
+      'Respond with valid JSON only. No markdown, no code fences, no explanation.',
+    )
+    const retryCleaned = retryRaw
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```\s*$/, '')
+      .trim()
+    return JSON.parse(retryCleaned) as T
+  }
+}
+
 export async function testOllamaConnection(): Promise<{
   ok: boolean
   models?: string[]

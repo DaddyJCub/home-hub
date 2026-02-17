@@ -10,11 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Recipe, Meal } from '@/lib/types'
 import { toast } from 'sonner'
 import { format, startOfWeek, addDays, getDay } from 'date-fns'
-import { useAuth } from '@/lib/AuthContext'
 
 interface AutoMealPlannerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  recipes: Recipe[]
+  meals: Meal[]
+  setMeals: (next: Meal[] | ((prev: Meal[] | undefined) => Meal[])) => void
+  householdId: string
 }
 
 interface DayConstraint {
@@ -31,17 +34,7 @@ interface DaypartConfig {
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerProps) {
-  const [recipesRaw] = useKV<Recipe[]>('recipes', [])
-  const [mealsRaw, setMeals] = useKV<Meal[]>('meals', [])
-  const allRecipes = recipesRaw ?? []
-  const allMeals = mealsRaw ?? []
-  const { currentHousehold } = useAuth()
-  
-  // Filter by current household
-  const recipes = currentHousehold ? allRecipes.filter(r => r.householdId === currentHousehold.id) : []
-  const meals = currentHousehold ? allMeals.filter(m => m.householdId === currentHousehold.id) : []
-  
+export default function AutoMealPlanner({ open, onOpenChange, recipes, meals, setMeals, householdId }: AutoMealPlannerProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   
   const [dayConstraintsRaw, setDayConstraints] = useKV<DayConstraint[]>('meal-day-constraints', [])
@@ -113,7 +106,7 @@ export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerP
   }
 
   const handleGenerateMealPlan = () => {
-    if (!currentHousehold) {
+    if (!householdId) {
       toast.error('Please select a household first')
       return
     }
@@ -168,7 +161,7 @@ export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerP
           
           newMeals.push({
             id: `${Date.now()}-${date}-${daypart}`,
-            householdId: currentHousehold.id,
+            householdId,
             date,
             type: daypart,
             name: randomRecipe.name,
@@ -180,12 +173,14 @@ export default function AutoMealPlanner({ open, onOpenChange }: AutoMealPlannerP
       }
 
       const weekDates = weekDays.map(d => d.date)
-      // Keep other households' meals and current household's non-week meals
-      const currentNonWeek = allMeals.filter(m => 
-        m.householdId !== currentHousehold.id || !weekDates.includes(m.date)
-      )
-      const updatedMeals = [...currentNonWeek, ...newMeals]
-      setMeals(updatedMeals)
+      // Remove this household's meals for the current week, keep everything else
+      setMeals((prev) => {
+        const existing = prev ?? []
+        const kept = existing.filter(m =>
+          m.householdId !== householdId || !weekDates.includes(m.date)
+        )
+        return [...kept, ...newMeals]
+      })
 
       toast.success(`Generated ${newMeals.length} meals for the week!`)
       onOpenChange(false)

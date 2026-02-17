@@ -25,6 +25,7 @@ import ChoreDetailView from '@/components/chores/ChoreDetailView'
 import CompleteChoreForm from '@/components/chores/CompleteChoreForm'
 import ChoreFormDialog from '@/components/chores/ChoreFormDialog'
 import RoomOverview from '@/components/chores/RoomOverview'
+import AIChoreSuggestions from '@/components/chores/AIChoreSuggestions'
 import EmptyState from '@/components/EmptyState'
 
 export default function ChoresSection({ highlightChoreId }: { highlightChoreId?: string | null }) {
@@ -53,12 +54,14 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
     openEditDialog, startTracking, stopTracking, beginCompleteChore,
     handleQuickChore, quickAddForRoom,
     handleSaveRoom, handleDeleteRoom, handleDuplicateChore, setRooms,
+    addChoresBatch, updateChoreAssignments, updateChoreFrequencies,
     describeDue,
   } = useChores()
 
   const [subTab, setSubTab] = useState<'chores' | 'rooms'>('chores')
   const [showCompleted, setShowCompleted] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [aiDialogOpen, setAiDialogOpen] = useState(false)
   const [roomCompleteMinutes, setRoomCompleteMinutes] = useState('')
   const [roomCompleteNotes, setRoomCompleteNotes] = useState('')
 
@@ -122,6 +125,17 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
             {hasActiveFilters && !filtersOpen && (
               <Badge variant="secondary" className="px-1 py-0 text-[10px]">On</Badge>
             )}
+          </Button>
+
+          {/* AI Suggestions button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1"
+            onClick={() => setAiDialogOpen(true)}
+          >
+            <Sparkle size={16} />
+            <span className="hidden sm:inline">AI</span>
           </Button>
 
           {/* Add Chore button */}
@@ -633,6 +647,20 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* AI Chore Suggestions dialog */}
+      <AIChoreSuggestions
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        rooms={rooms}
+        members={members}
+        chores={chores}
+        completions={completions}
+        householdId={currentHousehold?.id ?? ''}
+        onAddChores={addChoresBatch}
+        onUpdateAssignments={updateChoreAssignments}
+        onUpdateFrequencies={updateChoreFrequencies}
+      />
     </div>
   )
 }
