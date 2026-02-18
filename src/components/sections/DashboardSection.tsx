@@ -2,7 +2,7 @@ import {
   CalendarBlank, CheckCircle, ShoppingCart, CookingPot, Broom, 
   Clock, User, ArrowRight, CaretDown, CaretUp, House, Sparkle,
   Sun, Moon, CloudSun, MapPin, Bell, Warning, Check, Fire,
-  Trophy, Lightning, Star, Medal, Target
+  Trophy, Lightning, Star, Medal, Target, Hourglass
 } from '@phosphor-icons/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent, ChoreCompletion } from '@/lib/types'
 import type { DashboardWidget } from '@/lib/widget-config'
-import { DEFAULT_WIDGET_ORDER } from '@/lib/widget-config'
+import { DEFAULT_WIDGET_ORDER, defaultWidgets } from '@/lib/widget-config'
 import DashboardCustomizer from '@/components/DashboardCustomizer'
 import WeeklyChoreSchedule from '@/components/WeeklyChoreSchedule'
 import { format, isToday, isAfter, isSameDay, startOfDay, addDays, parseISO, isTomorrow, formatDistanceToNow } from 'date-fns'
@@ -344,20 +344,30 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   // Widget ordering from DashboardCustomizer
   const [dashboardWidgetsRaw] = useKV<DashboardWidget[]>('dashboard-widgets', undefined)
 
-  const isWidgetEnabled = useCallback((id: string) => {
-    if (!dashboardWidgetsRaw || dashboardWidgetsRaw.length === 0) return true
-    const w = dashboardWidgetsRaw.find(w => w.id === id)
-    return w ? w.enabled !== false : true
+  // Merge persisted widgets with defaults so new widgets always appear
+  const dashboardWidgets = useMemo(() => {
+    const persisted = dashboardWidgetsRaw ?? []
+    if (persisted.length === 0) return defaultWidgets
+    const persistedIds = new Set(persisted.map(w => w.id))
+    const missing = defaultWidgets.filter(w => !persistedIds.has(w.id))
+    if (missing.length === 0) return persisted
+    return [...persisted, ...missing.map((w, i) => ({ ...w, order: persisted.length + i }))]
   }, [dashboardWidgetsRaw])
 
+  const isWidgetEnabled = useCallback((id: string) => {
+    if (dashboardWidgets.length === 0) return true
+    const w = dashboardWidgets.find(w => w.id === id)
+    return w ? w.enabled !== false : true
+  }, [dashboardWidgets])
+
   const sortedWidgetIds = useMemo(() => {
-    if (!dashboardWidgetsRaw || dashboardWidgetsRaw.length === 0) {
+    if (dashboardWidgets.length === 0) {
       return DEFAULT_WIDGET_ORDER
     }
-    return [...dashboardWidgetsRaw]
+    return [...dashboardWidgets]
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       .map(w => w.id)
-  }, [dashboardWidgetsRaw])
+  }, [dashboardWidgets])
 
   // Widget renderer - maps widget IDs to their JSX
   const renderWidget = useCallback((id: string): React.ReactNode => {
@@ -405,6 +415,41 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
             )}
           </div>
         )
+
+      case 'time-estimates': {
+        const totalMinutes = pendingChores.reduce((acc, c) => acc + (c.estimatedMinutes || 0), 0)
+        const hours = Math.floor(totalMinutes / 60)
+        const mins = totalMinutes % 60
+        const overdueMinutes = overdueChores.reduce((acc, { chore }) => acc + (chore.estimatedMinutes || 0), 0)
+        const todayMinutes = dueTodayChores.reduce((acc, { chore }) => acc + (chore.estimatedMinutes || 0), 0)
+        if (totalMinutes === 0) return null
+        return (
+          <Card key="time-estimates">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Hourglass size={20} className="text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">Time Remaining</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {hours > 0 ? `${hours}h ` : ''}{mins}m
+                  </p>
+                </div>
+                <div className="text-right text-xs space-y-1">
+                  {overdueMinutes > 0 && (
+                    <div className="text-red-500 font-medium">{overdueMinutes}m overdue</div>
+                  )}
+                  {todayMinutes > 0 && (
+                    <div className="text-muted-foreground">{todayMinutes}m due today</div>
+                  )}
+                  <div className="text-muted-foreground">{pendingChores.length} chores</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      }
 
       case 'weekly-chore-schedule':
         const milestoneIcon = (type: string, size: number, className?: string) => {
@@ -1206,13 +1251,85 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
           </Card>
         )
 
+      case 'weekly-meal-calendar': {
+        const weekDays = Array.from({ length: 7 }, (_, i) => {
+          const d = addDays(startOfDay(new Date()), i - new Date().getDay())
+          return {
+            date: d,
+            dateStr: format(d, 'yyyy-MM-dd'),
+            label: format(d, 'EEE'),
+            dayNum: format(d, 'd'),
+            isToday: isToday(d),
+          }
+        })
+        const mealTypes = ['breakfast', 'lunch', 'dinner'] as const
+        return (
+          <Card key="weekly-meal-calendar" className="lg:col-span-2">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <CookingPot size={18} className="text-primary" />
+                  Weekly Meal Plan
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => onNavigate?.('meals')}
+                >
+                  Plan Meals <ArrowRight size={12} className="ml-1" />
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-3 pb-3">
+              <div className="grid grid-cols-7 gap-1">
+                {weekDays.map(day => (
+                  <div key={day.dateStr} className={`text-center p-1 rounded-t-md ${day.isToday ? 'bg-primary/10' : ''}`}>
+                    <div className="text-[10px] font-semibold text-muted-foreground uppercase">{day.label}</div>
+                    <div className={`text-sm font-bold ${day.isToday ? 'text-primary' : ''}`}>{day.dayNum}</div>
+                  </div>
+                ))}
+                {mealTypes.map(type => (
+                  <Fragment key={type}>
+                    {weekDays.map(day => {
+                      const meal = meals.find(m => m.date === day.dateStr && m.type === type)
+                      return (
+                        <div
+                          key={`${day.dateStr}-${type}`}
+                          className={`p-1 text-center rounded cursor-pointer transition-colors min-h-[28px] flex items-center justify-center ${
+                            meal ? 'bg-primary/10 hover:bg-primary/20' : 'bg-muted/20 hover:bg-muted/40'
+                          } ${day.isToday ? 'ring-1 ring-primary/20' : ''}`}
+                          onClick={() => onNavigate?.('meals')}
+                          title={meal ? `${type}: ${meal.name}` : `Plan ${type}`}
+                        >
+                          <span className={`text-[9px] leading-tight line-clamp-2 ${meal ? 'font-medium' : 'text-muted-foreground/50 italic'}`}>
+                            {meal?.name || '—'}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </Fragment>
+                ))}
+              </div>
+              <div className="flex gap-3 mt-2 text-[10px] text-muted-foreground">
+                {mealTypes.map(type => (
+                  <span key={type} className="capitalize">
+                    {type}: {meals.filter(m => weekDays.some(d => d.dateStr === m.date) && m.type === type).length}/7
+                  </span>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )
+      }
+
       default:
         return null
     }
   }, [isWidgetEnabled, pendingChores, completionRate, highPriorityChores, showShoppingTab, unpurchasedItems,
       showCalendar, todaysEvents, showMeals, todaysMeals, challenge, challengeEnabled, showAllChores,
       overdueChores, dueTodayChores, upcomingShort, upcomingChores, recentCompletions, roomProgress,
-      showShoppingPanel, upcomingEvents, members, selectedMember, chores, showAllEvents,
+      showShoppingPanel, upcomingEvents, members, selectedMember, chores, meals, showAllEvents,
       highlightChoreId, onNavigate, onViewRecipe])
 
   return (

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -60,7 +60,7 @@ export default function SettingsSection() {
   const { currentHousehold, householdMembers, joinHousehold } = useAuth()
   const [currentThemeId, setCurrentThemeId] = useKV<string>('theme-id', 'warm-home')
   const [isDarkMode, setIsDarkMode] = useKV<boolean>('dark-mode', false)
-  const [dashboardWidgetsRaw, setDashboardWidgets] = useKV<DashboardWidget[]>('dashboard-widgets', [])
+  const [dashboardWidgetsRaw, setDashboardWidgets] = useKV<DashboardWidget[]>('dashboard-widgets', undefined)
   const isMobile = useIsMobile()
 
   const [choresRaw, setChores] = useKV<Chore[]>('chores', [])
@@ -75,7 +75,14 @@ export default function SettingsSection() {
   const [ollamaTestResult, setOllamaTestResult] = useState<{ ok: boolean; models?: string[]; error?: string } | null>(null)
   const [ollamaTestLoading, setOllamaTestLoading] = useState(false)
   
-  const dashboardWidgets = dashboardWidgetsRaw ?? []
+  const dashboardWidgets = useMemo(() => {
+    const persisted = dashboardWidgetsRaw ?? []
+    if (persisted.length === 0) return defaultWidgets
+    const persistedIds = new Set(persisted.map(w => w.id))
+    const missing = defaultWidgets.filter(w => !persistedIds.has(w.id))
+    if (missing.length === 0) return persisted
+    return [...persisted, ...missing.map((w, i) => ({ ...w, order: persisted.length + i }))]
+  }, [dashboardWidgetsRaw])
   const resolvedThemeId = currentThemeId || 'warm-home'
   const members = householdMembers ?? []
   const [joinCode, setJoinCode] = useState('')

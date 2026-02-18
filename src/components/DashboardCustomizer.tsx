@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,7 +20,8 @@ import {
   MapPin,
   DotsSixVertical,
   Sparkle,
-  Layout
+  Layout,
+  Hourglass
 } from '@phosphor-icons/react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import {
@@ -63,6 +65,7 @@ const iconMap: Record<string, React.ElementType> = {
   ShoppingCart,
   Layout,
   Sparkle,
+  Hourglass,
 }
 
 function getIcon(iconName: string, size: number = 20) {
@@ -76,14 +79,14 @@ const presets: DashboardPreset[] = [
     name: 'Full View',
     description: 'All widgets enabled for complete overview',
     iconName: 'Layout',
-    widgets: ['stats', 'weekly-chore-schedule', 'room-chores', 'member-stats', 'todays-events', 'today-meals', 'priorities', 'upcoming-events', 'shopping-preview'],
+    widgets: ['stats', 'time-estimates', 'weekly-chore-schedule', 'room-chores', 'member-stats', 'todays-events', 'today-meals', 'priorities', 'upcoming-events', 'weekly-meal-calendar', 'shopping-preview'],
   },
   {
     id: 'minimal',
     name: 'Minimal',
     description: 'Essential widgets only',
     iconName: 'House',
-    widgets: ['stats', 'weekly-chore-schedule', 'today-meals', 'priorities'],
+    widgets: ['stats', 'time-estimates', 'weekly-chore-schedule', 'today-meals', 'priorities'],
   },
   {
     id: 'chores-focus',
@@ -97,7 +100,7 @@ const presets: DashboardPreset[] = [
     name: 'Events & Planning',
     description: 'Calendar and meal planning emphasis',
     iconName: 'CalendarBlank',
-    widgets: ['stats', 'todays-events', 'today-meals', 'upcoming-events'],
+    widgets: ['stats', 'todays-events', 'today-meals', 'upcoming-events', 'weekly-meal-calendar'],
   },
   {
     id: 'household',
@@ -170,8 +173,17 @@ function SortableWidget({ widget, onToggle }: SortableWidgetProps) {
 }
 
 export default function DashboardCustomizer() {
-  const [widgetsRaw, setWidgets] = useKV<DashboardWidget[]>('dashboard-widgets', defaultWidgets)
-  const widgets = widgetsRaw ?? defaultWidgets
+  const [widgetsRaw, setWidgets] = useKV<DashboardWidget[]>('dashboard-widgets', undefined)
+  // Merge persisted widgets with defaults so new widgets are always included
+  const widgets = useMemo(() => {
+    const persisted = widgetsRaw ?? []
+    if (persisted.length === 0) return defaultWidgets
+    // Ensure any new widgets from defaultWidgets that aren't in persisted data get added
+    const persistedIds = new Set(persisted.map(w => w.id))
+    const missing = defaultWidgets.filter(w => !persistedIds.has(w.id))
+    if (missing.length === 0) return persisted
+    return [...persisted, ...missing.map((w, i) => ({ ...w, order: persisted.length + i }))]
+  }, [widgetsRaw])
 
   const sensors = useSensors(
     useSensor(PointerSensor),

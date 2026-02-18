@@ -17,12 +17,20 @@ export const defaultWidgets: DashboardWidget[] = [
     order: 0,
   },
   {
+    id: 'time-estimates',
+    label: 'Time Estimates',
+    iconName: 'Clock',
+    description: 'Total estimated time for pending chores',
+    enabled: true,
+    order: 1,
+  },
+  {
     id: 'todays-events',
     label: "Today's Summary",
     iconName: 'CalendarBlank',
     description: 'Daily overview with chores, events, meals & quick nav',
     enabled: true,
-    order: 1,
+    order: 2,
   },
   {
     id: 'weekly-chore-schedule',
@@ -30,7 +38,7 @@ export const defaultWidgets: DashboardWidget[] = [
     iconName: 'CheckCircle',
     description: 'Compact 7-day chore calendar with quick complete',
     enabled: true,
-    order: 2,
+    order: 3,
   },
   {
     id: 'priorities',
@@ -38,7 +46,7 @@ export const defaultWidgets: DashboardWidget[] = [
     iconName: 'CheckCircle',
     description: 'Most important pending chores',
     enabled: true,
-    order: 3,
+    order: 4,
   },
   {
     id: 'today-meals',
@@ -46,7 +54,7 @@ export const defaultWidgets: DashboardWidget[] = [
     iconName: 'CookingPot',
     description: 'Breakfast, lunch, and dinner plan',
     enabled: true,
-    order: 4,
+    order: 5,
   },
   {
     id: 'room-chores',
@@ -54,7 +62,7 @@ export const defaultWidgets: DashboardWidget[] = [
     iconName: 'MapPin',
     description: 'Chores organized by room',
     enabled: true,
-    order: 5,
+    order: 6,
   },
   {
     id: 'shopping-preview',
@@ -62,7 +70,7 @@ export const defaultWidgets: DashboardWidget[] = [
     iconName: 'ShoppingCart',
     description: 'Quick view of shopping items',
     enabled: true,
-    order: 6,
+    order: 7,
   },
   {
     id: 'upcoming-events',
@@ -70,7 +78,15 @@ export const defaultWidgets: DashboardWidget[] = [
     iconName: 'CalendarBlank',
     description: 'Next few events on the calendar',
     enabled: true,
-    order: 7,
+    order: 8,
+  },
+  {
+    id: 'weekly-meal-calendar',
+    label: 'Weekly Meal Calendar',
+    iconName: 'CookingPot',
+    description: '7-day meal plan overview',
+    enabled: true,
+    order: 9,
   },
   {
     id: 'member-stats',
@@ -78,7 +94,7 @@ export const defaultWidgets: DashboardWidget[] = [
     iconName: 'User',
     description: 'Detailed breakdown per household member',
     enabled: true,
-    order: 8,
+    order: 10,
   },
 ]
 
