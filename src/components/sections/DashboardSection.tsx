@@ -344,14 +344,20 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   // Widget ordering from DashboardCustomizer
   const [dashboardWidgetsRaw] = useKV<DashboardWidget[]>('dashboard-widgets', undefined)
 
-  // Merge persisted widgets with defaults so new widgets always appear
+  // Reconcile persisted widgets with defaults: canonical IDs/labels from defaultWidgets,
+  // user's order + enabled state from persisted data. Removes stale, adds new.
   const dashboardWidgets = useMemo(() => {
     const persisted = dashboardWidgetsRaw ?? []
     if (persisted.length === 0) return defaultWidgets
-    const persistedIds = new Set(persisted.map(w => w.id))
-    const missing = defaultWidgets.filter(w => !persistedIds.has(w.id))
-    if (missing.length === 0) return persisted
-    return [...persisted, ...missing.map((w, i) => ({ ...w, order: persisted.length + i }))]
+    const persistedMap = new Map(persisted.map(w => [w.id, w]))
+    return defaultWidgets.map((def, i) => {
+      const saved = persistedMap.get(def.id)
+      return {
+        ...def,
+        enabled: saved ? saved.enabled : def.enabled,
+        order: saved?.order ?? (persisted.length + i),
+      }
+    })
   }, [dashboardWidgetsRaw])
 
   const isWidgetEnabled = useCallback((id: string) => {
