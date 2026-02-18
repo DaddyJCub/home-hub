@@ -180,12 +180,12 @@ export default function DashboardCustomizer() {
     const persisted = widgetsRaw ?? []
     if (persisted.length === 0) return defaultWidgets
     const persistedMap = new Map(persisted.map(w => [w.id, w]))
-    return defaultWidgets.map((def, i) => {
+    return defaultWidgets.map((def) => {
       const saved = persistedMap.get(def.id)
       return {
         ...def,
-        enabled: saved ? saved.enabled : def.enabled,
-        order: saved?.order ?? (persisted.length + i),
+        enabled: saved ? (saved.enabled === false ? false : true) : def.enabled !== false,
+        order: saved?.order != null ? saved.order : def.order ?? 0,
       }
     })
   }, [widgetsRaw])
@@ -200,7 +200,7 @@ export default function DashboardCustomizer() {
   const toggleWidget = (widgetId: string) => {
     const current = (widgets && widgets.length > 0) ? widgets : defaultWidgets
     const updated = current.map((w) =>
-      w.id === widgetId ? { ...w, enabled: !w.enabled } : w
+      w.id === widgetId ? { ...w, enabled: w.enabled === false ? true : false } : w
     )
     setWidgets(updated)
   }

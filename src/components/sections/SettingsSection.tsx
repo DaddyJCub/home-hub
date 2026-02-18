@@ -79,12 +79,12 @@ export default function SettingsSection() {
     const persisted = dashboardWidgetsRaw ?? []
     if (persisted.length === 0) return defaultWidgets
     const persistedMap = new Map(persisted.map(w => [w.id, w]))
-    return defaultWidgets.map((def, i) => {
+    return defaultWidgets.map((def) => {
       const saved = persistedMap.get(def.id)
       return {
         ...def,
-        enabled: saved ? saved.enabled : def.enabled,
-        order: saved?.order ?? (persisted.length + i),
+        enabled: saved ? (saved.enabled === false ? false : true) : def.enabled !== false,
+        order: saved?.order != null ? saved.order : def.order ?? 0,
       }
     })
   }, [dashboardWidgetsRaw])

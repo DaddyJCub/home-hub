@@ -157,22 +157,22 @@ function AppContent() {
       <RefreshIndicator isPulling={isPulling} isRefreshing={isRefreshing} progress={progress} />
       <header className="border-b border-border/60 bg-card/90 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md sticky top-0 z-10">
         <div
-          className="app-shell py-3 md:py-4"
-          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+          className="app-shell py-1.5 md:py-2"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 6px)' }}
         >
-          <div className="flex items-center justify-between gap-2 md:gap-4">
-            <div className="min-w-0 flex-shrink flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-black text-lg">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-shrink flex items-center gap-1.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary font-black text-xs">
                 HH
               </div>
               <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary truncate">HomeHub</h1>
-                <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                <h1 className="text-base sm:text-lg font-bold text-primary truncate leading-tight">HomeHub</h1>
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate leading-tight">
                   {currentHousehold?.name || 'Household harmony made simple'}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <BugIndicator onClick={() => setActiveTab('settings')} />
               <NotificationCenter chores={chores} events={events} />
               {!isMobile && (

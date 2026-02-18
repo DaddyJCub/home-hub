@@ -350,12 +350,12 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
     const persisted = dashboardWidgetsRaw ?? []
     if (persisted.length === 0) return defaultWidgets
     const persistedMap = new Map(persisted.map(w => [w.id, w]))
-    return defaultWidgets.map((def, i) => {
+    return defaultWidgets.map((def) => {
       const saved = persistedMap.get(def.id)
       return {
         ...def,
-        enabled: saved ? saved.enabled : def.enabled,
-        order: saved?.order ?? (persisted.length + i),
+        enabled: saved ? (saved.enabled === false ? false : true) : def.enabled !== false,
+        order: saved?.order != null ? saved.order : def.order ?? 0,
       }
     })
   }, [dashboardWidgetsRaw])
@@ -429,28 +429,39 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         const overdueMinutes = overdueChores.reduce((acc, { chore }) => acc + (chore.estimatedMinutes || 0), 0)
         const todayMinutes = dueTodayChores.reduce((acc, { chore }) => acc + (chore.estimatedMinutes || 0), 0)
         if (totalMinutes === 0) return null
+        const overdueHrs = Math.floor(overdueMinutes / 60)
+        const overdueMins = overdueMinutes % 60
+        const todayHrs = Math.floor(todayMinutes / 60)
+        const todayMins = todayMinutes % 60
+        const fmtTime = (h: number, m: number) => h > 0 ? `${h}h ${m}m` : `${m}m`
         return (
-          <Card key="time-estimates">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Hourglass size={20} className="text-primary" />
+          <Card key="time-estimates" className="lg:col-span-2">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Hourglass size={16} className="text-primary" />
+                  <span className="text-sm font-semibold">Chore Time</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">Time Remaining</p>
-                  <p className="text-2xl font-bold text-primary">
-                    {hours > 0 ? `${hours}h ` : ''}{mins}m
-                  </p>
-                </div>
-                <div className="text-right text-xs space-y-1">
+                <div className="flex-1 flex items-center gap-3 text-sm">
+                  <span className="font-bold text-primary">{fmtTime(hours, mins)} total</span>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="text-muted-foreground">{pendingChores.length} chores</span>
                   {overdueMinutes > 0 && (
-                    <div className="text-red-500 font-medium">{overdueMinutes}m overdue</div>
+                    <>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="text-red-500 font-medium">{fmtTime(overdueHrs, overdueMins)} overdue</span>
+                    </>
                   )}
                   {todayMinutes > 0 && (
-                    <div className="text-muted-foreground">{todayMinutes}m due today</div>
+                    <>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="text-muted-foreground">{fmtTime(todayHrs, todayMins)} due today</span>
+                    </>
                   )}
-                  <div className="text-muted-foreground">{pendingChores.length} chores</div>
                 </div>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onNavigate?.('chores')}>
+                  View <ArrowRight size={10} className="ml-0.5" />
+                </Button>
               </div>
             </CardContent>
           </Card>
