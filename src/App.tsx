@@ -191,13 +191,13 @@ function AppContent() {
       </header>
 
       <main
-        className="app-shell space-y-6 md:space-y-8"
+        className="app-shell space-y-4 md:space-y-6"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)' }}
       >
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Desktop Navigation */}
           {!isMobile && !isTablet && (
-            <TabsList className="grid w-full grid-cols-5 mb-6 bg-card/70 backdrop-blur-sm p-1 rounded-2xl border border-border/60 shadow-md">
+            <TabsList className="grid w-full grid-cols-5 mb-4 bg-card/70 backdrop-blur-sm p-1 rounded-2xl border border-border/60 shadow-md">
               {TAB_CONFIGS.map(tab => {
                 const IconComponent = tab.icon
                 return (
@@ -212,7 +212,7 @@ function AppContent() {
 
           {/* Tablet Navigation */}
           {isTablet && (
-            <div className="mb-6 border-b border-border/60 pb-3">
+            <div className="mb-4 border-b border-border/60 pb-3">
               <div className="flex items-center overflow-x-auto scrollbar-hide">
                 <TabsList className="inline-flex w-auto h-12 bg-card/70 backdrop-blur-sm p-1 rounded-2xl gap-1 border border-border/60 shadow-sm">
                   {TAB_CONFIGS.map(tab => {

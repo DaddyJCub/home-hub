@@ -256,7 +256,7 @@ describe('suggestScheduleOptimizations', () => {
     expect(result.summary).toContain('adjustment')
   })
 
-  it('validates frequency values in suggestions', async () => {
+  it('filters out suggestions with invalid frequencies that resolve to same value', async () => {
     mockedGenerateJSON.mockResolvedValueOnce({
       suggestions: [
         {
@@ -275,8 +275,8 @@ describe('suggestScheduleOptimizations', () => {
       completions: [],
     })
 
-    expect(result.suggestions[0].currentFrequency).toBe('weekly') // default
-    expect(result.suggestions[0].suggestedFrequency).toBe('weekly') // default
+    // Both invalid frequencies fall back to the same default, so the suggestion is dropped
+    expect(result.suggestions).toHaveLength(0)
   })
 
   it('filters out suggestions missing choreId', async () => {

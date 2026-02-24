@@ -313,7 +313,7 @@ export async function suggestScheduleOptimizations(
     `- "${p.title}" (id: ${p.id}): freq=${p.frequency}, ${p.completionCount} completions, ${p.skipCount} skips in 90d, avg ${p.avgDaysBetween || '?'} days between completions`
   ).join('\n')
 
-  const systemPrompt = `You are a household scheduling optimizer. Analyze chore completion patterns and suggest frequency adjustments. Only suggest changes where there's a clear mismatch between the set frequency and actual completion patterns.`
+  const systemPrompt = `You are a household scheduling optimizer. Analyze chore completion patterns and suggest frequency adjustments. Only suggest changes where there's a clear mismatch between the set frequency and actual completion patterns. NEVER suggest the same frequency a chore already has — that is not a useful suggestion.`
 
   const prompt = `${contextBlock}
 
@@ -322,25 +322,40 @@ ${patternBlock}
 
 Analyze these patterns and suggest frequency changes where the current schedule doesn't match reality. For example, if a weekly chore is only completed monthly, suggest changing it to monthly.
 
+IMPORTANT RULES:
+- The "suggestedFrequency" MUST be DIFFERENT from "currentFrequency". Never suggest the same frequency.
+- If a chore has low or zero completions, consider suggesting a LESS frequent schedule (e.g. weekly → biweekly, or monthly → quarterly), not a more frequent one.
+- If the current frequency seems appropriate based on completions, do NOT include that chore.
+- Choose from these exact frequency values: "daily", "weekly", "biweekly", "monthly", "quarterly", "yearly", "custom".
+
 Respond with JSON:
 {
   "suggestions": [{"choreTitle":"string","choreId":"string","currentFrequency":"string","suggestedFrequency":"string","suggestedCustomDays":null,"reason":"string"}],
   "summary": "A brief 1-3 sentence summary of scheduling health and key recommendations."
 }
 
-Only include chores that would genuinely benefit from a schedule change. Use valid frequency values: "daily", "weekly", "biweekly", "monthly", "quarterly", "yearly", "custom".`
+Only include chores that would genuinely benefit from a schedule change.`
 
   const result = await ollamaGenerateJSON<ScheduleAnalysis>(prompt, systemPrompt)
+
+  // Build a lookup so we can validate against actual chore frequencies
+  const choreFreqMap = new Map(existingChores.map(c => [c.id, c.frequency]))
 
   return {
     suggestions: Array.isArray(result.suggestions)
       ? result.suggestions
           .filter(s => s.choreTitle && s.choreId)
-          .map(s => ({
-            ...s,
-            currentFrequency: validateFrequency(s.currentFrequency),
-            suggestedFrequency: validateFrequency(s.suggestedFrequency),
-          }))
+          .map(s => {
+            const actualCurrent = choreFreqMap.get(s.choreId) || validateFrequency(s.currentFrequency)
+            const suggested = validateFrequency(s.suggestedFrequency, actualCurrent)
+            return {
+              ...s,
+              currentFrequency: actualCurrent,
+              suggestedFrequency: suggested,
+            }
+          })
+          // Filter out suggestions where current === suggested (no real change)
+          .filter(s => s.currentFrequency !== s.suggestedFrequency)
       : [],
     summary: String(result.summary || 'Analysis complete.'),
   }
@@ -353,11 +368,11 @@ Only include chores that would genuinely benefit from a schedule change. Use val
 const VALID_FREQUENCIES: ChoreFrequency[] = ['once', 'daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly', 'custom']
 const VALID_PRIORITIES = ['low', 'medium', 'high'] as const
 
-function validateFrequency(val: unknown): ChoreFrequency {
+function validateFrequency(val: unknown, fallback: ChoreFrequency = 'weekly'): ChoreFrequency {
   if (typeof val === 'string' && VALID_FREQUENCIES.includes(val as ChoreFrequency)) {
     return val as ChoreFrequency
   }
-  return 'weekly'
+  return fallback
 }
 
 function validatePriority(val: unknown): 'low' | 'medium' | 'high' {

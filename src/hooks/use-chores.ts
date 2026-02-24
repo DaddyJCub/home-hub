@@ -701,6 +701,37 @@ export function useChores() {
     toast.success(`Updated schedule for ${updates.length} chore${updates.length === 1 ? '' : 's'}`)
   }, [allChores, setChores])
 
+  // Push out all overdue recurring chore due dates by their frequency from now
+  const resetOverdueDueDates = useCallback(() => {
+    const now = Date.now()
+    let count = 0
+    const updated = allChores.map(c => {
+      if (!currentHousehold || c.householdId !== currentHousehold.id) return c
+      if (c.frequency === 'once') return c
+      const interval = frequencyToMs(c.frequency, c.customIntervalDays)
+      if (interval === 0) return c
+      const normalized = normalizeChore(c)
+      const dueAt = normalized.dueAt || now
+      if (dueAt < now) {
+        count++
+        return normalizeChore({
+          ...c,
+          dueAt: now + interval,
+          nextDue: now + interval,
+          completed: false,
+          completedRooms: [],
+        })
+      }
+      return c
+    })
+    if (count > 0) {
+      setChores(updated)
+      toast.success(`Reset due dates for ${count} overdue chore${count === 1 ? '' : 's'}`)
+    } else {
+      toast.info('No overdue chores to reset')
+    }
+  }, [allChores, currentHousehold, setChores])
+
   // ---------------------------------------------------------------------------
   // Return value
   // ---------------------------------------------------------------------------
@@ -776,6 +807,9 @@ export function useChores() {
     addChoresBatch,
     updateChoreAssignments,
     updateChoreFrequencies,
+
+    // Reset helpers
+    resetOverdueDueDates,
 
     // Utilities
     describeDue,

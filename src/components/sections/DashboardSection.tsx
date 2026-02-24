@@ -482,7 +482,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
           <div key="weekly-chore-schedule" className="lg:col-span-2 space-y-3">
             {/* Weekly Challenge Card */}
             <Card className={`overflow-hidden ${challenge.done ? 'border-green-500/40 bg-gradient-to-br from-green-500/5 via-emerald-500/5 to-teal-500/5' : 'border-primary/30'}`}>
-              <CardContent className="p-4 space-y-3">
+              <CardContent className="p-3 space-y-2">
                 {/* Header row */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -624,7 +624,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
 
       case 'priorities':
         return (
-          <div key="priorities" className="lg:col-span-2 space-y-4">
+          <div key="priorities" className="space-y-3">
             {/* Alert: High Priority Chores */}
             {highPriorityChores.length > 0 && (
               <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
@@ -765,10 +765,10 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         const dayProgress = totalDayChores > 0 ? Math.round((recentCompletions.length / totalDayChores) * 100) : 0
         return (
           <Card key="todays-events" className="lg:col-span-2">
-            <CardHeader className="p-4 pb-3">
+            <CardHeader className="p-3 pb-2">
               <CardTitle className="text-sm font-semibold flex items-center justify-between">
                 <span className="flex items-center gap-2">
-                  <Sun size={18} className="text-primary" />
+                  <Sun size={16} className="text-primary" />
                   Today's Summary
                 </span>
                 <div className="flex items-center gap-2">
@@ -785,7 +785,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                 <Progress value={dayProgress} className="h-1.5 mt-2" />
               )}
             </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-3">
+            <CardContent className="px-3 pb-3 space-y-2.5">
               {/* Actionable Chores - overdue + due today with inline complete */}
               {actionableChores.length > 0 && (
                 <div>
@@ -1000,43 +1000,19 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
                 </div>
               )}
 
-              {/* Quick Nav Actions */}
-              <div className="grid grid-cols-4 gap-2 pt-3 border-t border-border/50">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-10 text-xs gap-1.5 flex-col py-1"
-                  onClick={() => onNavigate?.('chores')}
-                >
-                  <Broom size={16} />
-                  <span>Chores</span>
+              {/* Quick Nav Actions - compact row since tab bar provides main nav */}
+              <div className="flex gap-2 pt-2 border-t border-border/50">
+                <Button variant="ghost" size="sm" className="flex-1 h-8 text-xs gap-1" onClick={() => onNavigate?.('chores')}>
+                  <Broom size={14} /> Chores
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-10 text-xs gap-1.5 flex-col py-1"
-                  onClick={() => onNavigate?.('calendar')}
-                >
-                  <CalendarBlank size={16} />
-                  <span>Calendar</span>
+                <Button variant="ghost" size="sm" className="flex-1 h-8 text-xs gap-1" onClick={() => onNavigate?.('calendar')}>
+                  <CalendarBlank size={14} /> Calendar
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-10 text-xs gap-1.5 flex-col py-1"
-                  onClick={() => onNavigate?.('meals')}
-                >
-                  <CookingPot size={16} />
-                  <span>Meals</span>
+                <Button variant="ghost" size="sm" className="flex-1 h-8 text-xs gap-1" onClick={() => onNavigate?.('meals')}>
+                  <CookingPot size={14} /> Meals
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-10 text-xs gap-1.5 flex-col py-1"
-                  onClick={() => onNavigate?.('shopping')}
-                >
-                  <ShoppingCart size={16} />
-                  <span>Shop</span>
+                <Button variant="ghost" size="sm" className="flex-1 h-8 text-xs gap-1" onClick={() => onNavigate?.('shopping')}>
+                  <ShoppingCart size={14} /> Shop
                 </Button>
               </div>
             </CardContent>
@@ -1279,7 +1255,12 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
             isToday: isToday(d),
           }
         })
-        const mealTypes = ['breakfast', 'lunch', 'dinner'] as const
+        const allMealTypes = ['breakfast', 'lunch', 'dinner'] as const
+        // Only show meal type rows that have at least one meal planned this week
+        const mealTypes = allMealTypes.filter(type =>
+          weekDays.some(day => meals.some(m => m.date === day.dateStr && m.type === type))
+        )
+        const hasAnyMeals = mealTypes.length > 0
         return (
           <Card key="weekly-meal-calendar" className="lg:col-span-2">
             <CardHeader className="p-4 pb-2">
@@ -1299,42 +1280,64 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
               </CardTitle>
             </CardHeader>
             <CardContent className="px-3 pb-3">
-              <div className="grid grid-cols-7 gap-1">
-                {weekDays.map(day => (
-                  <div key={day.dateStr} className={`text-center p-1 rounded-t-md ${day.isToday ? 'bg-primary/10' : ''}`}>
-                    <div className="text-[10px] font-semibold text-muted-foreground uppercase">{day.label}</div>
-                    <div className={`text-sm font-bold ${day.isToday ? 'text-primary' : ''}`}>{day.dayNum}</div>
-                  </div>
-                ))}
-                {mealTypes.map(type => (
-                  <Fragment key={type}>
-                    {weekDays.map(day => {
-                      const meal = meals.find(m => m.date === day.dateStr && m.type === type)
-                      return (
-                        <div
-                          key={`${day.dateStr}-${type}`}
-                          className={`p-1 text-center rounded cursor-pointer transition-colors min-h-[28px] flex items-center justify-center ${
-                            meal ? 'bg-primary/10 hover:bg-primary/20' : 'bg-muted/20 hover:bg-muted/40'
-                          } ${day.isToday ? 'ring-1 ring-primary/20' : ''}`}
-                          onClick={() => onNavigate?.('meals')}
-                          title={meal ? `${type}: ${meal.name}` : `Plan ${type}`}
-                        >
-                          <span className={`text-[9px] leading-tight line-clamp-2 ${meal ? 'font-medium' : 'text-muted-foreground/50 italic'}`}>
-                            {meal?.name || '—'}
+              {!hasAnyMeals ? (
+                <div className="text-center py-4">
+                  <CookingPot size={24} className="mx-auto text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">No meals planned this week</p>
+                  <Button variant="outline" size="sm" className="mt-2 text-xs" onClick={() => onNavigate?.('meals')}>
+                    Plan Meals
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-1" style={{ gridTemplateColumns: 'auto repeat(7, 1fr)' }}>
+                    {/* Header row - day labels */}
+                    <div />
+                    {weekDays.map(day => (
+                      <div key={day.dateStr} className={`text-center p-1.5 rounded-t-md ${day.isToday ? 'bg-primary/10' : ''}`}>
+                        <div className="text-[10px] font-semibold text-muted-foreground uppercase">{day.label}</div>
+                        <div className={`text-sm font-bold ${day.isToday ? 'text-primary' : ''}`}>{day.dayNum}</div>
+                      </div>
+                    ))}
+                    {/* Meal rows - only types with data */}
+                    {mealTypes.map(type => (
+                      <Fragment key={type}>
+                        <div className="flex items-center pr-1.5">
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-tight whitespace-nowrap">
+                            {type.slice(0, 1).toUpperCase()}
                           </span>
                         </div>
-                      )
-                    })}
-                  </Fragment>
-                ))}
-              </div>
-              <div className="flex gap-3 mt-2 text-[10px] text-muted-foreground">
-                {mealTypes.map(type => (
-                  <span key={type} className="capitalize">
-                    {type}: {meals.filter(m => weekDays.some(d => d.dateStr === m.date) && m.type === type).length}/7
-                  </span>
-                ))}
-              </div>
+                        {weekDays.map(day => {
+                          const meal = meals.find(m => m.date === day.dateStr && m.type === type)
+                          return (
+                            <div
+                              key={`${day.dateStr}-${type}`}
+                              className={`p-1.5 text-center rounded cursor-pointer transition-colors min-h-[34px] flex items-center justify-center ${
+                                meal ? 'bg-primary/10 hover:bg-primary/20' : 'bg-muted/20 hover:bg-muted/40'
+                              } ${day.isToday ? 'ring-1 ring-primary/20' : ''}`}
+                              onClick={() => onNavigate?.('meals')}
+                              title={meal ? `${type}: ${meal.name}` : `Plan ${type}`}
+                            >
+                              <span className={`text-[11px] leading-tight line-clamp-2 ${
+                                meal ? 'font-medium' : 'text-muted-foreground/40'
+                              }`}>
+                                {meal?.name || '—'}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </Fragment>
+                    ))}
+                  </div>
+                  <div className="flex gap-3 mt-2 text-[10px] text-muted-foreground">
+                    {allMealTypes.map(type => (
+                      <span key={type} className="capitalize">
+                        {type}: {meals.filter(m => weekDays.some(d => d.dateStr === m.date) && m.type === type).length}/7
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         )
@@ -1350,7 +1353,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
       highlightChoreId, onNavigate, onViewRecipe])
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-4 pb-20">
       {showOnboarding && <OnboardingChecklist />}
 
       {/* Greeting Header */}
@@ -1477,7 +1480,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
       </Dialog>
 
       {/* Dashboard Widgets - rendered in customizer order, 2-col on desktop */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
         {sortedWidgetIds.map(id => renderWidget(id))}
       </div>
 
@@ -1518,7 +1521,7 @@ function QuickStatPill({ icon: Icon, label, value, subtext, highlight, onClick }
     <button
       onClick={onClick}
       className={`
-        flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full
+        flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full
         border transition-all active:scale-95
         ${highlight 
           ? 'bg-primary/10 border-primary/30 text-primary' 
@@ -1526,9 +1529,9 @@ function QuickStatPill({ icon: Icon, label, value, subtext, highlight, onClick }
         }
       `}
     >
-      <Icon size={16} className={highlight ? 'text-primary' : 'text-muted-foreground'} />
-      <span className="text-lg font-bold">{value}</span>
-      <span className="text-xs text-muted-foreground">
+      <Icon size={14} className={highlight ? 'text-primary' : 'text-muted-foreground'} />
+      <span className="text-base font-bold">{value}</span>
+      <span className="text-[11px] text-muted-foreground">
         {subtext || label}
       </span>
     </button>

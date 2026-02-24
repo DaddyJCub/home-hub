@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   Broom, Plus, Funnel, ChartBar, Warning, CheckCircle, Circle,
   CalendarCheck, Sparkle, CaretDown, Check, Repeat, CaretUp,
-  Trophy, Fire, Clock
+  Trophy, Fire, Clock, ArrowsClockwise
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -55,6 +55,7 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
     handleQuickChore, quickAddForRoom,
     handleSaveRoom, handleDeleteRoom, handleDuplicateChore, setRooms,
     addChoresBatch, updateChoreAssignments, updateChoreFrequencies,
+    resetOverdueDueDates,
     describeDue,
   } = useChores()
 
@@ -89,7 +90,7 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
   // Render
   // -------------------------------------------------------------------------
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-4 pb-20">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
@@ -310,11 +311,22 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
           {overdueChores.length > 0 && (
             <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
               <CardContent className="p-3">
-                <div className="flex items-center gap-2">
-                  <Warning size={18} className="text-red-600 flex-shrink-0" />
-                  <span className="text-sm font-medium text-red-700 dark:text-red-300">
-                    {overdueChores.length} overdue {overdueChores.length === 1 ? 'chore' : 'chores'}
-                  </span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Warning size={18} className="text-red-600 flex-shrink-0" />
+                    <span className="text-sm font-medium text-red-700 dark:text-red-300">
+                      {overdueChores.length} overdue {overdueChores.length === 1 ? 'chore' : 'chores'}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1 text-xs border-red-300 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/40"
+                    onClick={resetOverdueDueDates}
+                  >
+                    <ArrowsClockwise size={14} />
+                    Reset Dates
+                  </Button>
                 </div>
               </CardContent>
             </Card>
