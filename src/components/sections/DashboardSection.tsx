@@ -2,7 +2,7 @@ import {
   CalendarBlank, CheckCircle, ShoppingCart, CookingPot, Broom, 
   Clock, User, ArrowRight, CaretDown, CaretUp, House, Sparkle,
   Sun, Moon, CloudSun, MapPin, Bell, Warning, Check, Fire,
-  Trophy, Lightning, Star, Medal, Target, Hourglass
+  Trophy, Lightning, Star, Medal, Target, Hourglass, UserCircle, HardHat
 } from '@phosphor-icons/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent, ChoreCompletion } from '@/lib/types'
+import type { Chore, ShoppingItem, Meal, Recipe, CalendarEvent, ChoreCompletion, PersonalTask, HomeProject } from '@/lib/types'
 import type { DashboardWidget } from '@/lib/widget-config'
 import { DEFAULT_WIDGET_ORDER, defaultWidgets } from '@/lib/widget-config'
 import DashboardCustomizer from '@/components/DashboardCustomizer'
@@ -24,6 +24,8 @@ import { computeNextDueAt, getChoreStatus, normalizeChore, isCompletedForToday }
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useKV } from '@github/spark/hooks'
 import { OnboardingChecklist } from '@/components/OnboardingChecklist'
+import { getTaskStatus } from '@/hooks/use-tasks'
+import { PROJECT_STATUSES, statusConfig as projectStatusConfig } from '@/hooks/use-projects'
 
 interface DashboardSectionProps {
   onNavigate?: (tab: string) => void
@@ -48,6 +50,8 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   const [mealsRaw] = useKV<Meal[]>('meals', [])
   const [recipesRaw] = useKV<Recipe[]>('recipes', [])
   const [eventsRaw] = useKV<CalendarEvent[]>('calendar-events', [])
+  const [personalTasksRaw] = useKV<PersonalTask[]>('personal-tasks', [])
+  const [homeProjectsRaw] = useKV<HomeProject[]>('home-projects', [])
   const [selectedMember] = useKV<string>('selected-member-filter', 'all')
   const memberFilter = selectedMember ?? 'all'
   const [challengeEnabled, setChallengeEnabled] = useKV<boolean>('challenge-enabled', true)
@@ -89,6 +93,18 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   }, [eventsRaw, currentHousehold])
 
   const members = householdMembers ?? []
+
+  // Personal tasks for dashboard widget
+  const personalTasks = useMemo(() => {
+    const all = personalTasksRaw ?? []
+    return currentUser ? all.filter(t => t.userId === currentUser.id && !t.completed) : []
+  }, [personalTasksRaw, currentUser])
+
+  // Home projects for dashboard widget
+  const homeProjects = useMemo(() => {
+    const all = homeProjectsRaw ?? []
+    return currentHousehold ? all.filter(p => p.householdId === currentHousehold.id && p.status !== 'done') : []
+  }, [homeProjectsRaw, currentHousehold])
 
   // Complete chore handler
   const handleCompleteChore = useCallback((chore: Chore, roomOverride?: string) => {
@@ -1343,6 +1359,111 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         )
       }
 
+      case 'my-tasks': {
+        if (!isWidgetEnabled('my-tasks')) return null
+        if (personalTasks.length === 0) return null
+        const overdueTasks = personalTasks.filter(t => t.dueAt && getTaskStatus(t).isOverdue)
+        const dueTodayTasksW = personalTasks.filter(t => t.dueAt && getTaskStatus(t).isDueToday)
+        const otherTasks = personalTasks.filter(t => !t.dueAt || (!getTaskStatus(t).isOverdue && !getTaskStatus(t).isDueToday))
+        return (
+          <Card key="my-tasks">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <UserCircle size={18} className="text-primary" />
+                My Tasks
+                <Badge variant="secondary" className="text-[10px] ml-auto">{personalTasks.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div className="space-y-1.5">
+                {overdueTasks.slice(0, 3).map(t => (
+                  <div key={t.id} className="flex items-center gap-2 text-sm">
+                    <Warning size={14} className="text-red-500 flex-shrink-0" />
+                    <span className="truncate">{t.title}</span>
+                    <span className="text-xs text-red-500 ml-auto flex-shrink-0">overdue</span>
+                  </div>
+                ))}
+                {dueTodayTasksW.slice(0, 3).map(t => (
+                  <div key={t.id} className="flex items-center gap-2 text-sm">
+                    <Clock size={14} className="text-primary flex-shrink-0" />
+                    <span className="truncate">{t.title}</span>
+                    <span className="text-xs text-primary ml-auto flex-shrink-0">today</span>
+                  </div>
+                ))}
+                {otherTasks.slice(0, 3).map(t => (
+                  <div key={t.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle size={14} className="flex-shrink-0" />
+                    <span className="truncate">{t.title}</span>
+                  </div>
+                ))}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full mt-2 text-xs gap-1"
+                onClick={() => onNavigate?.('chores')}
+              >
+                View all tasks <ArrowRight size={12} />
+              </Button>
+            </CardContent>
+          </Card>
+        )
+      }
+
+      case 'projects-overview': {
+        if (!isWidgetEnabled('projects-overview')) return null
+        if (homeProjects.length === 0) return null
+        const inProgress = homeProjects.filter(p => p.status === 'in-progress')
+        const planning = homeProjects.filter(p => p.status === 'planning')
+        const wishlist = homeProjects.filter(p => p.status === 'wishlist')
+        return (
+          <Card key="projects-overview">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <HardHat size={18} className="text-primary" />
+                Home Projects
+                <Badge variant="secondary" className="text-[10px] ml-auto">{homeProjects.length} active</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div className="space-y-1.5">
+                {inProgress.slice(0, 2).map(p => (
+                  <div key={p.id} className="flex items-center gap-2 text-sm">
+                    <span className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
+                    <span className="truncate">{p.title}</span>
+                    {p.checklist.length > 0 && (
+                      <span className="text-xs text-muted-foreground ml-auto flex-shrink-0">
+                        {p.checklist.filter(c => c.completed).length}/{p.checklist.length}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {planning.slice(0, 2).map(p => (
+                  <div key={p.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+                    <span className="truncate">{p.title}</span>
+                  </div>
+                ))}
+                {wishlist.slice(0, 2).map(p => (
+                  <div key={p.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span className="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0" />
+                    <span className="truncate">{p.title}</span>
+                  </div>
+                ))}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full mt-2 text-xs gap-1"
+                onClick={() => onNavigate?.('projects')}
+              >
+                View all projects <ArrowRight size={12} />
+              </Button>
+            </CardContent>
+          </Card>
+        )
+      }
+
       default:
         return null
     }
@@ -1350,7 +1471,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
       showCalendar, todaysEvents, showMeals, todaysMeals, challenge, challengeEnabled, showAllChores,
       overdueChores, dueTodayChores, upcomingShort, upcomingChores, recentCompletions, roomProgress,
       showShoppingPanel, upcomingEvents, members, selectedMember, chores, meals, showAllEvents,
-      highlightChoreId, onNavigate, onViewRecipe])
+      highlightChoreId, onNavigate, onViewRecipe, personalTasks, homeProjects])
 
   return (
     <div className="space-y-4 pb-20">

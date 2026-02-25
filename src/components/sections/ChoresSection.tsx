@@ -20,13 +20,18 @@ import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
 
 import { useChores, getChoreRooms } from '@/hooks/use-chores'
+import { useTasks, taskPriorityConfig } from '@/hooks/use-tasks'
 import ChoreCard from '@/components/chores/ChoreCard'
 import ChoreDetailView from '@/components/chores/ChoreDetailView'
 import CompleteChoreForm from '@/components/chores/CompleteChoreForm'
 import ChoreFormDialog from '@/components/chores/ChoreFormDialog'
 import RoomOverview from '@/components/chores/RoomOverview'
 import AIChoreSuggestions from '@/components/chores/AIChoreSuggestions'
+import TaskCard from '@/components/tasks/TaskCard'
+import TaskFormDialog from '@/components/tasks/TaskFormDialog'
+import TaskDetailView from '@/components/tasks/TaskDetailView'
 import EmptyState from '@/components/EmptyState'
+import { UserCircle, Eye, EyeSlash } from '@phosphor-icons/react'
 
 export default function ChoresSection({ highlightChoreId }: { highlightChoreId?: string | null }) {
   const {
@@ -59,8 +64,11 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
     describeDue,
   } = useChores()
 
-  const [subTab, setSubTab] = useState<'chores' | 'rooms'>('chores')
+  const taskHook = useTasks()
+
+  const [subTab, setSubTab] = useState<'chores' | 'rooms' | 'tasks'>('chores')
   const [showCompleted, setShowCompleted] = useState(false)
+  const [showCompletedTasks, setShowCompletedTasks] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [aiDialogOpen, setAiDialogOpen] = useState(false)
   const [roomCompleteMinutes, setRoomCompleteMinutes] = useState('')
@@ -222,8 +230,8 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
       </Collapsible>
 
       {/* ── Sub-tabs ───────────────────────────────────────────────────────── */}
-      <Tabs value={subTab} onValueChange={(v) => setSubTab(v as 'chores' | 'rooms')}>
-        <TabsList className="w-full grid grid-cols-2">
+      <Tabs value={subTab} onValueChange={(v) => setSubTab(v as 'chores' | 'rooms' | 'tasks')}>
+        <TabsList className="w-full grid grid-cols-3">
           <TabsTrigger value="chores" className="gap-1">
             <Circle size={14} />
             My Chores
@@ -231,6 +239,10 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
           <TabsTrigger value="rooms" className="gap-1">
             <CalendarCheck size={14} />
             By Room
+          </TabsTrigger>
+          <TabsTrigger value="tasks" className="gap-1">
+            <UserCircle size={14} />
+            My Tasks
           </TabsTrigger>
         </TabsList>
 
@@ -457,6 +469,204 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
             describeDue={describeDue}
           />
         </TabsContent>
+
+        {/* ── My Tasks tab (Personal, private) ──────────────────────────── */}
+        <TabsContent value="tasks" className="space-y-4 mt-4">
+          {/* Private indicator */}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+            <EyeSlash size={14} />
+            <span>Personal tasks — only you can see these</span>
+          </div>
+
+          {/* Quick-add */}
+          <Card className="p-3 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+            <Input
+              placeholder="Quick add task"
+              value={taskHook.quickTaskTitle}
+              onChange={(e) => taskHook.setQuickTaskTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') taskHook.handleQuickTask() }}
+              className="flex-1"
+            />
+            <Button onClick={taskHook.handleQuickTask} className="whitespace-nowrap">
+              <Plus size={16} className="mr-1" /> Add
+            </Button>
+          </Card>
+
+          {/* Task filters */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select value={taskHook.sortBy} onValueChange={(v) => taskHook.setSortBy(v as typeof taskHook.sortBy)}>
+              <SelectTrigger className="h-8 w-36 text-xs">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="dueDate">Due Date</SelectItem>
+                <SelectItem value="priority">Priority</SelectItem>
+                <SelectItem value="created">Created</SelectItem>
+                <SelectItem value="category">Category</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div className="flex gap-1">
+              {(['all', 'high', 'medium', 'low'] as const).map((p) => (
+                <button
+                  key={p}
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                    taskHook.filterPriority === p
+                      ? p === 'all' ? 'bg-primary text-primary-foreground'
+                        : p === 'high' ? 'bg-red-500 text-white'
+                        : p === 'medium' ? 'bg-yellow-500 text-white'
+                        : 'bg-green-500 text-white'
+                      : 'bg-muted hover:bg-muted/80'
+                  }`}
+                  onClick={() => taskHook.setFilterPriority(p)}
+                >
+                  {p === 'all' ? 'All' : p.charAt(0).toUpperCase() + p.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {taskHook.categories.length > 0 && (
+              <Select value={taskHook.filterCategory} onValueChange={taskHook.setFilterCategory}>
+                <SelectTrigger className="h-8 w-32 text-xs">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All categories</SelectItem>
+                  {taskHook.categories.map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            <div className="ml-auto">
+              <Button size="sm" className="h-8 gap-1" onClick={() => taskHook.setDialogOpen(true)}>
+                <Plus size={16} />
+                <span className="hidden sm:inline">New Task</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Overdue tasks */}
+          {taskHook.overdueTasks.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-destructive flex items-center gap-1">
+                <Warning size={16} />
+                Overdue ({taskHook.overdueTasks.length})
+              </h3>
+              {taskHook.overdueTasks.map(({ task, status }) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  status={status}
+                  onComplete={() => taskHook.toggleComplete(task.id)}
+                  onEdit={() => taskHook.openEditDialog(task)}
+                  onDelete={() => taskHook.deleteTask(task.id)}
+                  onClick={() => taskHook.setDetailTask(task)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Due Today */}
+          {taskHook.dueTodayTasks.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-primary flex items-center gap-1">
+                <CalendarCheck size={16} />
+                Due Today ({taskHook.dueTodayTasks.length})
+              </h3>
+              {taskHook.dueTodayTasks.map(({ task, status }) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  status={status}
+                  onComplete={() => taskHook.toggleComplete(task.id)}
+                  onEdit={() => taskHook.openEditDialog(task)}
+                  onDelete={() => taskHook.deleteTask(task.id)}
+                  onClick={() => taskHook.setDetailTask(task)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Due Soon */}
+          {taskHook.dueSoonTasks.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+                <Clock size={16} />
+                Due Soon ({taskHook.dueSoonTasks.length})
+              </h3>
+              {taskHook.dueSoonTasks.map(({ task, status }) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  status={status}
+                  onComplete={() => taskHook.toggleComplete(task.id)}
+                  onEdit={() => taskHook.openEditDialog(task)}
+                  onDelete={() => taskHook.deleteTask(task.id)}
+                  onClick={() => taskHook.setDetailTask(task)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Upcoming (no due-date status) */}
+          {taskHook.upcomingTasks.length > 0 && (
+            <div className="space-y-2">
+              {(taskHook.overdueTasks.length > 0 || taskHook.dueTodayTasks.length > 0 || taskHook.dueSoonTasks.length > 0) && (
+                <h3 className="text-sm font-semibold text-muted-foreground">Upcoming</h3>
+              )}
+              {taskHook.upcomingTasks.map(({ task, status }) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  status={status}
+                  onComplete={() => taskHook.toggleComplete(task.id)}
+                  onEdit={() => taskHook.openEditDialog(task)}
+                  onDelete={() => taskHook.deleteTask(task.id)}
+                  onClick={() => taskHook.setDetailTask(task)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Completed toggle */}
+          {taskHook.completedTasks.length > 0 && (
+            <button
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+              onClick={() => setShowCompletedTasks(!showCompletedTasks)}
+            >
+              {showCompletedTasks ? <CaretUp size={14} /> : <CaretDown size={14} />}
+              <CheckCircle size={14} />
+              <span>Completed ({taskHook.completedTasks.length})</span>
+            </button>
+          )}
+          {showCompletedTasks && taskHook.completedTasks.length > 0 && (
+            <div className="space-y-2">
+              {taskHook.completedTasks.map(task => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  status={{ isOverdue: false, isDueToday: false, isDueSoon: false, daysOverdue: 0 }}
+                  onComplete={() => taskHook.toggleComplete(task.id)}
+                  onEdit={() => taskHook.openEditDialog(task)}
+                  onDelete={() => taskHook.deleteTask(task.id)}
+                  onClick={() => taskHook.setDetailTask(task)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {taskHook.pendingTasks.length === 0 && taskHook.completedTasks.length === 0 && (
+            <EmptyState
+              icon={UserCircle}
+              title="No personal tasks yet"
+              description="Add tasks only you can see — errands, goals, reminders."
+              action={{ label: "Add a task", onClick: () => taskHook.setDialogOpen(true) }}
+            />
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* Global empty state */}
@@ -673,6 +883,35 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
         onUpdateAssignments={updateChoreAssignments}
         onUpdateFrequencies={updateChoreFrequencies}
       />
+
+      {/* ── Personal Task Dialogs ──────────────────────────────────────────── */}
+
+      {/* Add / Edit task dialog */}
+      <TaskFormDialog
+        open={taskHook.dialogOpen}
+        onOpenChange={taskHook.setDialogOpen}
+        taskForm={taskHook.taskForm}
+        setTaskForm={taskHook.setTaskForm}
+        editingTask={taskHook.editingTask}
+        categories={taskHook.categories}
+        onSave={taskHook.handleSaveTask}
+        onReset={taskHook.resetForm}
+      />
+
+      {/* Task detail dialog */}
+      <Dialog open={!!taskHook.detailTask} onOpenChange={() => taskHook.setDetailTask(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          {taskHook.detailTask && (
+            <TaskDetailView
+              task={taskHook.detailTask}
+              onComplete={() => taskHook.toggleComplete(taskHook.detailTask!.id)}
+              onEdit={() => taskHook.openEditDialog(taskHook.detailTask!)}
+              onDelete={() => { taskHook.deleteTask(taskHook.detailTask!.id); taskHook.setDetailTask(null) }}
+              onClose={() => taskHook.setDetailTask(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

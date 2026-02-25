@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
-import { Plus, Trash, CookingPot, MagnifyingGlass, Clock, Users, Pencil, Link as LinkIcon, X, Tag, Sparkle, Image as ImageIcon, Star, ShoppingCart, GridFour, List, Printer, ArrowLeft, ShareNetwork } from '@phosphor-icons/react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { Plus, Trash, CookingPot, MagnifyingGlass, Clock, Users, Pencil, Link as LinkIcon, X, Tag, Sparkle, Image as ImageIcon, Star, ShoppingCart, GridFour, List, Printer, ArrowLeft, ShareNetwork, Play, CaretLeft, CaretRight, CheckCircle, Eye, Check } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog'
@@ -70,6 +70,15 @@ export default function RecipesPanel({
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set())
   const [addMode, setAddMode] = useState<'manual' | 'url'>('manual')
   const [isParsingUrl, setIsParsingUrl] = useState(false)
+
+  // Cooking mode state
+  const [cookingMode, setCookingMode] = useState(false)
+  const [cookingRecipe, setCookingRecipe] = useState<Recipe | null>(null)
+  const [currentStep, setCurrentStep] = useState(0)
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set())
+  const [cookingCheckedIngredients, setCookingCheckedIngredients] = useState<Set<number>>(new Set())
+  const [showIngredientPanel, setShowIngredientPanel] = useState(false)
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null)
   const [recipeForm, setRecipeForm] = useState({
     name: '',
     ingredients: '',
@@ -337,6 +346,8 @@ Return ONLY a valid JSON object with these fields. Extract actual content from t
           purchased: false,
           createdAt: Date.now(),
           notes: `From: ${recipe.name}`,
+          sourceRecipeId: recipe.id,
+          sourceRecipeName: recipe.name,
         })
         addedCount++
       }
@@ -484,6 +495,75 @@ Return ONLY a valid JSON object with these fields. Extract actual content from t
       return next
     })
   }
+
+  // ---------------------------------------------------------------------------
+  // Cooking Mode
+  // ---------------------------------------------------------------------------
+
+  const getCookingSteps = useCallback((recipe: Recipe): string[] => {
+    const lines = recipe.instructions.split('\n').filter(l => l.trim())
+    return lines.map(line => line.trim().replace(/^\d+[\.\)]\s*/, ''))
+  }, [])
+
+  const startCookingMode = useCallback((recipe: Recipe) => {
+    setCookingRecipe(recipe)
+    setCookingMode(true)
+    setCurrentStep(0)
+    setCompletedSteps(new Set())
+    setCookingCheckedIngredients(new Set())
+    setShowIngredientPanel(false)
+    setViewDialogOpen(false)
+
+    // Request wake lock to keep screen on
+    if ('wakeLock' in navigator) {
+      navigator.wakeLock.request('screen').then(lock => {
+        wakeLockRef.current = lock
+      }).catch(() => {})
+    }
+
+    // Track cooking count
+    setRecipes((prev) => (prev ?? []).map(r =>
+      r.id === recipe.id
+        ? { ...r, lastMade: Date.now(), timesCooked: (r.timesCooked || 0) + 1 }
+        : r
+    ))
+  }, [setRecipes])
+
+  const exitCookingMode = useCallback(() => {
+    setCookingMode(false)
+    setCookingRecipe(null)
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release().catch(() => {})
+      wakeLockRef.current = null
+    }
+  }, [])
+
+  const toggleCookingStep = useCallback((index: number) => {
+    setCompletedSteps(prev => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }, [])
+
+  const toggleCookingIngredient = useCallback((index: number) => {
+    setCookingCheckedIngredients(prev => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }, [])
+
+  // Release wake lock on unmount
+  useEffect(() => {
+    return () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {})
+      }
+    }
+  }, [])
 
   const openEditDialog = (recipe: Recipe) => {
     setEditingRecipe(recipe)
@@ -1233,6 +1313,13 @@ Return ONLY a valid JSON object with these fields. Extract actual content from t
                   {/* Action buttons */}
                   <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
                     <Button
+                      onClick={() => startCookingMode(selectedRecipe)}
+                      className="flex-1 gap-2"
+                    >
+                      <Play size={18} weight="fill" />
+                      Start Cooking
+                    </Button>
+                    <Button
                       variant="outline"
                       onClick={() => openEditDialog(selectedRecipe)}
                       className="flex-1 gap-2"
@@ -1255,6 +1342,217 @@ Return ONLY a valid JSON object with these fields. Extract actual content from t
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Cooking Mode Full-Screen Overlay */}
+      {cookingMode && cookingRecipe && (() => {
+        const steps = getCookingSteps(cookingRecipe)
+        const totalSteps = steps.length
+        const progress = totalSteps > 0 ? Math.round((completedSteps.size / totalSteps) * 100) : 0
+        const allDone = completedSteps.size === totalSteps && totalSteps > 0
+
+        return (
+          <div className="fixed inset-0 z-50 bg-background flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            {/* Cooking Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-background/95 backdrop-blur shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <Button variant="ghost" size="icon" onClick={exitCookingMode} title="Exit cooking mode">
+                  <X size={20} />
+                </Button>
+                <div className="min-w-0">
+                  <h2 className="font-semibold text-base truncate">{cookingRecipe.name}</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Step {currentStep + 1} of {totalSteps} &middot; {progress}% done
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 shrink-0"
+                onClick={() => setShowIngredientPanel(prev => !prev)}
+              >
+                <Eye size={16} />
+                <span className="hidden sm:inline">Ingredients</span>
+              </Button>
+            </div>
+
+            {/* Progress bar */}
+            <div className="h-1 bg-muted shrink-0">
+              <div
+                className="h-full bg-primary transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+
+            {/* Main cooking area */}
+            <div className="flex-1 flex overflow-hidden relative">
+              {/* Step content */}
+              <div className="flex-1 flex flex-col">
+                <ScrollArea className="flex-1">
+                  <div className="p-6 md:p-10 max-w-2xl mx-auto">
+                    {allDone ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center gap-4">
+                        <CheckCircle size={64} weight="fill" className="text-green-500" />
+                        <h3 className="text-2xl font-bold">All done!</h3>
+                        <p className="text-muted-foreground">You've completed all the steps. Enjoy your meal!</p>
+                        <Button onClick={exitCookingMode} className="gap-2 mt-4">
+                          <X size={18} />
+                          Close Cooking Mode
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Current step */}
+                        <div className="mb-8">
+                          <div className="flex items-start gap-4 mb-4">
+                            <button
+                              onClick={() => toggleCookingStep(currentStep)}
+                              className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition-colors ${
+                                completedSteps.has(currentStep)
+                                  ? 'bg-green-500 text-white'
+                                  : 'bg-primary/10 text-primary'
+                              }`}
+                            >
+                              {completedSteps.has(currentStep) ? <Check size={20} weight="bold" /> : currentStep + 1}
+                            </button>
+                            <p className={`text-xl leading-relaxed pt-1.5 ${completedSteps.has(currentStep) ? 'line-through text-muted-foreground' : ''}`}>
+                              {steps[currentStep]}
+                            </p>
+                          </div>
+
+                          <button
+                            onClick={() => toggleCookingStep(currentStep)}
+                            className={`w-full py-3 px-4 rounded-lg border-2 border-dashed text-sm font-medium transition-colors ${
+                              completedSteps.has(currentStep)
+                                ? 'border-green-500/30 bg-green-500/5 text-green-600'
+                                : 'border-muted-foreground/20 hover:border-primary/40 text-muted-foreground hover:text-primary'
+                            }`}
+                          >
+                            {completedSteps.has(currentStep) ? '✓ Step completed — tap to undo' : 'Tap to mark step complete'}
+                          </button>
+                        </div>
+
+                        {/* All steps overview */}
+                        <div>
+                          <h4 className="text-sm font-medium text-muted-foreground mb-3">All Steps</h4>
+                          <div className="space-y-2">
+                            {steps.map((step, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => {
+                                  setCurrentStep(idx)
+                                }}
+                                className={`w-full text-left flex items-start gap-3 p-3 rounded-lg transition-colors ${
+                                  idx === currentStep
+                                    ? 'bg-primary/10 ring-1 ring-primary/30'
+                                    : 'hover:bg-muted/50'
+                                }`}
+                              >
+                                <span
+                                  className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                                    completedSteps.has(idx)
+                                      ? 'bg-green-500 text-white'
+                                      : idx === currentStep
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'bg-muted text-muted-foreground'
+                                  }`}
+                                >
+                                  {completedSteps.has(idx) ? <Check size={12} weight="bold" /> : idx + 1}
+                                </span>
+                                <span className={`text-sm leading-relaxed ${
+                                  completedSteps.has(idx) ? 'line-through text-muted-foreground' : ''
+                                }`}>
+                                  {step}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </ScrollArea>
+
+                {/* Navigation bar */}
+                <div className="shrink-0 flex items-center justify-between p-4 border-t bg-background/95 backdrop-blur">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentStep(s => Math.max(0, s - 1))}
+                    disabled={currentStep === 0}
+                    className="gap-1"
+                  >
+                    <CaretLeft size={18} />
+                    Prev
+                  </Button>
+                  <div className="flex gap-1.5">
+                    {steps.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentStep(idx)}
+                        className={`w-2 h-2 rounded-full transition-colors ${
+                          idx === currentStep
+                            ? 'bg-primary'
+                            : completedSteps.has(idx)
+                              ? 'bg-green-500'
+                              : 'bg-muted-foreground/25'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <Button
+                    variant={completedSteps.has(currentStep) ? 'default' : 'outline'}
+                    onClick={() => {
+                      if (!completedSteps.has(currentStep)) {
+                        toggleCookingStep(currentStep)
+                      }
+                      if (currentStep < totalSteps - 1) {
+                        setCurrentStep(s => s + 1)
+                      }
+                    }}
+                    disabled={currentStep === totalSteps - 1 && completedSteps.has(currentStep)}
+                    className="gap-1"
+                  >
+                    {completedSteps.has(currentStep) ? 'Next' : 'Done'}
+                    <CaretRight size={18} />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Ingredient slide-out panel */}
+              {showIngredientPanel && (
+                <div className="absolute right-0 top-0 bottom-0 w-72 max-w-[80vw] bg-background border-l shadow-xl z-10 flex flex-col animate-in slide-in-from-right duration-200">
+                  <div className="flex items-center justify-between p-3 border-b">
+                    <h3 className="font-semibold text-sm">Ingredients</h3>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowIngredientPanel(false)}>
+                      <X size={16} />
+                    </Button>
+                  </div>
+                  <ScrollArea className="flex-1">
+                    <ul className="p-3 space-y-1">
+                      {cookingRecipe.ingredients.map((ingredient, index) => (
+                        <li
+                          key={index}
+                          className="flex items-start gap-2 p-2 rounded-lg hover:bg-muted/50 cursor-pointer touch-manipulation"
+                          onClick={() => toggleCookingIngredient(index)}
+                        >
+                          <Checkbox
+                            checked={cookingCheckedIngredients.has(index)}
+                            onCheckedChange={() => toggleCookingIngredient(index)}
+                            className="mt-0.5"
+                          />
+                          <span className={`text-sm flex-1 ${cookingCheckedIngredients.has(index) ? 'line-through text-muted-foreground' : ''}`}>
+                            {ingredient}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

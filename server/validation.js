@@ -248,13 +248,66 @@ const calendarEventSchema = (householdId) =>
       householdId
     }));
 
+const homeProjectSchema = (householdId) =>
+  z
+    .object({
+      id: trimmedString('Project id is required'),
+      householdId: z.string().optional(),
+      title: trimmedString('Project title is required', 1, 200),
+      description: z.string().max(5000).optional(),
+      status: z.enum(['wishlist', 'planning', 'in-progress', 'on-hold', 'done']).default('wishlist'),
+      priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
+      estimatedCost: z.number().nonnegative().max(100000000).optional(),
+      actualCost: z.number().nonnegative().max(100000000).optional(),
+      createdBy: z.string().max(200).optional(),
+      createdAt: z.number().int().optional(),
+      updatedAt: z.number().int().optional(),
+      targetDate: z.number().int().optional(),
+      completedAt: z.number().int().optional(),
+      checklist: z
+        .array(
+          z.object({
+            id: trimmedString('Checklist item id is required'),
+            text: trimmedString('Checklist item text is required', 1, 500),
+            completed: z.boolean().default(false)
+          })
+        )
+        .default([]),
+      notes: z.string().max(5000).optional(),
+      tags: z.array(z.string().max(100)).optional(),
+      sortOrder: z.number().int().nonnegative().default(0)
+    })
+    .transform((val) => ({
+      ...val,
+      householdId
+    }));
+
 export const buildHouseholdDataValidators = (householdId) => ({
   chores: z.array(choreSchema(householdId)),
   'chore-completions': z.array(choreCompletionSchema(householdId)),
   'shopping-items': z.array(shoppingItemSchema(householdId)),
   meals: z.array(mealSchema(householdId)),
   recipes: z.array(recipeSchema(householdId)),
-  'calendar-events': z.array(calendarEventSchema(householdId))
+  'calendar-events': z.array(calendarEventSchema(householdId)),
+  'home-projects': z.array(homeProjectSchema(householdId))
+});
+
+const personalTaskSchema = z.object({
+  id: trimmedString('Task id is required'),
+  userId: z.string().max(200).optional(),
+  title: trimmedString('Task title is required', 1, 200),
+  description: z.string().max(2000).optional(),
+  priority: z.enum(['low', 'medium', 'high']).default('medium'),
+  completed: z.boolean().default(false),
+  completedAt: z.number().int().optional(),
+  dueAt: z.number().int().optional(),
+  createdAt: z.number().int().optional(),
+  category: z.string().max(100).optional(),
+  notes: z.string().max(2000).optional()
+});
+
+export const buildUserDataValidators = () => ({
+  'personal-tasks': z.array(personalTaskSchema)
 });
 
 export const formatZodError = (err) => {

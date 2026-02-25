@@ -95,6 +95,8 @@ export interface ShoppingItem {
   priority?: 'low' | 'medium' | 'high'
   notes?: string
   store?: string
+  sourceRecipeId?: string
+  sourceRecipeName?: string
 }
 
 export interface Recipe {
@@ -169,4 +171,60 @@ export interface CalendarEvent {
   isPrivate?: boolean
   notes?: string
   url?: string // Link to external resource
+}
+
+// ---------------------------------------------------------------------------
+// Personal Tasks (user-scoped, private to each user)
+// ---------------------------------------------------------------------------
+
+export type TaskPriority = 'low' | 'medium' | 'high'
+
+export type TaskCategory = string // free-text category/tag
+
+export interface PersonalTask {
+  id: string
+  userId: string
+  title: string
+  description?: string
+  priority: TaskPriority
+  completed: boolean
+  completedAt?: number
+  dueAt?: number
+  createdAt: number
+  category?: TaskCategory
+  notes?: string
+}
+
+// ---------------------------------------------------------------------------
+// Home Improvement Projects (household-scoped, shared)
+// ---------------------------------------------------------------------------
+
+export type ProjectStatus = 'wishlist' | 'planning' | 'in-progress' | 'on-hold' | 'done'
+
+export type ProjectPriority = 'low' | 'medium' | 'high' | 'urgent'
+
+export interface ProjectChecklistItem {
+  id: string
+  text: string
+  completed: boolean
+}
+
+export interface HomeProject {
+  id: string
+  householdId: string
+  title: string
+  description?: string
+  status: ProjectStatus
+  priority: ProjectPriority
+  estimatedCost?: number
+  actualCost?: number
+  createdBy: string // userId
+  createdAt: number
+  updatedAt: number
+  targetDate?: number
+  completedAt?: number
+  checklist: ProjectChecklistItem[]
+  notes?: string
+  tags?: string[]
+  sortOrder: number
 }

@@ -18,7 +18,9 @@ const USER_SCOPED_KEYS = new Set([
   'quick-actions-config',
   'dashboard-widgets',
   'onboarding-status',
-  'ollama-config'
+  'ollama-config',
+  'personal-tasks',
+  'projects-view-mode'
 ])
 
 const clone = <T>(value: T): T => {

@@ -16,6 +16,7 @@ import {
   HouseholdMemberSchema,
   SwitchHouseholdSchema,
   buildHouseholdDataValidators,
+  buildUserDataValidators,
   formatZodError
 } from './server/validation.js';
 
@@ -1263,10 +1264,22 @@ app.put('/api/data/:scope/:key', requireAuth, (req, res) => {
     const updatedAt = nowSeconds();
 
     if (scope === 'user') {
+      // Validate user-scoped data if a validator exists
+      let finalValue = value;
+      const userValidators = buildUserDataValidators();
+      const userValidator = userValidators[key];
+      if (userValidator) {
+        const parsed = userValidator.safeParse(value ?? []);
+        if (!parsed.success) {
+          return sendError(res, 400, formatZodError(parsed.error), 'VALIDATION_ERROR');
+        }
+        finalValue = parsed.data;
+      }
+      const serializedUser = JSON.stringify(finalValue ?? null);
       db.prepare(
         'INSERT INTO user_preferences (user_id, key, value, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at'
-      ).run(req.auth.userId, key, serialized, updatedAt);
-      return res.json({ value });
+      ).run(req.auth.userId, key, serializedUser, updatedAt);
+      return res.json({ value: finalValue });
     }
 
     const householdId = req.auth.householdId;

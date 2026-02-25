@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Plus, Trash, ShoppingCart, Sparkle, Flag, Storefront, Funnel, CaretDown, Gear } from '@phosphor-icons/react'
+import { Plus, Trash, ShoppingCart, Sparkle, Flag, Storefront, Funnel, CaretDown, Gear, CookingPot, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog'
@@ -215,15 +215,25 @@ export default function ShoppingSection() {
       return
     }
 
-    const newItems: ShoppingItem[] = allIngredients.map((ingredient) => ({
-      id: `${Date.now()}-${Math.random()}`,
-      householdId: currentHousehold.id,
-      name: ingredient,
-      category: 'Other',
-      quantity: '',
-      purchased: false,
-      createdAt: Date.now()
-    }))
+    const newItems: ShoppingItem[] = []
+    mealsWithRecipes.forEach((meal) => {
+      const recipe = recipes.find((r) => r.id === meal.recipeId)
+      if (recipe) {
+        recipe.ingredients.forEach((ingredient) => {
+          newItems.push({
+            id: `${Date.now()}-${Math.random()}`,
+            householdId: currentHousehold.id,
+            name: ingredient,
+            category: 'Other',
+            quantity: '',
+            purchased: false,
+            createdAt: Date.now(),
+            sourceRecipeId: recipe.id,
+            sourceRecipeName: recipe.name,
+          })
+        })
+      }
+    })
 
     const updated = [...allItems, ...newItems]
     setItems(updated)
@@ -288,7 +298,7 @@ export default function ShoppingSection() {
   const activeItems = filteredAndSortedItems.filter((item) => !item.purchased)
   const purchasedItems = filteredAndSortedItems.filter((item) => item.purchased)
 
-  const groupedItems = activeItems.reduce((acc, item) => {
+  const groupedItems = activeItems.filter(item => !item.sourceRecipeId).reduce((acc, item) => {
     if (!acc[item.category]) {
       acc[item.category] = []
     }
@@ -317,6 +327,31 @@ export default function ShoppingSection() {
       default:
         return 'bg-primary text-primary-foreground'
     }
+  }
+
+  // Recipe-sourced items helpers
+  const recipeGroups = useMemo(() => {
+    const groups: Record<string, { recipeName: string; items: ShoppingItem[] }> = {}
+    for (const item of activeItems) {
+      if (item.sourceRecipeId && item.sourceRecipeName) {
+        if (!groups[item.sourceRecipeId]) {
+          groups[item.sourceRecipeId] = { recipeName: item.sourceRecipeName, items: [] }
+        }
+        groups[item.sourceRecipeId].items.push(item)
+      }
+    }
+    return groups
+  }, [activeItems])
+
+  const dismissRecipeItems = (recipeId: string) => {
+    const updated = allItems.filter(item => !(item.sourceRecipeId === recipeId && !item.purchased))
+    setItems(updated)
+    toast.success('Recipe items removed')
+  }
+
+  const dismissSingleRecipeItem = (id: string) => {
+    const updated = allItems.filter(item => item.id !== id)
+    setItems(updated)
   }
 
   const hasActiveFilters = filterCategory !== 'all' || filterStore !== 'all' || filterPriority !== 'all'
@@ -695,6 +730,58 @@ export default function ShoppingSection() {
           {activeItems.length > 0 && (
             <div className="space-y-4">
               <h3 className="font-semibold text-lg">To Buy</h3>
+
+              {/* Recipe-sourced item groups */}
+              {Object.entries(recipeGroups).length > 0 && (
+                <div className="space-y-3">
+                  {Object.entries(recipeGroups).map(([recipeId, { recipeName, items: recipeItems }]) => (
+                    <Card key={recipeId} variant="flat" className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <CookingPot size={16} className="text-muted-foreground" />
+                          <span className="text-sm font-medium">From: {recipeName}</span>
+                          <Badge variant="secondary" className="text-xs">{recipeItems.filter(i => !i.purchased).length}</Badge>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs gap-1 h-7"
+                          onClick={() => dismissRecipeItems(recipeId)}
+                          title="Already have all these"
+                        >
+                          <X size={14} />
+                          Have all
+                        </Button>
+                      </div>
+                      <div className="space-y-1">
+                        {recipeItems.map((item) => (
+                          <div key={item.id} className="flex items-center gap-2 py-1 pl-1">
+                            <Checkbox
+                              checked={item.purchased}
+                              onCheckedChange={() => handleToggleItem(item.id)}
+                              className="h-4 w-4"
+                            />
+                            <span className={`flex-1 text-sm ${item.purchased ? 'line-through text-muted-foreground' : ''}`}>
+                              {item.name}
+                              {item.quantity && <span className="text-muted-foreground ml-1">({item.quantity})</span>}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => dismissSingleRecipeItem(item.id)}
+                              title="Already have this"
+                            >
+                              <X size={14} />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
               {Object.entries(sortedGroupedItems).map(([category, categoryItems]) => (
                 <div key={category} className="space-y-2">
                   <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -739,9 +826,25 @@ export default function ShoppingSection() {
                                 {item.store}
                               </Badge>
                             )}
+                            {item.sourceRecipeName && (
+                              <Badge variant="outline" className="gap-1 text-xs">
+                                <CookingPot size={12} />
+                                {item.sourceRecipeName}
+                              </Badge>
+                            )}
                           </div>
                         </div>
                         <div className="flex gap-1">
+                          {item.sourceRecipeId && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => dismissSingleRecipeItem(item.id)}
+                              title="Already have this"
+                            >
+                              <X size={14} />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"

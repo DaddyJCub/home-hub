@@ -96,6 +96,22 @@ export const defaultWidgets: DashboardWidget[] = [
     enabled: true,
     order: 10,
   },
+  {
+    id: 'my-tasks',
+    label: 'My Tasks',
+    iconName: 'UserCircle',
+    description: 'Your personal tasks — only visible to you',
+    enabled: true,
+    order: 11,
+  },
+  {
+    id: 'projects-overview',
+    label: 'Home Projects',
+    iconName: 'HardHat',
+    description: 'Active home improvement projects',
+    enabled: true,
+    order: 12,
+  },
 ]
 
 export const DEFAULT_WIDGET_ORDER = defaultWidgets.map(w => w.id)

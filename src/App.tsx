@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Broom, ShoppingCart, CookingPot, House, Gear, CalendarBlank } from '@phosphor-icons/react'
+import { Broom, ShoppingCart, CookingPot, House, Gear, CalendarBlank, HardHat } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useIsTablet } from '@/hooks/use-tablet'
@@ -23,8 +23,9 @@ import ShoppingSection from '@/components/sections/ShoppingSection'
 import MealsSection from '@/components/sections/MealsSection'
 import SettingsSection from '@/components/sections/SettingsSection'
 import CalendarSection from '@/components/sections/CalendarSection'
+import ProjectsSection from '@/components/sections/ProjectsSection'
 
-type TabId = 'dashboard' | 'chores' | 'meals' | 'shopping' | 'calendar'
+type TabId = 'dashboard' | 'chores' | 'meals' | 'shopping' | 'calendar' | 'projects'
 
 interface TabConfig {
   id: TabId
@@ -40,9 +41,10 @@ export const TAB_CONFIGS: TabConfig[] = [
   { id: 'calendar', label: 'Calendar', shortLabel: 'Calendar', icon: CalendarBlank, enabled: true },
   { id: 'meals', label: 'Meals', shortLabel: 'Meals', icon: CookingPot, enabled: true },
   { id: 'shopping', label: 'Shopping', shortLabel: 'Shop', icon: ShoppingCart, enabled: true },
+  { id: 'projects', label: 'Projects', shortLabel: 'Projects', icon: HardHat, enabled: true },
 ]
 
-const VALID_TABS = ['dashboard', 'chores', 'calendar', 'shopping', 'meals', 'settings']
+const VALID_TABS = ['dashboard', 'chores', 'calendar', 'shopping', 'meals', 'projects', 'settings']
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState(() => {
@@ -197,7 +199,7 @@ function AppContent() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Desktop Navigation */}
           {!isMobile && !isTablet && (
-            <TabsList className="grid w-full grid-cols-5 mb-4 bg-card/70 backdrop-blur-sm p-1 rounded-2xl border border-border/60 shadow-md">
+            <TabsList className="grid w-full grid-cols-6 mb-4 bg-card/70 backdrop-blur-sm p-1 rounded-2xl border border-border/60 shadow-md">
               {TAB_CONFIGS.map(tab => {
                 const IconComponent = tab.icon
                 return (
@@ -268,6 +270,10 @@ function AppContent() {
                 <ShoppingSection />
               </TabsContent>
 
+              <TabsContent value="projects" className="mt-0">
+                <ProjectsSection />
+              </TabsContent>
+
               <TabsContent value="settings" className="mt-0">
                 <SettingsSection />
               </TabsContent>
@@ -282,7 +288,7 @@ function AppContent() {
           className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border shadow-2xl z-20"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
-          <div className="grid max-w-screen-sm mx-auto grid-cols-6">
+          <div className="grid max-w-screen-sm mx-auto grid-cols-7">
             {TAB_CONFIGS.map((tab) => {
               const IconComponent = tab.icon
               return (
