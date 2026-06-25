@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Broom, ShoppingCart, CookingPot, House, Gear, CalendarBlank, HardHat } from '@phosphor-icons/react'
+import { Broom, ShoppingCart, CookingPot, House, Gear, CalendarBlank, HardHat, Lifebuoy } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useIsTablet } from '@/hooks/use-tablet'
@@ -175,6 +175,16 @@ function AppContent() {
               </div>
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
+              <a
+                href="https://home.jcubhub.com/support?from=home-hub"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Support"
+                aria-label="Support"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+              >
+                <Lifebuoy size={18} />
+              </a>
               <BugIndicator onClick={() => setActiveTab('settings')} />
               <NotificationCenter chores={chores} events={events} />
               {!isMobile && (
