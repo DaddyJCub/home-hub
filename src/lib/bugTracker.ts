@@ -20,6 +20,46 @@ const RATE_LIMIT_COUNT = 10
 const RATE_LIMIT_WINDOW_MS = 10 * 1000
 let recentTimestamps: number[] = []
 
+// JCubHub Sentinel: forward reports to Central Management via a same-origin
+// proxy endpoint (the SPA must not hold the HMAC secret; the host/reverse-proxy
+// forwards /client-error to CM's /api/reports with the signature). Configure the
+// path with VITE_BUG_REPORT_PROXY (default "/client-error"). Fail-open.
+const CM_PROXY_PATH =
+  (import.meta as { env?: Record<string, string> }).env?.VITE_BUG_REPORT_PROXY || '/client-error'
+const CM_FORWARD_ENABLED =
+  ((import.meta as { env?: Record<string, string> }).env?.VITE_BUG_REPORT_ENABLED || 'true') !== 'false'
+
+const forwardToCM = (report: BugReport): void => {
+  if (!CM_FORWARD_ENABLED) return
+  try {
+    const body = JSON.stringify({
+      message: report.message,
+      type: 'error',
+      stack: report.stack || report.componentStack,
+      route: (() => {
+        try {
+          return new URL(report.url).pathname
+        } catch {
+          return report.url
+        }
+      })(),
+      context: { ...(report.context || {}), homehub_type: report.type },
+    })
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      navigator.sendBeacon(CM_PROXY_PATH, new Blob([body], { type: 'application/json' }))
+    } else {
+      void fetch(CM_PROXY_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      }).catch(() => {})
+    }
+  } catch {
+    /* fail open */
+  }
+}
+
 // Generate unique ID
 const generateId = () => `bug_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
@@ -86,6 +126,9 @@ export const addBugReport = (
   const reports = getBugReports()
   reports.push(report)
   saveBugReports(reports)
+
+  // Also forward to JCubHub CM for centralized triage (fail-open).
+  forwardToCM(report)
 
   return report
 }
