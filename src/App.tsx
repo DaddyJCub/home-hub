@@ -15,6 +15,7 @@ import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { NotificationCenter } from '@/components/NotificationCenter'
 import { RefreshIndicator } from '@/components/RefreshIndicator'
 import { BugIndicator } from '@/components/BugIndicator'
+import { FeedbackModal } from '@/components/FeedbackModal'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Chore, CalendarEvent } from '@/lib/types'
 import DashboardSection from '@/components/sections/DashboardSection'
@@ -185,6 +186,7 @@ function AppContent() {
               >
                 <Lifebuoy size={18} />
               </a>
+              <FeedbackModal />
               <BugIndicator onClick={() => setActiveTab('settings')} />
               <NotificationCenter chores={chores} events={events} />
               {!isMobile && (

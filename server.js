@@ -357,6 +357,30 @@ const MIGRATIONS = [
         CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
       `);
     }
+  },
+  {
+    version: 3,
+    name: 'add-app-settings-and-feedback',
+    up: (database) => {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS user_feedback (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          category TEXT NOT NULL DEFAULT 'general',
+          subject TEXT NOT NULL,
+          message TEXT NOT NULL,
+          user_id TEXT,
+          email TEXT,
+          user_agent TEXT,
+          status TEXT NOT NULL DEFAULT 'new',
+          created_at INTEGER NOT NULL
+        );
+      `);
+    }
   }
 ];
 
@@ -391,6 +415,67 @@ const runMigrations = () => {
 };
 
 runMigrations();
+
+// ---- App settings (key/value store in DB, used for bug reporter config) ----
+const getAppSetting = (key) => {
+  try {
+    const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(key);
+    return row ? row.value : null;
+  } catch { return null; }
+};
+const setAppSetting = (key, value) => {
+  db.prepare(
+    'INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at'
+  ).run(key, String(value), nowSeconds());
+};
+
+// ---- JCubHub Sentinel: forward bug reports to CM ----
+// Reads BUG_REPORT_URL, BUG_REPORT_SECRET, BUG_APP_ID from app_settings (UI-managed, no redeploy).
+const CM_APP_ID = () => getAppSetting('bug_app_id') || process.env.BUG_APP_ID || 'home-hub';
+const CM_REPORT_URL = () => getAppSetting('bug_report_url') || process.env.BUG_REPORT_URL || '';
+const CM_REPORT_SECRET = () => getAppSetting('bug_report_secret') || process.env.BUG_REPORT_SECRET || '';
+const CM_REPORT_ENABLED = () => {
+  const v = (getAppSetting('bug_report_enabled') || '').toLowerCase();
+  if (['0', 'false', 'no', 'off'].includes(v)) return false;
+  return Boolean(CM_REPORT_URL() && CM_REPORT_SECRET());
+};
+
+function sendToCM(opts = {}) {
+  if (!CM_REPORT_ENABLED()) return;
+  try {
+    const url = CM_REPORT_URL();
+    const secret = CM_REPORT_SECRET();
+    const appId = CM_APP_ID();
+    const message = String(opts.message || 'error').slice(0, 4000);
+    const payload = {
+      app_id: appId,
+      type: opts.type || 'error',
+      message,
+      severity: opts.severity || undefined,
+      environment: NODE_ENV,
+      stack_trace: opts.stack ? String(opts.stack).slice(0, 16000) : undefined,
+      fingerprint: crypto.createHmac('sha256', secret).update(`${appId}|${message.slice(0, 200)}`).digest('hex').slice(0, 16),
+      reporter: opts.reporter || 'auto',
+      reporter_email: opts.reporterEmail || undefined,
+      context: opts.context || undefined,
+      occurred_at: new Date().toISOString(),
+    };
+    Object.keys(payload).forEach(k => { if (payload[k] == null) delete payload[k]; });
+    const bodyStr = JSON.stringify(payload);
+    const sig = crypto.createHmac('sha256', secret).update(bodyStr).digest('hex');
+    void fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-JCubHub-App': appId,
+        'X-JCubHub-Signature': `sha256=${sig}`,
+        'X-JCubHub-Report-Contract': '1.0.0',
+      },
+      body: bodyStr,
+      signal: AbortSignal.timeout(5000),
+    }).catch(() => {});
+  } catch { /* fail open */ }
+}
 
 const cleanupExpiredSessions = () => {
   const deleted = db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(nowSeconds());
@@ -1343,6 +1428,76 @@ app.all('/api/ollama/*', requireAuth, async (req, res) => {
     log('ERROR', 'Ollama proxy error', { error: err.message });
     sendError(res, 502, `Ollama unreachable: ${err.message}`, 'PROXY_ERROR');
   }
+});
+
+// ---- JCubHub Sentinel: client-side error beacon (SPA errors → CM) ----
+app.post('/client-error', (req, res) => {
+  const d = req.body || {};
+  sendToCM({
+    message: String(d.message || 'client error').slice(0, 1000),
+    type: d.type === 'suggestion' ? 'suggestion' : 'error',
+    severity: 'low',
+    stack: d.stack ? String(d.stack) : undefined,
+    reporter: 'auto',
+    context: { source: 'client_js', route: d.route, homehub_type: d.context?.homehub_type },
+  });
+  res.status(204).end();
+});
+
+// ---- Admin: get/set bug reporter config ----
+app.get('/api/admin/bug-reporting', requireAuth, (req, res) => {
+  res.json({
+    enabled: getAppSetting('bug_report_enabled') ?? '',
+    url: getAppSetting('bug_report_url') ?? '',
+    app_id: getAppSetting('bug_app_id') ?? '',
+    // secret is write-only — never returned
+  });
+});
+
+app.post('/api/admin/bug-reporting', requireAuth, (req, res) => {
+  const { enabled, url, secret, app_id } = req.body || {};
+  if (typeof enabled === 'string') setAppSetting('bug_report_enabled', enabled);
+  if (typeof url === 'string') setAppSetting('bug_report_url', url.trim());
+  if (typeof secret === 'string' && secret.trim()) setAppSetting('bug_report_secret', secret.trim());
+  if (typeof app_id === 'string' && app_id.trim()) setAppSetting('bug_app_id', app_id.trim());
+  res.json({ ok: true });
+});
+
+// ---- User-submitted feedback → CM ----
+app.post('/feedback', (req, res) => {
+  const { category = 'general', subject, message, email } = req.body || {};
+  if (!subject || String(subject).trim().length < 3) {
+    return sendError(res, 400, 'Subject must be at least 3 characters', 'VALIDATION_ERROR');
+  }
+  if (!message || String(message).trim().length < 5) {
+    return sendError(res, 400, 'Message must be at least 5 characters', 'VALIDATION_ERROR');
+  }
+  const userId = req.auth?.userId ?? null;
+  try {
+    db.prepare(
+      'INSERT INTO user_feedback (category, subject, message, user_id, email, user_agent, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      ['bug', 'feature_request', 'general'].includes(category) ? category : 'general',
+      String(subject).trim().slice(0, 200),
+      String(message).trim().slice(0, 2000),
+      userId,
+      email ? String(email).trim().slice(0, 200) : null,
+      req.headers['user-agent'] || null,
+      'new',
+      nowSeconds()
+    );
+  } catch (err) {
+    log('ERROR', 'Failed to save user feedback', { error: err.message });
+  }
+  sendToCM({
+    message: `[User Feedback] ${String(subject).trim()}`,
+    type: category === 'bug' ? 'bug' : 'suggestion',
+    severity: category === 'bug' ? 'medium' : 'low',
+    reporter: 'manual',
+    reporterEmail: email ? String(email).trim() : undefined,
+    context: { category, message: String(message).trim().slice(0, 500) },
+  });
+  res.json({ ok: true });
 });
 
 // Health check
