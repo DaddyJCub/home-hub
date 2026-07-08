@@ -37,6 +37,8 @@ const log = (level, message, data = null) => {
 const app = express();
 const PORT = process.env.PORT || 4173;
 const HOST = process.env.HOST || '0.0.0.0';
+// App version, shared by /api/version and the Sentinel bug reporter.
+const APP_VERSION = process.env.APP_VERSION || '0.1.0';
 const DATA_DIR = process.env.DATA_DIR || '/data';
 const SESSION_COOKIE_NAME = 'hh_session';
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -453,6 +455,7 @@ function sendToCM(opts = {}) {
       message,
       severity: opts.severity || undefined,
       environment: NODE_ENV,
+      app_version: APP_VERSION || undefined,
       stack_trace: opts.stack ? String(opts.stack).slice(0, 16000) : undefined,
       fingerprint: crypto.createHmac('sha256', secret).update(`${appId}|${message.slice(0, 200)}`).digest('hex').slice(0, 16),
       reporter: opts.reporter || 'auto',
@@ -926,6 +929,11 @@ const requireAuth = (req, res, next) => {
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
+});
+
+// Version endpoint (matches the shape used by the other JCubHub apps)
+app.get('/api/version', (_req, res) => {
+  res.json({ version: APP_VERSION, name: 'HomeHub' });
 });
 
 app.get('/api/migrations', (_req, res) => {
