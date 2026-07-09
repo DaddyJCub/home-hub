@@ -1,16 +1,27 @@
-# ✨ Welcome to Your Spark Template!
-You've just launched your brand-new Spark Template Codespace — everything’s fired up and ready for you to explore, build, and create with Spark!
+# HomeHub
 
-This template is your blank canvas. It comes with a minimal setup to help you get started quickly with Spark development.
+HomeHub is a collaborative household management app for coordinating chores, shopping,
+meal planning, recipes, and a shared calendar in one place, with real user accounts.
+The current release runs in Single Household / Personal Mode; multi-household support
+remains forward-compatible for future expansion (see [PRD.md](PRD.md)).
 
-🚀 What's Inside?
-- A clean, minimal Spark environment
-- Pre-configured for local development
-- Ready to scale with your ideas
-  
-🧠 What Can You Do?
+Part of the JCubHub ecosystem. Built with React 19 + Vite on the frontend and an
+Express + better-sqlite3 server. Errors and user feedback are forwarded to JCubHub CM
+via the Sentinel bug-reporting contract.
 
-Right now, this is just a starting point — the perfect place to begin building and testing your Spark applications.
+## Stack
+
+- **Frontend**: React 19, Vite, Tailwind CSS, Radix UI / shadcn components
+- **Server**: Node.js + Express, better-sqlite3, JSON logging
+- **Auth**: local accounts (bcrypt) with optional SMTP password reset
+
+## Running
+
+- `npm run dev` — Vite dev server
+- `npm run build` — production build (`tsc -b` + `vite build`)
+- `npm start` — run the Express server (`server.js`)
+- `npm test` — server integration tests
+- `npm run test:unit` — Vitest unit tests
 
 ## 📧 Email Configuration (Optional)
 
