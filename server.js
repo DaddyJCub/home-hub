@@ -19,6 +19,7 @@ import {
   buildUserDataValidators,
   formatZodError
 } from './server/validation.js';
+import { verifyBrokerToken, BrokerTokenError, resolveSigningKey } from './server/native-auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -632,6 +633,33 @@ const ensureDefaultHousehold = (user) => {
   return household.id;
 };
 
+// Find-or-create a HomeHub user for a broker (Authentik) identity, keyed by
+// email. SSO users carry a sentinel password that can never match the password
+// login path (verifyPassword compares SHA-256(password) to the stored hash).
+// Returns { userId, householdId } or null if the email is unusable.
+const provisionBrokerUser = (email, username) => {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+  let row = db.prepare('SELECT id, email, display_name FROM users WHERE lower(email) = lower(?)').get(normalizedEmail);
+  if (!row) {
+    const user = {
+      id: generateId(),
+      email: normalizedEmail,
+      password_hash: '!sso-no-password',
+      password_algo: 'sso',
+      display_name: (username || normalizedEmail.split('@')[0] || 'Member').trim(),
+      created_at: Date.now()
+    };
+    db.prepare(
+      'INSERT INTO users (id, email, password_hash, password_algo, display_name, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(user.id, user.email, user.password_hash, user.password_algo, user.display_name, user.created_at);
+    log('INFO', 'Provisioned SSO user from broker identity', { userId: user.id, email: user.email });
+    row = { id: user.id, email: user.email, display_name: user.display_name };
+  }
+  const householdId = ensureDefaultHousehold({ id: row.id, displayName: row.display_name });
+  return { userId: row.id, householdId };
+};
+
 const membershipForUser = (userId, householdId) =>
   db
     .prepare(
@@ -851,6 +879,44 @@ app.use(express.json({ limit: '2mb' }));
 
 app.use((req, res, next) => {
   req.auth = readSession(req, res);
+  next();
+});
+
+// Dual auth: when there is no session cookie, accept a broker (Authentik) Bearer
+// token minted by CM's identity broker. Deny-by-default — a token is only honored
+// if it carries a homehub capability, so a token scoped to another app (e.g.
+// books.read) cannot reach HomeHub data. Populates the same req.auth shape as a
+// session so every existing route serves native clients unchanged. No-op unless a
+// signing key is configured and a Bearer token is present.
+app.use((req, res, next) => {
+  if (req.auth?.userId) return next();
+  const header = req.headers.authorization || '';
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match || !resolveSigningKey()) return next();
+
+  let payload;
+  try {
+    payload = verifyBrokerToken(match[1]);
+  } catch (err) {
+    if (err instanceof BrokerTokenError) {
+      log('WARN', 'Broker token rejected', { code: err.code });
+      return next();
+    }
+    return next();
+  }
+
+  const caps = Array.isArray(payload.caps) ? payload.caps : [];
+  if (!payload.email || !caps.includes('homehub.read')) return next();
+
+  try {
+    const resolved = provisionBrokerUser(payload.email, payload.username);
+    if (!resolved) return next();
+    req.auth = { userId: resolved.userId, householdId: resolved.householdId, viaBroker: true };
+    req.native = { email: payload.email, username: payload.username, caps };
+  } catch (err) {
+    log('ERROR', 'Broker user provisioning failed', { error: err.message });
+    return next();
+  }
   next();
 });
 

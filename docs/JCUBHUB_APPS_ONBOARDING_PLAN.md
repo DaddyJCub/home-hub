@@ -73,6 +73,31 @@ config flip once the pieces below exist.
 
 ---
 
+## Chosen architecture: web + native parity, build once (decided)
+
+**Hard requirement:** the standalone web app must have **every** feature — it is a
+first-class client, not a fallback. Native iOS (the CM module) must reach the same
+feature set. To avoid maintaining two divergent UIs, we build once:
+
+1. **One canonical domain API** on the HomeHub backend — typed REST resources for the
+   real domains (chores, shopping, meals, recipes, calendar, personal tasks) — replacing
+   the generic `/api/data/:scope/:key` KV blobs over time. **Both** clients call it.
+2. **Dual auth on those routes** — accept the existing standalone **session cookie**
+   *or* a **broker Bearer token** (so the same endpoints serve the web app and the CM
+   native module). This is the key difference from the Books blueprint, which had a
+   separate `/api/native/*` sidecar because its standalone app couldn't share code.
+3. **Shared React feature components** — HomeHub is already React, so the feature
+   screens live in a shared package consumed by **both** the standalone web app and CM's
+   `HomeHubModule`. Mechanism: a workspace package in this repo (`packages/*` is already
+   configured) exposed to CM as a versioned dependency. Every feature then ships to web
+   and native simultaneously.
+
+Implication for the "retained subset" wording in CM's capability policy: that only stages
+the *native* rollout. The **web app keeps full functionality throughout**, and native
+grows to full parity — neither is a curated subset long-term.
+
+---
+
 ## Gap analysis (HomeHub vs. the other apps)
 
 | Area | Today | Target | Size |
@@ -116,10 +141,18 @@ to query HomeHub's tables directly, which the architecture intentionally avoids.
 - Env: `IDENTITY_TOKEN_SIGNING_SECRET` (or `ENCRYPTION_KEY`).
 - *Non-breaking:* new routes only; the standalone app is untouched.
 
+### Phase 1b — Extract shared feature components (this repo) — *refactor, no behavior change*
+- Create a workspace package (e.g. `packages/features/`) holding the domain types, the
+  typed API client for the canonical API, and the presentational feature components
+  (chores, shopping, meals, calendar, tasks).
+- Point the standalone app (`src/`) at the package — it renders exactly as before.
+- Publish/expose the package so CM can consume it as a versioned dependency.
+
 ### Phase 2 — CM native module UI (CM frontend) — *behind `enabled=false` until ready*
-- Build `frontend/src/modules/homehub/HomeHubModule.tsx` + `client.ts`
-  (`createModuleClient("homehub_module", "/api/native/homehub", "homehub/0.1.0")`),
-  a faithful native port of the retained screens, styled with `platform/designTokens`.
+- Build `frontend/src/modules/homehub/HomeHubModule.tsx` that renders the **shared**
+  feature components from Phase 1b, with a `client.ts` built on
+  `createModuleClient("homehub_module", "/api/native/homehub", "homehub/0.1.0")` (broker
+  Bearer + contract header), styled with `platform/designTokens`.
 - Register `homehub_module: HomeHubModule` in `moduleComponents.tsx`.
 - Configure CM: `MODULE_HOMEHUB_API_BASE` = HomeHub origin, `MODULE_HOMEHUB_ENABLED=true`,
   contract version `0.1.0`.
