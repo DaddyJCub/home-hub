@@ -10,6 +10,75 @@ And CM has **already scaffolded the HomeHub side** of its module platform. The w
 *onboarding HomeHub into the existing "JCubHub Apps" platform as `homehub_module`*,
 following the pattern Books already proved — not a rewrite.
 
+> ## Implementation status (this branch)
+>
+> | Phase | Status | Where |
+> |---|---|---|
+> | 1 — broker dual-auth | ✅ done + tested | `server/native-auth.js`, dual-auth middleware in `server.js` |
+> | 1a — native contract + OpenAPI | ✅ done + tested | `/api/native/homehub`, `contracts/homehub.openapi.yaml` |
+> | 2 — CM `HomeHubModule` | ✅ done + build-verified | CM `frontend/src/modules/homehub/*` + `homehub.write` cap (CM branch `claude/homehub-module`) |
+> | 3 — Authentik | ✅ forward-auth for standalone web done + tested; native goes through the broker | forward-auth middleware in `server.js` |
+> | 4 — iOS | ✅ no code needed — ships inside CM's Capacitor app once the module is enabled | see enablement below |
+> | 5 — theme | ✅ done + build-verified | `jcubhub` default theme |
+> | 1b — shared component package | ⏳ follow-up | see below |
+>
+> **Test coverage added:** 20 server tests (broker verifier, dual-auth, native
+> contract + capability enforcement, forward-auth anti-spoofing) — all green.
+> CM frontend build passes with the module; CM capability policy unit-checked.
+
+---
+
+## Enablement & deployment (turning it on)
+
+Everything above is **inert until configured** — no behavior changes on existing
+deployments. To light up the native module + SSO:
+
+### 1. Shared identity signing key (required for native)
+HomeHub and CM must resolve the **same** broker signing key. Set on the HomeHub backend
+either:
+- `IDENTITY_TOKEN_SIGNING_SECRET` = the same value CM uses, **or**
+- `ENCRYPTION_KEY` = the same value CM uses (HomeHub derives the key with the same
+  domain-separation label as CM's broker).
+
+Mismatch → broker tokens fail with `bad_signature` (a key fingerprint is logged on both
+sides to compare without exposing the secret).
+
+### 2. Enable the module in CM
+Set in CM (UI-managed app settings or env):
+- `MODULE_HOMEHUB_API_BASE` = HomeHub's origin (e.g. `https://homehub.jcubhub.com`)
+- `MODULE_HOMEHUB_ENABLED` = `true`
+- `MODULE_HOMEHUB_CONTRACT_VERSION` = `0.1.0`
+
+The module then appears in CM's shell (web + iOS) for any user whose RBAC grants the
+`apps.homehub` permission (owners get it automatically).
+
+### 3. iOS (no build needed)
+CM's Capacitor app loads the Authentik-gated CM site in a WebView; the enabled
+`homehub_module` renders natively inside it. Nothing to build or submit for HomeHub.
+
+### 4. Authentik SSO for the standalone HomeHub web (optional)
+To put the standalone web app behind Authentik forward-auth (so browser users get SSO
+instead of the local login):
+- Front HomeHub with NPM + Authentik forward-auth.
+- Configure the proxy to inject `X-authentik-email` / `X-authentik-username` **and** a
+  shared secret header `X-JCubHub-Proxy-Secret`, and to strip any client-supplied copies.
+- Set `FORWARD_AUTH_PROXY_SECRET` on HomeHub to that shared secret.
+
+HomeHub only trusts the identity headers when the secret matches, so a direct connection
+cannot spoof a user. Local bcrypt login keeps working when forward-auth is unset.
+
+### 5. Theme
+The `jcubhub` indigo/zinc theme is now the default. Fonts still use the self-hosted
+Karla/Bitter; matching the ecosystem's Inter needs Inter `.woff2` files added to
+`public/fonts` (follow-up — no CDN, to preserve the self-hosted/CSP posture).
+
+## Follow-up: Phase 1b (shared component package)
+The CM module currently ports the feature UIs. To reach true "build once", extract the
+feature components + typed client into a workspace package (this repo already declares
+`packages/*`) and have CM depend on it. Deferred because cross-repo React component
+publishing is its own infrastructure task; the contract (`homehub/0.1.0`) is the stable
+seam that makes this a later refactor rather than a blocker.
+
 ---
 
 ## What HomeHub already has (verified in code)

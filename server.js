@@ -920,6 +920,37 @@ app.use((req, res, next) => {
   next();
 });
 
+// Authentik forward-auth for the STANDALONE web app: when the request arrives
+// through the trusted reverse proxy (NPM + Authentik), the proxy strips any
+// client-sent identity headers and injects X-authentik-* plus the shared proxy
+// secret. We only trust the identity headers when that secret matches (mirrors
+// CM's model), which closes the "spoof X-authentik-email on a direct
+// connection" hole. No-op unless FORWARD_AUTH_PROXY_SECRET is configured.
+const FORWARD_AUTH_PROXY_SECRET = (process.env.FORWARD_AUTH_PROXY_SECRET || '').trim();
+const constantTimeEquals = (a, b) => {
+  const ab = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+};
+app.use((req, res, next) => {
+  if (req.auth?.userId || !FORWARD_AUTH_PROXY_SECRET) return next();
+  const presented = req.headers['x-jcubhub-proxy-secret'];
+  if (!presented || !constantTimeEquals(presented, FORWARD_AUTH_PROXY_SECRET)) return next();
+  const email = (req.headers['x-authentik-email'] || '').toString().trim();
+  if (!email) return next();
+  const username = (req.headers['x-authentik-username'] || '').toString().trim();
+  try {
+    const resolved = provisionBrokerUser(email, username);
+    if (!resolved) return next();
+    req.auth = { userId: resolved.userId, householdId: resolved.householdId, viaForwardAuth: true };
+  } catch (err) {
+    log('ERROR', 'Forward-auth provisioning failed', { error: err.message });
+    return next();
+  }
+  next();
+});
+
 // Request logging for API routes (skip noisy reads/304s)
 app.use('/api', (req, res, next) => {
   const start = Date.now();
