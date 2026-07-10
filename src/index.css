@@ -83,33 +83,35 @@
 }
 
 :root {
-  --background: oklch(0.95 0.02 85);
-  --foreground: oklch(0.25 0.02 35);
+  /* First-paint defaults mirror the 'jcubhub' theme (indigo on zinc) so there
+     is no color flash before the theme script applies the user's choice. */
+  --background: oklch(0.985 0.002 286);
+  --foreground: oklch(0.21 0.006 286);
 
-  --card: oklch(0.98 0.01 85);
-  --card-foreground: oklch(0.25 0.02 35);
-  
-  --popover: oklch(0.98 0.01 85);
-  --popover-foreground: oklch(0.25 0.02 35);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.006 286);
 
-  --primary: oklch(0.62 0.15 35);
-  --primary-foreground: oklch(0.98 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.006 286);
 
-  --secondary: oklch(0.75 0.08 145);
-  --secondary-foreground: oklch(0.25 0.02 35);
+  --primary: oklch(0.51 0.23 277);
+  --primary-foreground: oklch(0.985 0 0);
 
-  --muted: oklch(0.92 0.02 85);
-  --muted-foreground: oklch(0.5 0.02 35);
+  --secondary: oklch(0.967 0.001 286);
+  --secondary-foreground: oklch(0.21 0.006 286);
 
-  --accent: oklch(0.68 0.18 45);
-  --accent-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.967 0.001 286);
+  --muted-foreground: oklch(0.552 0.014 286);
+
+  --accent: oklch(0.58 0.20 277);
+  --accent-foreground: oklch(0.985 0 0);
 
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.98 0 0);
+  --destructive-foreground: oklch(0.985 0 0);
 
-  --border: oklch(0.88 0.02 85);
-  --input: oklch(0.88 0.02 85);
-  --ring: oklch(0.68 0.18 45);
+  --border: oklch(0.92 0.004 286);
+  --input: oklch(0.92 0.004 286);
+  --ring: oklch(0.58 0.20 277);
 
   --radius: 0.75rem;
 }

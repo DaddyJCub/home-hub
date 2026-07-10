@@ -58,7 +58,7 @@ import { defaultWidgets, type DashboardWidget } from '@/lib/widget-config'
 
 export default function SettingsSection() {
   const { currentHousehold, householdMembers, joinHousehold } = useAuth()
-  const [currentThemeId, setCurrentThemeId] = useKV<string>('theme-id', 'warm-home')
+  const [currentThemeId, setCurrentThemeId] = useKV<string>('theme-id', 'jcubhub')
   const [isDarkMode, setIsDarkMode] = useKV<boolean>('dark-mode', false)
   const [dashboardWidgetsRaw, setDashboardWidgets] = useKV<DashboardWidget[]>('dashboard-widgets', undefined)
   const isMobile = useIsMobile()
@@ -88,7 +88,7 @@ export default function SettingsSection() {
       }
     })
   }, [dashboardWidgetsRaw])
-  const resolvedThemeId = currentThemeId || 'warm-home'
+  const resolvedThemeId = currentThemeId || 'jcubhub'
   const members = householdMembers ?? []
   const [joinCode, setJoinCode] = useState('')
   const chores = choresRaw ?? []
