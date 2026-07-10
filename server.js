@@ -19,6 +19,7 @@ import {
   buildUserDataValidators,
   formatZodError
 } from './server/validation.js';
+import { verifyBrokerToken, BrokerTokenError, resolveSigningKey } from './server/native-auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -632,6 +633,33 @@ const ensureDefaultHousehold = (user) => {
   return household.id;
 };
 
+// Find-or-create a HomeHub user for a broker (Authentik) identity, keyed by
+// email. SSO users carry a sentinel password that can never match the password
+// login path (verifyPassword compares SHA-256(password) to the stored hash).
+// Returns { userId, householdId } or null if the email is unusable.
+const provisionBrokerUser = (email, username) => {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+  let row = db.prepare('SELECT id, email, display_name FROM users WHERE lower(email) = lower(?)').get(normalizedEmail);
+  if (!row) {
+    const user = {
+      id: generateId(),
+      email: normalizedEmail,
+      password_hash: '!sso-no-password',
+      password_algo: 'sso',
+      display_name: (username || normalizedEmail.split('@')[0] || 'Member').trim(),
+      created_at: Date.now()
+    };
+    db.prepare(
+      'INSERT INTO users (id, email, password_hash, password_algo, display_name, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(user.id, user.email, user.password_hash, user.password_algo, user.display_name, user.created_at);
+    log('INFO', 'Provisioned SSO user from broker identity', { userId: user.id, email: user.email });
+    row = { id: user.id, email: user.email, display_name: user.display_name };
+  }
+  const householdId = ensureDefaultHousehold({ id: row.id, displayName: row.display_name });
+  return { userId: row.id, householdId };
+};
+
 const membershipForUser = (userId, householdId) =>
   db
     .prepare(
@@ -851,6 +879,75 @@ app.use(express.json({ limit: '2mb' }));
 
 app.use((req, res, next) => {
   req.auth = readSession(req, res);
+  next();
+});
+
+// Dual auth: when there is no session cookie, accept a broker (Authentik) Bearer
+// token minted by CM's identity broker. Deny-by-default — a token is only honored
+// if it carries a homehub capability, so a token scoped to another app (e.g.
+// books.read) cannot reach HomeHub data. Populates the same req.auth shape as a
+// session so every existing route serves native clients unchanged. No-op unless a
+// signing key is configured and a Bearer token is present.
+app.use((req, res, next) => {
+  if (req.auth?.userId) return next();
+  const header = req.headers.authorization || '';
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match || !resolveSigningKey()) return next();
+
+  let payload;
+  try {
+    payload = verifyBrokerToken(match[1]);
+  } catch (err) {
+    if (err instanceof BrokerTokenError) {
+      log('WARN', 'Broker token rejected', { code: err.code });
+      return next();
+    }
+    return next();
+  }
+
+  const caps = Array.isArray(payload.caps) ? payload.caps : [];
+  if (!payload.email || !caps.includes('homehub.read')) return next();
+
+  try {
+    const resolved = provisionBrokerUser(payload.email, payload.username);
+    if (!resolved) return next();
+    req.auth = { userId: resolved.userId, householdId: resolved.householdId, viaBroker: true };
+    req.native = { email: payload.email, username: payload.username, caps };
+  } catch (err) {
+    log('ERROR', 'Broker user provisioning failed', { error: err.message });
+    return next();
+  }
+  next();
+});
+
+// Authentik forward-auth for the STANDALONE web app: when the request arrives
+// through the trusted reverse proxy (NPM + Authentik), the proxy strips any
+// client-sent identity headers and injects X-authentik-* plus the shared proxy
+// secret. We only trust the identity headers when that secret matches (mirrors
+// CM's model), which closes the "spoof X-authentik-email on a direct
+// connection" hole. No-op unless FORWARD_AUTH_PROXY_SECRET is configured.
+const FORWARD_AUTH_PROXY_SECRET = (process.env.FORWARD_AUTH_PROXY_SECRET || '').trim();
+const constantTimeEquals = (a, b) => {
+  const ab = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+};
+app.use((req, res, next) => {
+  if (req.auth?.userId || !FORWARD_AUTH_PROXY_SECRET) return next();
+  const presented = req.headers['x-jcubhub-proxy-secret'];
+  if (!presented || !constantTimeEquals(presented, FORWARD_AUTH_PROXY_SECRET)) return next();
+  const email = (req.headers['x-authentik-email'] || '').toString().trim();
+  if (!email) return next();
+  const username = (req.headers['x-authentik-username'] || '').toString().trim();
+  try {
+    const resolved = provisionBrokerUser(email, username);
+    if (!resolved) return next();
+    req.auth = { userId: resolved.userId, householdId: resolved.householdId, viaForwardAuth: true };
+  } catch (err) {
+    log('ERROR', 'Forward-auth provisioning failed', { error: err.message });
+    return next();
+  }
   next();
 });
 
@@ -1351,6 +1448,11 @@ app.put('/api/data/:scope/:key', requireAuth, (req, res) => {
   if (!['user', 'household'].includes(scope)) {
     return sendError(res, 400, 'Invalid scope', 'VALIDATION_ERROR');
   }
+  // Broker (native) clients need an explicit write capability to mutate data;
+  // a read-only homehub token may authenticate but must not write.
+  if (req.auth?.viaBroker && !req.native?.caps?.includes('homehub.write')) {
+    return sendError(res, 403, 'Missing capability: homehub.write', 'PERMISSION_DENIED');
+  }
 
   try {
     const serialized = JSON.stringify(value ?? null);
@@ -1400,6 +1502,110 @@ app.put('/api/data/:scope/:key', requireAuth, (req, res) => {
     return res.json({ value: parsedValue });
   } catch (err) {
     log('ERROR', 'Write data failed', { error: err.message, scope, key });
+    return sendError(res, 500, 'Failed to save data', 'SERVER_ERROR');
+  }
+});
+
+// ─────────────────────── NATIVE CONTRACT SURFACE ───────────────────────
+// /api/native/homehub — the versioned, capability-gated contract that CM's
+// homehub_module binds to (contract "homehub/0.1.0"). Bearer-only (broker
+// token), backed by the same storage + validators as the web app's /api/data,
+// so features are built once. Reads require homehub.read; writes homehub.write.
+const HOMEHUB_CONTRACT = 'homehub/0.1.0';
+// Allowlisted keys the native surface may touch, by scope. Anything else 404s,
+// so the contract can't be used to read/write arbitrary internal keys.
+const NATIVE_HOUSEHOLD_KEYS = new Set([
+  'chores', 'chore-completions', 'shopping-items', 'meals', 'recipes',
+  'calendar-events', 'home-projects'
+]);
+const NATIVE_USER_KEYS = new Set(['personal-tasks']);
+
+const readHouseholdKey = (householdId, key) => {
+  const row = db.prepare('SELECT value FROM household_data WHERE household_id = ? AND key = ?').get(householdId, key);
+  return row?.value ? JSON.parse(row.value) : [];
+};
+const readUserKey = (userId, key) => {
+  const row = db.prepare('SELECT value FROM user_preferences WHERE user_id = ? AND key = ?').get(userId, key);
+  return row?.value ? JSON.parse(row.value) : [];
+};
+
+const requireNativeCap = (cap) => (req, res, next) => {
+  if (!req.native) return sendError(res, 401, 'Native authentication required', 'NOT_AUTHENTICATED');
+  if (!req.native.caps?.includes(cap)) return sendError(res, 403, `Missing capability: ${cap}`, 'PERMISSION_DENIED');
+  next();
+};
+
+app.use('/api/native/homehub', (req, res, next) => {
+  res.set('X-JCubHub-Contract', HOMEHUB_CONTRACT);
+  next();
+});
+
+// Aggregate snapshot of the caller's household + personal data — one round-trip
+// for the native module's initial render.
+app.get('/api/native/homehub/dashboard', requireNativeCap('homehub.read'), (req, res) => {
+  const householdId = req.auth?.householdId;
+  if (!householdId) return sendError(res, 400, 'No household for user', 'VALIDATION_ERROR');
+  if (!membershipForUser(req.auth.userId, householdId)) {
+    return sendError(res, 403, 'Not a member of that household', 'PERMISSION_DENIED');
+  }
+  const household = {};
+  for (const key of NATIVE_HOUSEHOLD_KEYS) household[key] = readHouseholdKey(householdId, key);
+  const personal = {};
+  for (const key of NATIVE_USER_KEYS) personal[key] = readUserKey(req.auth.userId, key);
+  return res.json({ contract: HOMEHUB_CONTRACT, householdId, household, personal, generatedAt: Date.now() });
+});
+
+// Typed read of a single allowlisted resource.
+app.get('/api/native/homehub/:scope/:key', requireNativeCap('homehub.read'), (req, res) => {
+  const { scope, key } = req.params;
+  if (scope === 'user') {
+    if (!NATIVE_USER_KEYS.has(key)) return sendError(res, 404, 'Unknown resource', 'NOT_FOUND');
+    return res.json({ value: readUserKey(req.auth.userId, key) });
+  }
+  if (scope === 'household') {
+    if (!NATIVE_HOUSEHOLD_KEYS.has(key)) return sendError(res, 404, 'Unknown resource', 'NOT_FOUND');
+    const householdId = req.auth?.householdId;
+    if (!householdId || !membershipForUser(req.auth.userId, householdId)) {
+      return sendError(res, 403, 'Not a member of that household', 'PERMISSION_DENIED');
+    }
+    return res.json({ value: readHouseholdKey(householdId, key) });
+  }
+  return sendError(res, 400, 'Invalid scope', 'VALIDATION_ERROR');
+});
+
+// Typed write of a single allowlisted resource (validated by the shared Zod schemas).
+app.put('/api/native/homehub/:scope/:key', requireNativeCap('homehub.write'), (req, res) => {
+  const { scope, key } = req.params;
+  const { value } = req.body || {};
+  const updatedAt = nowSeconds();
+  try {
+    if (scope === 'user') {
+      if (!NATIVE_USER_KEYS.has(key)) return sendError(res, 404, 'Unknown resource', 'NOT_FOUND');
+      const validator = buildUserDataValidators()[key];
+      const parsed = validator.safeParse(value ?? []);
+      if (!parsed.success) return sendError(res, 400, formatZodError(parsed.error), 'VALIDATION_ERROR');
+      db.prepare(
+        'INSERT INTO user_preferences (user_id, key, value, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at'
+      ).run(req.auth.userId, key, JSON.stringify(parsed.data ?? null), updatedAt);
+      return res.json({ value: parsed.data });
+    }
+    if (scope === 'household') {
+      if (!NATIVE_HOUSEHOLD_KEYS.has(key)) return sendError(res, 404, 'Unknown resource', 'NOT_FOUND');
+      const householdId = req.auth?.householdId;
+      if (!householdId || !membershipForUser(req.auth.userId, householdId)) {
+        return sendError(res, 403, 'Not a member of that household', 'PERMISSION_DENIED');
+      }
+      const validator = buildHouseholdDataValidators(householdId)[key];
+      const parsed = validator.safeParse(value ?? []);
+      if (!parsed.success) return sendError(res, 400, formatZodError(parsed.error), 'VALIDATION_ERROR');
+      db.prepare(
+        'INSERT INTO household_data (household_id, key, value, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(household_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at'
+      ).run(householdId, key, JSON.stringify(parsed.data ?? null), updatedAt);
+      return res.json({ value: parsed.data });
+    }
+    return sendError(res, 400, 'Invalid scope', 'VALIDATION_ERROR');
+  } catch (err) {
+    log('ERROR', 'Native write failed', { error: err.message, scope, key });
     return sendError(res, 500, 'Failed to save data', 'SERVER_ERROR');
   }
 });

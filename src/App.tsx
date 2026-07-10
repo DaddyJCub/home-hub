@@ -68,7 +68,7 @@ function AppContent() {
   const [viewRecipeId, setViewRecipeId] = useState<string | null>(null)
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
-  const [currentThemeId] = useKV<string>('theme-id', 'warm-home')
+  const [currentThemeId] = useKV<string>('theme-id', 'jcubhub')
   const [isDarkMode] = useKV<boolean>('dark-mode', false)
   const [choresRaw] = useKV<Chore[]>('chores', [])
   const [eventsRaw] = useKV<CalendarEvent[]>('calendar-events', [])

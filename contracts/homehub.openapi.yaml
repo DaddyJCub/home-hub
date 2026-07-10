@@ -1,0 +1,133 @@
+openapi: 3.1.0
+info:
+  title: HomeHub Native Contract
+  version: 0.1.0
+  description: >
+    Capability-gated native surface consumed by CM's homehub_module
+    (contract id "homehub"). Bearer-only: callers present a broker access token
+    minted by the JCubHub Apps identity broker (issuer "jcubhub-apps-identity").
+    Reads require the homehub.read capability; writes require homehub.write.
+    Backed by the same storage and Zod validators as the standalone web app's
+    /api/data, so features are built once.
+servers:
+  - url: "{apiBase}"
+    variables:
+      apiBase:
+        default: https://homehub.jcubhub.com
+        description: MODULE_HOMEHUB_API_BASE configured in CM.
+security:
+  - brokerBearer: []
+tags:
+  - name: homehub
+paths:
+  /api/native/homehub/dashboard:
+    get:
+      tags: [homehub]
+      summary: Aggregate snapshot of the caller's household + personal data.
+      operationId: getDashboard
+      responses:
+        "200":
+          description: Snapshot.
+          headers:
+            X-JCubHub-Contract:
+              schema: { type: string, const: homehub/0.1.0 }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/native/homehub/{scope}/{key}:
+    parameters:
+      - { name: scope, in: path, required: true, schema: { type: string, enum: [household, user] } }
+      - { name: key, in: path, required: true, schema: { $ref: "#/components/schemas/ResourceKey" } }
+    get:
+      tags: [homehub]
+      summary: Read a single allowlisted resource.
+      operationId: getResource
+      responses:
+        "200":
+          description: Resource value.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { value: { type: array, items: { type: object } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [homehub]
+      summary: Replace a single allowlisted resource (validated).
+      operationId: putResource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { value: { type: array, items: { type: object } } }
+      responses:
+        "200":
+          description: Stored (post-validation) value.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { value: { type: array, items: { type: object } } }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  securitySchemes:
+    brokerBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: HS256 broker access token, issuer "jcubhub-apps-identity".
+  schemas:
+    ResourceKey:
+      type: string
+      description: Allowlisted resource key.
+      enum:
+        - chores
+        - chore-completions
+        - shopping-items
+        - meals
+        - recipes
+        - calendar-events
+        - home-projects
+        - personal-tasks
+    Dashboard:
+      type: object
+      required: [contract, householdId, household, personal, generatedAt]
+      properties:
+        contract: { type: string, const: homehub/0.1.0 }
+        householdId: { type: string }
+        household:
+          type: object
+          description: Household-scoped collections keyed by resource key.
+          additionalProperties: { type: array, items: { type: object } }
+        personal:
+          type: object
+          description: User-scoped collections keyed by resource key.
+          additionalProperties: { type: array, items: { type: object } }
+        generatedAt: { type: integer, description: Epoch millis. }
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        code: { type: string }
+  responses:
+    Unauthorized:
+      description: Missing/invalid broker token.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Forbidden:
+      description: Missing capability or not a household member.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Unknown or non-allowlisted resource.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    ValidationError:
+      description: Payload failed schema validation.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
