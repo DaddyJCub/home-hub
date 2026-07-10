@@ -1547,6 +1547,15 @@ app.put('/api/data/:scope/:key', requireAuth, (req, res) => {
 // token), backed by the same storage + validators as the web app's /api/data,
 // so features are built once. Reads require homehub.read; writes homehub.write.
 const HOMEHUB_CONTRACT = 'homehub/0.1.0';
+const NATIVE_ALLOWED_ORIGINS = new Set([
+  'https://mgmt.jcubhub.com',
+  'capacitor://localhost',
+  'http://localhost',
+  'http://localhost:5173'
+]);
+const NATIVE_ALLOWED_HEADERS = ['Authorization', 'Content-Type', 'X-JCubHub-Contract', 'Idempotency-Key'];
+const NATIVE_ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
+const NATIVE_EXPOSED_HEADERS = ['X-JCubHub-Contract', 'X-Request-Id'];
 // Allowlisted keys the native surface may touch, by scope. Anything else 404s,
 // so the contract can't be used to read/write arbitrary internal keys.
 const NATIVE_HOUSEHOLD_KEYS = new Set([
@@ -1570,9 +1579,40 @@ const requireNativeCap = (cap) => (req, res, next) => {
   next();
 };
 
+const nativeCors = (req, res, next) => {
+  const origin = (req.headers.origin || '').toString();
+  if (origin) {
+    if (!NATIVE_ALLOWED_ORIGINS.has(origin)) {
+      return sendError(res, 403, `CORS blocked for origin: ${origin}`, 'CORS_BLOCKED');
+    }
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Vary', 'Origin');
+    res.set('Access-Control-Allow-Methods', NATIVE_ALLOWED_METHODS.join(','));
+    res.set('Access-Control-Allow-Headers', NATIVE_ALLOWED_HEADERS.join(','));
+    res.set('Access-Control-Expose-Headers', NATIVE_EXPOSED_HEADERS.join(','));
+    res.set('Access-Control-Max-Age', '86400');
+  }
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  next();
+};
+
+app.use('/api/native/homehub', nativeCors);
+
 app.use('/api/native/homehub', (req, res, next) => {
   res.set('X-JCubHub-Contract', HOMEHUB_CONTRACT);
   next();
+});
+
+app.get('/api/native/homehub/health', (_req, res) => {
+  return res.json({ ok: true, service: 'homehub', contract: HOMEHUB_CONTRACT });
+});
+
+app.get('/api/native/homehub/features', (_req, res) => {
+  return res.json({ contract: HOMEHUB_CONTRACT, intake_complete: false, features: [] });
 });
 
 // Aggregate snapshot of the caller's household + personal data — one round-trip
