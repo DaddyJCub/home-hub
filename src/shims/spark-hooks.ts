@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiRequest, ApiError } from '@/lib/api'
 import { useAuth } from '@/lib/AuthContext'
 
@@ -7,6 +7,7 @@ const SYNC_QUEUE_KEY = 'hh_sync_queue'
 const LAST_SUCCESS_KEY = 'hh_sync_last_success'
 const LAST_ERROR_KEY = 'hh_sync_last_error'
 const SYNC_EVENT = 'hh-sync-status'
+const INFLIGHT_GETS = new Map<string, Promise<{ value: any | null }>>()
 
 const USER_SCOPED_KEYS = new Set([
   'theme-id',
@@ -110,6 +111,32 @@ const enqueueSync = (item: SyncQueueItem) => {
   emitSyncStatus({ state: 'queued', queueSize: queue.length })
 }
 
+const buildDataRequestPath = (scope: 'user' | 'household', key: string, householdId?: string) => {
+  const query = scope === 'household' && householdId ? `?householdId=${encodeURIComponent(householdId)}` : ''
+  return `/api/data/${scope}/${encodeURIComponent(key)}${query}`
+}
+
+const buildInflightKey = (scope: 'user' | 'household', key: string, householdId?: string) =>
+  `${scope}:${key}:${householdId || ''}`
+
+const fetchDataValue = async <T>(scope: 'user' | 'household', key: string, householdId?: string) => {
+  const inflightKey = buildInflightKey(scope, key, householdId)
+  const existing = INFLIGHT_GETS.get(inflightKey)
+  if (existing) {
+    return existing as Promise<{ value: T | null }>
+  }
+
+  const request = apiRequest<{ value: T | null }>(buildDataRequestPath(scope, key, householdId), {
+    skipAuthError: true
+  })
+    .finally(() => {
+      INFLIGHT_GETS.delete(inflightKey)
+    })
+
+  INFLIGHT_GETS.set(inflightKey, request as Promise<{ value: any | null }>)
+  return request
+}
+
 export const clearSyncCache = () => {
   if (typeof window === 'undefined') return
   try {
@@ -177,6 +204,9 @@ export function useKV<T>(
 ): [T | undefined, (next: T | ((prev: T | undefined) => T)) => void] {
   const { currentHousehold, currentUser, isAuthenticated, isLoading } = useAuth()
   const scope: 'user' | 'household' = USER_SCOPED_KEYS.has(key) ? 'user' : 'household'
+  const initialDefaultRef = useRef<T | undefined>(clone(defaultValue))
+
+  const getDefaultValue = useCallback(() => clone(initialDefaultRef.current), [])
 
   const cacheKey = useMemo(() => {
     if (scope === 'household' && currentHousehold?.id) return `${key}_${currentHousehold.id}`
@@ -186,7 +216,7 @@ export function useKV<T>(
   const [value, setValue] = useState<T | undefined>(() => {
     const cached = readValue<T | undefined>(cacheKey, undefined)
     if (cached !== undefined) return cached
-    return clone(defaultValue)
+    return getDefaultValue()
   })
 
   const canSync = useMemo(() => {
@@ -199,21 +229,14 @@ export function useKV<T>(
     if (!canSync || isLoading) {
       // still populate local cache for pre-auth scenarios
       const cached = readValue<T | undefined>(cacheKey, undefined)
-      setValue(cached !== undefined ? cached : clone(defaultValue))
+      setValue(cached !== undefined ? cached : getDefaultValue())
       return
     }
 
     let cancelled = false
     const fetchValue = async () => {
       try {
-        const query =
-          scope === 'household' && currentHousehold
-            ? `?householdId=${encodeURIComponent(currentHousehold.id)}`
-            : ''
-        const response = await apiRequest<{ value: T | null }>(
-          `/api/data/${scope}/${encodeURIComponent(key)}${query}`,
-          { skipAuthError: true }
-        )
+        const response = await fetchDataValue<T>(scope, key, currentHousehold?.id)
 
         const localValue = readValue<T | undefined>(cacheKey, undefined)
         const resolved =
@@ -221,7 +244,7 @@ export function useKV<T>(
             ? response.value
             : localValue !== undefined
               ? localValue
-              : clone(defaultValue)
+              : getDefaultValue()
 
         if (!cancelled) {
           setValue(resolved)
@@ -246,8 +269,8 @@ export function useKV<T>(
         }
         markSyncError(err?.message || 'Sync failed')
         if (!cancelled) {
-          const fallback = readValue<T | undefined>(cacheKey, clone(defaultValue))
-          setValue(fallback !== undefined ? fallback : clone(defaultValue))
+          const fallback = readValue<T | undefined>(cacheKey, getDefaultValue())
+          setValue(fallback !== undefined ? fallback : getDefaultValue())
         }
       }
     }
@@ -256,12 +279,12 @@ export function useKV<T>(
     return () => {
       cancelled = true
     }
-  }, [key, scope, cacheKey, currentHousehold?.id, canSync, isLoading, defaultValue])
+  }, [key, scope, cacheKey, currentHousehold?.id, canSync, isLoading, getDefaultValue])
 
   const setter = useCallback(
     (next: T | ((prev: T | undefined) => T)) => {
       setValue((prev) => {
-        const current = prev ?? clone(defaultValue)
+        const current = prev ?? getDefaultValue()
         const resolved = typeof next === 'function' ? (next as (prev: T | undefined) => T)(current) : next
         writeValue(cacheKey, resolved)
 
@@ -288,7 +311,7 @@ export function useKV<T>(
         return resolved
       })
     },
-    [cacheKey, canSync, currentHousehold?.id, defaultValue, key, scope]
+    [cacheKey, canSync, currentHousehold?.id, key, scope, getDefaultValue]
   )
 
   return [value, setter]
