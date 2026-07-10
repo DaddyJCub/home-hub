@@ -19,7 +19,13 @@ import {
   buildUserDataValidators,
   formatZodError
 } from './server/validation.js';
-import { verifyBrokerToken, BrokerTokenError, resolveSigningKey } from './server/native-auth.js';
+import {
+  verifyBrokerToken,
+  BrokerTokenError,
+  resolveSigningKey,
+  resolveSigningKeyDiagnostics,
+  configureNativeAuth
+} from './server/native-auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -431,6 +437,14 @@ const setAppSetting = (key, value) => {
     'INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at'
   ).run(key, String(value), nowSeconds());
 };
+
+configureNativeAuth(() => ({
+  identityTokenSigningSecret: getAppSetting('identity_token_signing_secret') || '',
+  encryptionKey: getAppSetting('encryption_key') || ''
+}));
+
+const getForwardAuthProxySecret = () =>
+  (getAppSetting('forward_auth_proxy_secret') || process.env.FORWARD_AUTH_PROXY_SECRET || '').trim();
 
 // ---- JCubHub Sentinel: forward bug reports to CM ----
 // Reads BUG_REPORT_URL, BUG_REPORT_SECRET, BUG_APP_ID from app_settings (UI-managed, no redeploy).
@@ -905,7 +919,11 @@ app.use((req, res, next) => {
     return next();
   }
 
-  const caps = Array.isArray(payload.caps) ? payload.caps : [];
+  const caps = Array.isArray(payload.caps)
+    ? payload.caps
+    : Array.isArray(payload.capabilities)
+      ? payload.capabilities
+      : [];
   if (!payload.email || !caps.includes('homehub.read')) return next();
 
   try {
@@ -926,7 +944,6 @@ app.use((req, res, next) => {
 // secret. We only trust the identity headers when that secret matches (mirrors
 // CM's model), which closes the "spoof X-authentik-email on a direct
 // connection" hole. No-op unless FORWARD_AUTH_PROXY_SECRET is configured.
-const FORWARD_AUTH_PROXY_SECRET = (process.env.FORWARD_AUTH_PROXY_SECRET || '').trim();
 const constantTimeEquals = (a, b) => {
   const ab = Buffer.from(String(a));
   const bb = Buffer.from(String(b));
@@ -934,9 +951,10 @@ const constantTimeEquals = (a, b) => {
   return crypto.timingSafeEqual(ab, bb);
 };
 app.use((req, res, next) => {
-  if (req.auth?.userId || !FORWARD_AUTH_PROXY_SECRET) return next();
+  const configuredSecret = getForwardAuthProxySecret();
+  if (req.auth?.userId || !configuredSecret) return next();
   const presented = req.headers['x-jcubhub-proxy-secret'];
-  if (!presented || !constantTimeEquals(presented, FORWARD_AUTH_PROXY_SECRET)) return next();
+  if (!presented || !constantTimeEquals(presented, configuredSecret)) return next();
   const email = (req.headers['x-authentik-email'] || '').toString().trim();
   if (!email) return next();
   const username = (req.headers['x-authentik-username'] || '').toString().trim();
@@ -1020,6 +1038,23 @@ if (rateLimitEnabled) {
 const requireAuth = (req, res, next) => {
   if (!req.auth?.userId) {
     return sendError(res, 401, 'Not authenticated', 'NOT_AUTHENTICATED');
+  }
+  next();
+};
+
+const requireAdmin = (req, res, next) => {
+  if (!req.auth?.userId) {
+    return sendError(res, 401, 'Not authenticated', 'NOT_AUTHENTICATED');
+  }
+  if (!req.auth?.householdId) {
+    return sendError(res, 403, 'No household selected', 'PERMISSION_DENIED');
+  }
+  const membership = membershipForUser(req.auth.userId, req.auth.householdId);
+  if (!membership) {
+    return sendError(res, 403, 'Not a member of that household', 'PERMISSION_DENIED');
+  }
+  if (membership.role === 'member') {
+    return sendError(res, 403, 'Only owners or admins can manage admin settings', 'PERMISSION_DENIED');
   }
   next();
 };
@@ -1659,7 +1694,7 @@ app.post('/client-error', (req, res) => {
 });
 
 // ---- Admin: get/set bug reporter config ----
-app.get('/api/admin/bug-reporting', requireAuth, (req, res) => {
+app.get('/api/admin/bug-reporting', requireAdmin, (req, res) => {
   res.json({
     enabled: getAppSetting('bug_report_enabled') ?? '',
     url: getAppSetting('bug_report_url') ?? '',
@@ -1668,13 +1703,53 @@ app.get('/api/admin/bug-reporting', requireAuth, (req, res) => {
   });
 });
 
-app.post('/api/admin/bug-reporting', requireAuth, (req, res) => {
+app.post('/api/admin/bug-reporting', requireAdmin, (req, res) => {
   const { enabled, url, secret, app_id } = req.body || {};
   if (typeof enabled === 'string') setAppSetting('bug_report_enabled', enabled);
   if (typeof url === 'string') setAppSetting('bug_report_url', url.trim());
   if (typeof secret === 'string' && secret.trim()) setAppSetting('bug_report_secret', secret.trim());
   if (typeof app_id === 'string' && app_id.trim()) setAppSetting('bug_app_id', app_id.trim());
   res.json({ ok: true });
+});
+
+app.get('/api/admin/native-auth', requireAdmin, (_req, res) => {
+  const diagnostics = resolveSigningKeyDiagnostics();
+  const hasRuntimeIdentitySecret = Boolean((getAppSetting('identity_token_signing_secret') || '').trim());
+  const hasRuntimeEncryptionKey = Boolean((getAppSetting('encryption_key') || '').trim());
+  const hasForwardAuthProxySecret = Boolean(getForwardAuthProxySecret());
+
+  res.json({
+    identity_token_signing_secret_configured: hasRuntimeIdentitySecret,
+    encryption_key_configured: hasRuntimeEncryptionKey,
+    forward_auth_proxy_secret_configured: hasForwardAuthProxySecret,
+    resolved_key_source: diagnostics.source,
+    resolved_key_fingerprint: diagnostics.fingerprint
+  });
+});
+
+app.post('/api/admin/native-auth', requireAdmin, (req, res) => {
+  const {
+    identity_token_signing_secret,
+    encryption_key,
+    forward_auth_proxy_secret
+  } = req.body || {};
+
+  if (typeof identity_token_signing_secret === 'string') {
+    setAppSetting('identity_token_signing_secret', identity_token_signing_secret.trim());
+  }
+  if (typeof encryption_key === 'string') {
+    setAppSetting('encryption_key', encryption_key.trim());
+  }
+  if (typeof forward_auth_proxy_secret === 'string') {
+    setAppSetting('forward_auth_proxy_secret', forward_auth_proxy_secret.trim());
+  }
+
+  const diagnostics = resolveSigningKeyDiagnostics();
+  res.json({
+    ok: true,
+    resolved_key_source: diagnostics.source,
+    resolved_key_fingerprint: diagnostics.fingerprint
+  });
 });
 
 // ---- User-submitted feedback → CM ----

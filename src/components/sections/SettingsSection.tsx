@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -55,9 +55,18 @@ import UIDiagnostics from '@/components/UIDiagnostics'
 import MigrationStatus from '@/components/MigrationStatus'
 import { Switch as Toggle } from '@/components/ui/switch'
 import { defaultWidgets, type DashboardWidget } from '@/lib/widget-config'
+import { apiRequest } from '@/lib/api'
+
+interface NativeAuthStatus {
+  identity_token_signing_secret_configured: boolean
+  encryption_key_configured: boolean
+  forward_auth_proxy_secret_configured: boolean
+  resolved_key_source: 'identity_token_signing_secret' | 'encryption_key' | 'none'
+  resolved_key_fingerprint: string | null
+}
 
 export default function SettingsSection() {
-  const { currentHousehold, householdMembers, joinHousehold } = useAuth()
+  const { currentHousehold, householdMembers, joinHousehold, currentUserRole } = useAuth()
   const [currentThemeId, setCurrentThemeId] = useKV<string>('theme-id', 'jcubhub')
   const [isDarkMode, setIsDarkMode] = useKV<boolean>('dark-mode', false)
   const [dashboardWidgetsRaw, setDashboardWidgets] = useKV<DashboardWidget[]>('dashboard-widgets', undefined)
@@ -74,6 +83,12 @@ export default function SettingsSection() {
   const [ollamaConfig, setOllamaConfig] = useKV<OllamaConfig>('ollama-config', { url: 'http://localhost:11434', model: 'llama3.2' })
   const [ollamaTestResult, setOllamaTestResult] = useState<{ ok: boolean; models?: string[]; error?: string } | null>(null)
   const [ollamaTestLoading, setOllamaTestLoading] = useState(false)
+  const [nativeAuthStatus, setNativeAuthStatus] = useState<NativeAuthStatus | null>(null)
+  const [nativeAuthLoading, setNativeAuthLoading] = useState(false)
+  const [nativeAuthSaving, setNativeAuthSaving] = useState(false)
+  const [identityTokenSigningSecret, setIdentityTokenSigningSecret] = useState('')
+  const [encryptionKey, setEncryptionKey] = useState('')
+  const [forwardAuthProxySecret, setForwardAuthProxySecret] = useState('')
   
   const dashboardWidgets = useMemo(() => {
     const persisted = dashboardWidgetsRaw ?? []
@@ -96,11 +111,72 @@ export default function SettingsSection() {
   const meals = mealsRaw ?? []
   const recipes = recipesRaw ?? []
   const events = eventsRaw ?? []
+  const canManageAdminSettings = currentUserRole === 'owner' || currentUserRole === 'admin'
 
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<'all' | 'chores' | 'shopping' | 'meals' | 'recipes' | 'events' | null>(null)
 
   const widgetSettings = dashboardWidgets.length > 0 ? dashboardWidgets : defaultWidgets
+
+  const loadNativeAuthStatus = async () => {
+    if (!canManageAdminSettings) {
+      setNativeAuthStatus(null)
+      return
+    }
+    setNativeAuthLoading(true)
+    try {
+      const response = await apiRequest<NativeAuthStatus>('/api/admin/native-auth')
+      setNativeAuthStatus(response)
+    } catch (error) {
+      console.error('Failed to load native auth config', error)
+      toast.error('Failed to load native auth configuration')
+    } finally {
+      setNativeAuthLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadNativeAuthStatus()
+  }, [canManageAdminSettings])
+
+  const saveNativeAuthConfig = async () => {
+    if (!canManageAdminSettings) {
+      toast.error('Only owners or admins can update this')
+      return
+    }
+
+    const payload: Record<string, string> = {}
+    const trimmedIdentitySecret = identityTokenSigningSecret.trim()
+    const trimmedEncryptionKey = encryptionKey.trim()
+    const trimmedForwardSecret = forwardAuthProxySecret.trim()
+
+    if (trimmedIdentitySecret) payload.identity_token_signing_secret = trimmedIdentitySecret
+    if (trimmedEncryptionKey) payload.encryption_key = trimmedEncryptionKey
+    if (trimmedForwardSecret) payload.forward_auth_proxy_secret = trimmedForwardSecret
+
+    if (Object.keys(payload).length === 0) {
+      toast.error('Enter at least one value to save')
+      return
+    }
+
+    setNativeAuthSaving(true)
+    try {
+      await apiRequest('/api/admin/native-auth', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      })
+      setIdentityTokenSigningSecret('')
+      setEncryptionKey('')
+      setForwardAuthProxySecret('')
+      toast.success('Native auth configuration saved')
+      await loadNativeAuthStatus()
+    } catch (error) {
+      console.error('Failed to save native auth config', error)
+      toast.error('Failed to save native auth configuration')
+    } finally {
+      setNativeAuthSaving(false)
+    }
+  }
 
   const handleThemeChange = (themeId: string) => {
     const theme = getThemeById(themeId)
@@ -529,6 +605,84 @@ export default function SettingsSection() {
                 recipes, {events.length} events
               </p>
             </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-3">
+            <h4 className="font-semibold text-sm">Native App Authentication</h4>
+            <p className="text-xs text-muted-foreground">
+              Configure broker token verification for the JCubHub module and standalone forward-auth.
+            </p>
+
+            {!canManageAdminSettings && (
+              <p className="text-xs text-muted-foreground">
+                Owner or admin access is required to manage native auth configuration.
+              </p>
+            )}
+
+            {canManageAdminSettings && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                  <Badge variant={nativeAuthStatus?.identity_token_signing_secret_configured ? 'default' : 'secondary'}>
+                    Signing secret: {nativeAuthStatus?.identity_token_signing_secret_configured ? 'configured' : 'not set'}
+                  </Badge>
+                  <Badge variant={nativeAuthStatus?.encryption_key_configured ? 'default' : 'secondary'}>
+                    Encryption key: {nativeAuthStatus?.encryption_key_configured ? 'configured' : 'not set'}
+                  </Badge>
+                  <Badge variant={nativeAuthStatus?.forward_auth_proxy_secret_configured ? 'default' : 'secondary'}>
+                    Forward-auth secret: {nativeAuthStatus?.forward_auth_proxy_secret_configured ? 'configured' : 'not set'}
+                  </Badge>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Active key source: {nativeAuthStatus?.resolved_key_source ?? 'unknown'}
+                  {nativeAuthStatus?.resolved_key_fingerprint ? ` | fingerprint: ${nativeAuthStatus.resolved_key_fingerprint}` : ''}
+                </p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="identity-token-signing-secret">Identity token signing secret</Label>
+                  <Input
+                    id="identity-token-signing-secret"
+                    type="password"
+                    value={identityTokenSigningSecret}
+                    onChange={(e) => setIdentityTokenSigningSecret(e.target.value)}
+                    placeholder="Paste CM signing secret"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="native-encryption-key">Encryption key (alternative to signing secret)</Label>
+                  <Input
+                    id="native-encryption-key"
+                    type="password"
+                    value={encryptionKey}
+                    onChange={(e) => setEncryptionKey(e.target.value)}
+                    placeholder="Paste shared encryption key"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="forward-auth-proxy-secret">Forward-auth proxy secret (optional)</Label>
+                  <Input
+                    id="forward-auth-proxy-secret"
+                    type="password"
+                    value={forwardAuthProxySecret}
+                    onChange={(e) => setForwardAuthProxySecret(e.target.value)}
+                    placeholder="Shared secret from reverse proxy"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => void loadNativeAuthStatus()} disabled={nativeAuthLoading || nativeAuthSaving}>
+                    {nativeAuthLoading ? 'Refreshing...' : 'Refresh Status'}
+                  </Button>
+                  <Button size="sm" onClick={() => void saveNativeAuthConfig()} disabled={nativeAuthSaving || nativeAuthLoading}>
+                    {nativeAuthSaving ? 'Saving...' : 'Save Native Auth Config'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           <Separator />

@@ -20,12 +20,63 @@ const DERIVE_LABEL = 'jcubhub-apps:identity-access-token-signing:v1';
 // Small tolerance (seconds) for exp/nbf to absorb minor clock skew between hosts.
 const CLOCK_SKEW_SEC = 30;
 
+let runtimeConfigResolver = null;
+
+const readRuntimeConfig = () => {
+  if (typeof runtimeConfigResolver !== 'function') return {};
+  try {
+    return runtimeConfigResolver() || {};
+  } catch {
+    return {};
+  }
+};
+
+const asTrimmedString = (value) =>
+  typeof value === 'string' ? value.trim() : '';
+
+export function configureNativeAuth(configResolver) {
+  runtimeConfigResolver = typeof configResolver === 'function' ? configResolver : null;
+}
+
 export function resolveSigningKey() {
-  const explicit = (process.env.IDENTITY_TOKEN_SIGNING_SECRET || '').trim();
+  const runtime = readRuntimeConfig();
+  const explicit =
+    asTrimmedString(runtime.identityTokenSigningSecret) ||
+    asTrimmedString(process.env.IDENTITY_TOKEN_SIGNING_SECRET);
   if (explicit) return explicit;
-  const enc = (process.env.ENCRYPTION_KEY || '').trim();
+  const enc = asTrimmedString(runtime.encryptionKey) || asTrimmedString(process.env.ENCRYPTION_KEY);
   if (enc) return crypto.createHmac('sha256', enc).update(DERIVE_LABEL).digest('hex');
   return null;
+}
+
+export function resolveSigningKeyDiagnostics() {
+  const runtime = readRuntimeConfig();
+  const explicit =
+    asTrimmedString(runtime.identityTokenSigningSecret) ||
+    asTrimmedString(process.env.IDENTITY_TOKEN_SIGNING_SECRET);
+  if (explicit) {
+    return {
+      configured: true,
+      source: 'identity_token_signing_secret',
+      fingerprint: crypto.createHash('sha256').update(explicit).digest('hex').slice(0, 8)
+    };
+  }
+
+  const enc = asTrimmedString(runtime.encryptionKey) || asTrimmedString(process.env.ENCRYPTION_KEY);
+  if (enc) {
+    const derived = crypto.createHmac('sha256', enc).update(DERIVE_LABEL).digest('hex');
+    return {
+      configured: true,
+      source: 'encryption_key',
+      fingerprint: crypto.createHash('sha256').update(derived).digest('hex').slice(0, 8)
+    };
+  }
+
+  return {
+    configured: false,
+    source: 'none',
+    fingerprint: null
+  };
 }
 
 function base64urlToBuffer(input) {
@@ -127,7 +178,11 @@ export function requireBrokerAuth(req, res, next) {
     userId: payload.sub,
     username: payload.username,
     email: payload.email,
-    caps: Array.isArray(payload.caps) ? payload.caps : [],
+    caps: Array.isArray(payload.caps)
+      ? payload.caps
+      : Array.isArray(payload.capabilities)
+        ? payload.capabilities
+        : [],
   };
   next();
 }
