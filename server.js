@@ -1559,7 +1559,7 @@ const NATIVE_EXPOSED_HEADERS = ['X-JCubHub-Contract', 'X-Request-Id'];
 // Allowlisted keys the native surface may touch, by scope. Anything else 404s,
 // so the contract can't be used to read/write arbitrary internal keys.
 const NATIVE_HOUSEHOLD_KEYS = new Set([
-  'chores', 'chore-completions', 'shopping-items', 'meals', 'recipes',
+  'chores', 'chore-completions', 'shopping-items', 'shopping-templates', 'meals', 'recipes',
   'calendar-events', 'home-projects'
 ]);
 const NATIVE_USER_KEYS = new Set(['personal-tasks']);
