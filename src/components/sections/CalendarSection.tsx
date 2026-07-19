@@ -19,6 +19,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { CalendarEvent, EventCategory, RecurrencePattern, ReminderTime } from '@/lib/types'
 import { toast } from 'sonner'
 import { toastWithUndo, restoreItem } from '@/lib/undo'
+import { conflictsForCandidate, findConflictingEventIds } from '@/lib/calendar-conflicts'
 import { showUserFriendlyError, validateRequired } from '@/lib/error-helpers'
 import { 
   format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, 
@@ -123,6 +124,9 @@ export default function CalendarSection() {
   const allEvents = eventsRaw ?? []
   const events = currentHousehold ? allEvents.filter(e => e.householdId === currentHousehold.id) : []
   const members = householdMembers ?? []
+  // Ids of events that overlap another timed event on the same day (shown as a
+  // ⚠ badge in the details dialog).
+  const conflictIds = useMemo(() => findConflictingEventIds(events), [events])
   
   // State
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -334,6 +338,26 @@ export default function CalendarSection() {
     if (!eventForm.startDate) {
       toast.error('Please select a start date')
       return
+    }
+
+    // Warn (don't block) if this event overlaps another timed event that day —
+    // double-booking is usually a mistake, but sometimes intentional.
+    if (!eventForm.isAllDay && eventForm.startTime) {
+      const clashes = conflictsForCandidate(
+        {
+          date: eventForm.startDate,
+          startTime: eventForm.startTime,
+          endTime: eventForm.endTime || undefined,
+          isAllDay: false,
+        },
+        currentHousehold ? allEvents.filter((e) => e.householdId === currentHousehold.id) : allEvents,
+        editingEvent?.id,
+      )
+      if (clashes.length > 0) {
+        const names = clashes.slice(0, 2).map((e) => `“${e.title}”`).join(', ')
+        const more = clashes.length > 2 ? ` +${clashes.length - 2} more` : ''
+        toast.warning(`Overlaps ${names}${more} on this day`)
+      }
     }
 
     const eventData: Partial<CalendarEvent> = {
@@ -885,8 +909,13 @@ export default function CalendarSection() {
               <div className="space-y-4">
                 <div className={`p-3 rounded-lg ${categoryConfig[showEventDetails.category].color}`}>
                   <Badge variant="outline">{categoryConfig[showEventDetails.category].label}</Badge>
+                  {conflictIds.has(showEventDetails.id) && (
+                    <Badge variant="outline" className="ml-2 border-amber-500 text-amber-600 dark:text-amber-400">
+                      ⚠ Overlaps another event
+                    </Badge>
+                  )}
                 </div>
-                
+
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
                     <CalendarIcon size={16} className="text-muted-foreground" />
