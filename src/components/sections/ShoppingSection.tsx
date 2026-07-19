@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Plus, Trash, ShoppingCart, Sparkle, Flag, Storefront, Funnel, CaretDown, Gear, CookingPot, X } from '@phosphor-icons/react'
+import { Plus, Trash, ShoppingCart, Sparkle, Flag, Storefront, Funnel, CaretDown, Gear, CookingPot, X, Copy, Microphone } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog'
@@ -11,12 +11,14 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import type { ShoppingItem, Meal, Recipe } from '@/lib/types'
+import type { ShoppingItem, Meal, Recipe, ShoppingTemplate } from '@/lib/types'
 import EmptyState from '@/components/EmptyState'
 import { toast } from 'sonner'
+import { toastWithUndo, restoreItem } from '@/lib/undo'
 import { showUserFriendlyError, validateRequired } from '@/lib/error-helpers'
 import { startOfWeek, addDays, format } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
+import { useSpeechInput } from '@/hooks/use-speech-input'
 
 const DEFAULT_CATEGORIES = ['Produce', 'Dairy', 'Meat', 'Pantry', 'Frozen', 'Bakery', 'Beverages', 'Household', 'Other']
 
@@ -29,6 +31,7 @@ export default function ShoppingSection() {
   const [recipesRaw] = useKV<Recipe[]>('recipes', [])
   const [categoriesKV, setCategories] = useKV<string[]>('shopping-categories', DEFAULT_CATEGORIES)
   const [storesKV, setStores] = useKV<string[]>('shopping-stores', DEFAULT_STORES)
+  const [templatesRaw, setTemplates] = useKV<ShoppingTemplate[]>('shopping-templates', [])
   // Filter data by current household
   const allItems = itemsRaw ?? []
   const allMeals = mealsRaw ?? []
@@ -40,6 +43,8 @@ export default function ShoppingSection() {
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null)
   const [manageListsOpen, setManageListsOpen] = useState(false)
+  const [templatesOpen, setTemplatesOpen] = useState(false)
+  const [newTemplateName, setNewTemplateName] = useState('')
   const [newCategory, setNewCategory] = useState('')
   const [newStore, setNewStore] = useState('')
   
@@ -60,6 +65,15 @@ export default function ShoppingSection() {
   const [quickQuantity, setQuickQuantity] = useState('1')
   const quickInputRef = useRef<HTMLInputElement | null>(null)
   const nameInputRef = useRef<HTMLInputElement | null>(null)
+  // Voice quick-add (E3): dictation fills the item field; the user reviews then
+  // taps Add. Progressive enhancement — the button is hidden where unsupported.
+  const speech = useSpeechInput({
+    onResult: (text) => {
+      setQuickItem(text)
+      quickInputRef.current?.focus()
+    },
+    onError: (message) => toast.error(message),
+  })
 
   const categoryOptions = (categoriesKV && categoriesKV.length > 0 ? categoriesKV : DEFAULT_CATEGORIES).sort()
   const storeOptions = (storesKV && storesKV.length > 0 ? storesKV : DEFAULT_STORES).sort()
@@ -148,9 +162,83 @@ export default function ShoppingSection() {
   }
 
   const handleDeleteItem = (id: string) => {
-    const updated = allItems.filter((item) => item.id !== id)
-    setItems(updated)
-    toast.success('Item deleted')
+    const removed = allItems.find((item) => item.id === id)
+    setItems(allItems.filter((item) => item.id !== id))
+    if (removed) {
+      toastWithUndo('Item deleted', () => restoreItem(setItems, removed))
+    } else {
+      toast.success('Item deleted')
+    }
+  }
+
+  // --- Shopping templates (E5) --------------------------------------------
+  const templates = currentHousehold
+    ? (templatesRaw ?? []).filter((t) => t.householdId === currentHousehold.id)
+    : []
+
+  const saveCurrentAsTemplate = () => {
+    const name = newTemplateName.trim()
+    if (!name) {
+      toast.error('Name your template first')
+      return
+    }
+    if (!currentHousehold) {
+      toast.error('No household selected')
+      return
+    }
+    // Snapshot the current list (unpurchased items) as reusable template items.
+    const source = items.filter((i) => !i.purchased)
+    if (source.length === 0) {
+      toast.error('Nothing on the list to save')
+      return
+    }
+    const template: ShoppingTemplate = {
+      id: Date.now().toString(),
+      householdId: currentHousehold.id,
+      name,
+      items: source.map((i) => ({
+        name: i.name,
+        quantity: i.quantity || undefined,
+        category: i.category || undefined,
+        priority: i.priority,
+        store: i.store || undefined,
+      })),
+      createdAt: Date.now(),
+    }
+    setTemplates((prev) => [...(prev ?? []), template])
+    setNewTemplateName('')
+    toast.success(`Saved “${name}” (${template.items.length} items)`)
+  }
+
+  const applyTemplate = (template: ShoppingTemplate) => {
+    if (!currentHousehold) return
+    // Skip items already on the active list (case-insensitive name match),
+    // mirroring the meals→shopping generator.
+    const existing = new Set(items.map((i) => i.name.trim().toLowerCase()))
+    const toAdd = template.items.filter((i) => !existing.has(i.name.trim().toLowerCase()))
+    if (toAdd.length === 0) {
+      toast.info('Everything from this template is already on your list')
+      return
+    }
+    const newItems: ShoppingItem[] = toAdd.map((i, idx) => ({
+      id: `${Date.now()}-${idx}`,
+      householdId: currentHousehold.id,
+      name: i.name,
+      category: i.category || 'Other',
+      quantity: i.quantity || '',
+      priority: i.priority ?? 'medium',
+      store: i.store,
+      purchased: false,
+      createdAt: Date.now(),
+    }))
+    setItems([...allItems, ...newItems])
+    toast.success(`Added ${newItems.length} item${newItems.length === 1 ? '' : 's'} from “${template.name}”`)
+  }
+
+  const deleteTemplate = (id: string) => {
+    const removed = (templatesRaw ?? []).find((t) => t.id === id)
+    setTemplates((prev) => (prev ?? []).filter((t) => t.id !== id))
+    if (removed) toastWithUndo('Template deleted', () => restoreItem(setTemplates, removed))
   }
 
   const openEditDialog = (item: ShoppingItem) => {
@@ -410,6 +498,11 @@ export default function ShoppingSection() {
             Lists
           </Button>
 
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => setTemplatesOpen(true)}>
+            <Copy size={16} />
+            Templates
+          </Button>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
@@ -465,6 +558,48 @@ export default function ShoppingSection() {
                     Generate List
                   </Button>
                 </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={templatesOpen} onOpenChange={setTemplatesOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Shopping templates</DialogTitle>
+                <DialogDescription>
+                  Save your current list as a reusable template (e.g. “Weekly staples”), then re-add it in one tap.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 pt-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Template name…"
+                    value={newTemplateName}
+                    onChange={(e) => setNewTemplateName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && saveCurrentAsTemplate()}
+                  />
+                  <Button onClick={saveCurrentAsTemplate} className="gap-1 shrink-0">
+                    <Plus size={16} /> Save list
+                  </Button>
+                </div>
+                {templates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">No templates yet. Save your current list above.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-72 overflow-y-auto">
+                    {templates.map((t) => (
+                      <li key={t.id} className="flex items-center gap-2 rounded-lg border p-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{t.name}</p>
+                          <p className="text-xs text-muted-foreground">{t.items.length} items</p>
+                        </div>
+                        <Button size="sm" variant="secondary" onClick={() => applyTemplate(t)}>Add to list</Button>
+                        <Button size="sm" variant="ghost" className="text-red-600" onClick={() => deleteTemplate(t.id)}>
+                          <Trash size={16} />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </DialogContent>
           </Dialog>
@@ -663,12 +798,28 @@ export default function ShoppingSection() {
 
       <Card className="p-3 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
         <div className="flex-1 flex gap-2">
-          <Input
-            placeholder="Quick add item"
-            value={quickItem}
-            onChange={(e) => setQuickItem(e.target.value)}
-            ref={quickInputRef}
-          />
+          <div className="relative flex-1">
+            <Input
+              placeholder="Quick add item"
+              value={quickItem}
+              onChange={(e) => setQuickItem(e.target.value)}
+              ref={quickInputRef}
+              className={speech.supported ? 'pr-10' : undefined}
+            />
+            {speech.supported && (
+              <Button
+                type="button"
+                size="icon"
+                variant={speech.listening ? 'default' : 'ghost'}
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                onClick={() => (speech.listening ? speech.stop() : speech.start())}
+                aria-label={speech.listening ? 'Stop voice input' : 'Add by voice'}
+                title="Add by voice"
+              >
+                <Microphone size={16} className={speech.listening ? 'animate-pulse' : undefined} />
+              </Button>
+            )}
+          </div>
           <Input
             placeholder="Qty"
             value={quickQuantity}

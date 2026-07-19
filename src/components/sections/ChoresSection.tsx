@@ -26,6 +26,7 @@ import ChoreDetailView from '@/components/chores/ChoreDetailView'
 import CompleteChoreForm from '@/components/chores/CompleteChoreForm'
 import ChoreFormDialog from '@/components/chores/ChoreFormDialog'
 import RoomOverview from '@/components/chores/RoomOverview'
+import ChoreLeaderboard from '@/components/chores/ChoreLeaderboard'
 import AIChoreSuggestions from '@/components/chores/AIChoreSuggestions'
 import TaskCard from '@/components/tasks/TaskCard'
 import TaskFormDialog from '@/components/tasks/TaskFormDialog'
@@ -318,6 +319,9 @@ export default function ChoresSection({ highlightChoreId }: { highlightChoreId?:
               </CardContent>
             </Card>
           )}
+
+          {/* Weekly points leaderboard (E2) */}
+          <ChoreLeaderboard chores={chores} completions={completions} />
 
           {/* Overdue alert */}
           {overdueChores.length > 0 && (

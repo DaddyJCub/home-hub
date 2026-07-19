@@ -137,6 +137,30 @@ const shoppingItemSchema = (householdId) =>
       householdId
     }));
 
+const shoppingTemplateSchema = (householdId) =>
+  z
+    .object({
+      id: trimmedString('Template id is required'),
+      householdId: z.string().optional(),
+      name: trimmedString('Template name is required', 1, 200),
+      items: z
+        .array(
+          z.object({
+            name: trimmedString('Item name is required', 1, 200),
+            quantity: z.string().max(120).optional(),
+            category: z.string().max(120).optional(),
+            priority: z.enum(['low', 'medium', 'high']).optional(),
+            store: z.string().max(200).optional()
+          })
+        )
+        .default([]),
+      createdAt: z.number().int().optional()
+    })
+    .transform((val) => ({
+      ...val,
+      householdId
+    }));
+
 const mealSchema = (householdId) =>
   z
     .object({
@@ -286,6 +310,7 @@ export const buildHouseholdDataValidators = (householdId) => ({
   chores: z.array(choreSchema(householdId)),
   'chore-completions': z.array(choreCompletionSchema(householdId)),
   'shopping-items': z.array(shoppingItemSchema(householdId)),
+  'shopping-templates': z.array(shoppingTemplateSchema(householdId)),
   meals: z.array(mealSchema(householdId)),
   recipes: z.array(recipeSchema(householdId)),
   'calendar-events': z.array(calendarEventSchema(householdId)),

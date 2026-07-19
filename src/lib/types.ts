@@ -99,6 +99,24 @@ export interface ShoppingItem {
   sourceRecipeName?: string
 }
 
+// A reusable shopping list ("Weekly staples", "Costco run") that can be
+// re-added to the active list in one tap (E5).
+export interface ShoppingTemplateItem {
+  name: string
+  quantity?: string
+  category?: string
+  priority?: 'low' | 'medium' | 'high'
+  store?: string
+}
+
+export interface ShoppingTemplate {
+  id: string
+  householdId: string
+  name: string
+  items: ShoppingTemplateItem[]
+  createdAt: number
+}
+
 export interface Recipe {
   id: string
   householdId: string

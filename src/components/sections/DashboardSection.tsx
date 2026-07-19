@@ -60,6 +60,7 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
   const [showAllChores, setShowAllChores] = useKV<boolean>('dashboard-show-all-chores', false)
   const [showAllEvents, setShowAllEvents] = useState(false)
   const [showShoppingPanel, setShowShoppingPanel] = useKV<boolean>('dashboard-show-shopping', true)
+  const [focusMode, setFocusMode] = useKV<boolean>('dashboard-focus-mode', false)
 
   const allChores = choresRaw ?? []
   const allCompletions = completionsRaw ?? []
@@ -1489,6 +1490,17 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant={focusMode ? 'default' : 'outline'}
+            size="sm"
+            className="gap-1"
+            onClick={() => setFocusMode(!focusMode)}
+            aria-pressed={focusMode}
+            title="Show only what's happening today"
+          >
+            <Target size={14} />
+            <span className="hidden sm:inline">Focus</span>
+          </Button>
           <DashboardCustomizer />
           {currentHousehold && (
             <Badge variant="outline" className="gap-1">
@@ -1498,6 +1510,19 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
           )}
         </div>
       </div>
+
+      {/* Today at a glance (E10). Always a quick read; in Focus mode it's the
+          whole dashboard so only today's must-dos are on screen. */}
+      <TodayGlance
+        overdueCount={overdueChores.length}
+        dueTodayChores={dueTodayChores.map(p => p.chore)}
+        events={todaysEvents}
+        dinner={todaysMeals.find(m => m.type === 'dinner')}
+        getRecipeName={getRecipeName}
+        highPriorityShopping={unpurchasedItems.filter(i => i.priority === 'high').length}
+        shoppingCount={unpurchasedItems.length}
+        onNavigate={onNavigate}
+      />
 
       {/* NotificationSummary removed - todays-events widget handles this now */}
 
@@ -1600,10 +1625,13 @@ export default function DashboardSection({ onNavigate, onViewRecipe, highlightCh
         </DialogContent>
       </Dialog>
 
-      {/* Dashboard Widgets - rendered in customizer order, 2-col on desktop */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
-        {sortedWidgetIds.map(id => renderWidget(id))}
-      </div>
+      {/* Dashboard Widgets - rendered in customizer order, 2-col on desktop.
+          Hidden in Focus mode so only Today-at-a-glance shows. */}
+      {!focusMode && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
+          {sortedWidgetIds.map(id => renderWidget(id))}
+        </div>
+      )}
 
       {/* Empty State */}
       {pendingChores.length === 0 && todaysEvents.length === 0 && unpurchasedItems.length === 0 && (
@@ -1734,5 +1762,82 @@ function ChoreItem({ chore, onComplete, onClick, highlight }: ChoreItemProps & {
         </span>
       )}
     </div>
+  )
+}
+
+// Today at a glance (E10): the day's must-dos in one compact card — overdue +
+// due-today chores, today's agenda, tonight's dinner, and the shopping count.
+// Doubles as the whole view in Focus mode.
+interface TodayGlanceProps {
+  overdueCount: number
+  dueTodayChores: Chore[]
+  events: CalendarEvent[]
+  dinner?: Meal
+  getRecipeName: (recipeId?: string) => string | null | undefined
+  highPriorityShopping: number
+  shoppingCount: number
+  onNavigate?: (tab: string) => void
+}
+
+function TodayGlance({
+  overdueCount, dueTodayChores, events, dinner, getRecipeName, highPriorityShopping, shoppingCount, onNavigate,
+}: TodayGlanceProps) {
+  const formatTime = (t?: string) => {
+    if (!t) return ''
+    const m = /^(\d{1,2}):(\d{2})$/.exec(t)
+    if (!m) return t
+    let h = Number(m[1])
+    const ampm = h >= 12 ? 'pm' : 'am'
+    h = h % 12 || 12
+    return `${h}:${m[2]}${ampm}`
+  }
+  const dinnerName = dinner ? (dinner.name || getRecipeName(dinner.recipeId) || 'Planned') : null
+  const nothing = overdueCount === 0 && dueTodayChores.length === 0 && events.length === 0 && !dinnerName && shoppingCount === 0
+
+  return (
+    <Card className="p-4 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+      <div className="flex items-center gap-2 mb-3">
+        <Target size={16} className="text-primary" />
+        <h2 className="text-sm font-semibold">Today at a glance</h2>
+      </div>
+      {nothing ? (
+        <p className="text-sm text-muted-foreground">Nothing due today — enjoy the calm. 🌤️</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button type="button" onClick={() => onNavigate?.('chores')} className="text-left rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1"><Broom size={13} /> Chores</div>
+            {overdueCount > 0 && <p className="text-sm font-medium text-red-600 dark:text-red-400">{overdueCount} overdue</p>}
+            <p className="text-sm">{dueTodayChores.length} due today</p>
+            {dueTodayChores.slice(0, 3).map(c => (
+              <p key={c.id} className="text-xs text-muted-foreground truncate">• {c.title}</p>
+            ))}
+          </button>
+
+          <button type="button" onClick={() => onNavigate?.('calendar')} className="text-left rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1"><CalendarBlank size={13} /> Agenda</div>
+            {events.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing scheduled</p>
+            ) : (
+              events.slice(0, 3).map(e => (
+                <p key={e.id} className="text-sm truncate">
+                  <span className="text-muted-foreground tabular-nums">{e.isAllDay ? 'All day' : formatTime(e.startTime)}</span> {e.title}
+                </p>
+              ))
+            )}
+          </button>
+
+          <button type="button" onClick={() => onNavigate?.('meals')} className="text-left rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1"><CookingPot size={13} /> Dinner</div>
+            <p className="text-sm">{dinnerName ?? <span className="text-muted-foreground">Not planned</span>}</p>
+          </button>
+
+          <button type="button" onClick={() => onNavigate?.('shopping')} className="text-left rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1"><ShoppingCart size={13} /> Shopping</div>
+            <p className="text-sm">{shoppingCount} to buy</p>
+            {highPriorityShopping > 0 && <p className="text-xs text-red-600 dark:text-red-400">{highPriorityShopping} high priority</p>}
+          </button>
+        </div>
+      )}
+    </Card>
   )
 }

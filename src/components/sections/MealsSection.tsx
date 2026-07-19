@@ -19,6 +19,7 @@ import RecipesPanel from '@/components/meals/RecipesPanel'
 import EmptyState from '@/components/EmptyState'
 import type { Meal, Recipe, ShoppingItem, RecipeCategory } from '@/lib/types'
 import { toast } from 'sonner'
+import { toastWithUndo, restoreItem } from '@/lib/undo'
 import { validateRequired } from '@/lib/error-helpers'
 import { format, startOfWeek, addDays, addWeeks, isToday, parseISO, isBefore, startOfDay } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
@@ -212,8 +213,13 @@ export default function MealsSection({ initialRecipeId, onRecipeViewed }: MealsS
   }
 
   const handleDeleteMeal = (id: string) => {
+    const removed = (allMeals ?? []).find((meal) => meal.id === id)
     setMeals((current) => (current ?? []).filter((meal) => meal.id !== id))
-    toast.success('Meal removed')
+    if (removed) {
+      toastWithUndo('Meal removed', () => restoreItem(setMeals, removed))
+    } else {
+      toast.success('Meal removed')
+    }
   }
 
   const handleQuickRecipeSave = () => {

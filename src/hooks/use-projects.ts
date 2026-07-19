@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { useKV } from '@github/spark/hooks'
 import type { HomeProject, ProjectStatus, ProjectPriority, ProjectChecklistItem } from '@/lib/types'
 import { toast } from 'sonner'
+import { toastWithUndo, restoreItem } from '@/lib/undo'
 import { useAuth } from '@/lib/AuthContext'
 
 // ---------------------------------------------------------------------------
@@ -194,8 +195,13 @@ export function useProjects() {
   }, [projectsRaw, setProjects])
 
   const deleteProject = useCallback((id: string) => {
+    const removed = (projectsRaw ?? []).find(p => p.id === id)
     setProjects((projectsRaw ?? []).filter(p => p.id !== id))
-    toast.success('Project deleted')
+    if (removed) {
+      toastWithUndo('Project deleted', () => restoreItem(setProjects, removed))
+    } else {
+      toast.success('Project deleted')
+    }
   }, [projectsRaw, setProjects])
 
   const moveToStatus = useCallback((id: string, newStatus: ProjectStatus) => {
