@@ -8,8 +8,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Recipe, Meal } from '@/lib/types'
+import { recentlyUsedRecipeIds, chooseRecipe, makesLeftovers } from '@/lib/meal-planner'
 import { toast } from 'sonner'
-import { format, startOfWeek, addDays, getDay } from 'date-fns'
+import { format, startOfWeek, addDays, getDay, parseISO } from 'date-fns'
 
 interface AutoMealPlannerProps {
   open: boolean
@@ -44,6 +45,7 @@ export default function AutoMealPlanner({ open, onOpenChange, recipes, meals, se
   
   const [newConstraintDay, setNewConstraintDay] = useState<string>('0')
   const [newConstraintTag, setNewConstraintTag] = useState<string>('')
+  const [planLeftovers, setPlanLeftovers] = useState(true)
 
   const allTags = Array.from(new Set(recipes.flatMap((r) => r.tags || []))).sort()
 
@@ -126,6 +128,9 @@ export default function AutoMealPlanner({ open, onOpenChange, recipes, meals, se
 
       const newMeals: Meal[] = []
       const usedRecipeCount = new Map<string, number>()
+      // Recipes eaten in the ~10 days before this week are downranked so the
+      // plan brings variety instead of repeating last week's dinners (E7).
+      const recentIds = recentlyUsedRecipeIds(meals, format(weekStart, 'yyyy-MM-dd'), 10)
 
       for (const { date, dayOfWeek } of weekDays) {
         const daypartConfig = getDaypartConfig(dayOfWeek)
@@ -137,6 +142,10 @@ export default function AutoMealPlanner({ open, onOpenChange, recipes, meals, se
         if (daypartConfig.dinner) dayparts.push('dinner')
 
         for (const daypart of dayparts) {
+          // A leftovers lunch placed by the previous day's dinner already fills
+          // this slot — don't overwrite it.
+          if (newMeals.some(m => m.date === date && m.type === daypart)) continue
+
           let eligibleRecipes = recipes
           
           if (constraint?.requiredTag && daypart === 'dinner') {
@@ -157,18 +166,38 @@ export default function AutoMealPlanner({ open, onOpenChange, recipes, meals, se
             usedRecipeCount.clear()
           }
 
-          const randomRecipe = eligibleRecipes[Math.floor(Math.random() * eligibleRecipes.length)]
-          
+          const chosen = chooseRecipe(eligibleRecipes, { usedThisWeek: usedRecipeCount, recentIds })
+          if (!chosen) continue
+
           newMeals.push({
             id: `${Date.now()}-${date}-${daypart}`,
             householdId,
             date,
             type: daypart,
-            name: randomRecipe.name,
-            recipeId: randomRecipe.id
+            name: chosen.name,
+            recipeId: chosen.id
           })
 
-          usedRecipeCount.set(randomRecipe.id, (usedRecipeCount.get(randomRecipe.id) || 0) + 1)
+          usedRecipeCount.set(chosen.id, (usedRecipeCount.get(chosen.id) || 0) + 1)
+
+          // Leftovers: a big-batch dinner rolls forward to the next day's lunch
+          // (if that lunch slot is enabled and not already filled).
+          if (planLeftovers && daypart === 'dinner' && makesLeftovers(chosen)) {
+            const nextDay = format(addDays(parseISO(date), 1), 'yyyy-MM-dd')
+            const nextDow = (dayOfWeek + 1) % 7
+            const nextLunchOn = getDaypartConfig(nextDow).lunch && weekDays.some(d => d.date === nextDay)
+            const lunchTaken = newMeals.some(m => m.date === nextDay && m.type === 'lunch')
+            if (nextLunchOn && !lunchTaken) {
+              newMeals.push({
+                id: `${Date.now()}-${nextDay}-lunch-leftovers`,
+                householdId,
+                date: nextDay,
+                type: 'lunch',
+                name: `${chosen.name} (leftovers)`,
+                recipeId: chosen.id,
+              })
+            }
+          }
         }
       }
 
@@ -318,12 +347,17 @@ export default function AutoMealPlanner({ open, onOpenChange, recipes, meals, se
               <li>• Randomly select from your {recipes.length} recipe{recipes.length !== 1 ? 's' : ''}</li>
               <li>• Respect day-specific tag constraints</li>
               <li>• Only plan meals for enabled dayparts</li>
-              <li>• Limit recipes to 2 uses per week for variety</li>
+              <li>• Favor variety — avoid recipes eaten in the last ~10 days</li>
               <li>• Replace any existing meals for this week</li>
             </ul>
           </div>
 
-          <Button 
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox checked={planLeftovers} onCheckedChange={(v) => setPlanLeftovers(v === true)} />
+            Plan leftovers — roll big-batch dinners (4+ servings) into the next day's lunch
+          </label>
+
+          <Button
             onClick={handleGenerateMealPlan} 
             disabled={isGenerating}
             className="w-full gap-2"
