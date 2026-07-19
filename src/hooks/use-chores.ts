@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { useKV } from '@github/spark/hooks'
 import type { Chore, ChoreCompletion, ChoreFrequency, ChoreRotation } from '@/lib/types'
 import { toast } from 'sonner'
+import { pointsForChore, tallyPoints, milestoneReached } from '@/lib/chore-points'
 import { validateRequired } from '@/lib/error-helpers'
 import { formatDistanceToNow, addDays, startOfDay } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
@@ -304,14 +305,20 @@ export function useChores() {
     setChores(allChores.map(c => c.id === chore.id ? updatedChore : c))
 
     const remainingRooms = roomsList.filter(r => !completedRooms.includes(r))
-    const description = !allRoomsDone
+    const baseDescription = !allRoomsDone
       ? `${remainingRooms.length} room(s) left for this chore`
       : updatedChore.streak && updatedChore.streak >= 3
         ? `${updatedChore.streak} day streak!`
         : 'Marked complete'
 
+    // Award points (E2): tally the completer before/after this completion so we
+    // can show "+N pts" and celebrate when they cross a lifetime milestone.
+    const pts = pointsForChore(normalized)
+    const before = tallyPoints(allChores, prevCompletions).find(e => e.member === completer)?.points ?? 0
+    const milestone = milestoneReached(before, before + pts)
+
     toast.success('Chore completed', {
-      description,
+      description: `${baseDescription} · +${pts} pts`,
       action: {
         label: 'Undo',
         onClick: () => {
@@ -320,6 +327,12 @@ export function useChores() {
         }
       }
     })
+
+    if (milestone) {
+      toast.success(`🎉 ${completer} reached ${milestone} points!`, {
+        description: 'Keep the streak going!',
+      })
+    }
 
     setCompleteDialogChore(null)
     setTrackingChoreId(null)
