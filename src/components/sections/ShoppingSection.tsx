@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Plus, Trash, ShoppingCart, Sparkle, Flag, Storefront, Funnel, CaretDown, Gear, CookingPot, X, Copy } from '@phosphor-icons/react'
+import { Plus, Trash, ShoppingCart, Sparkle, Flag, Storefront, Funnel, CaretDown, Gear, CookingPot, X, Copy, Microphone } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog'
@@ -18,6 +18,7 @@ import { toastWithUndo, restoreItem } from '@/lib/undo'
 import { showUserFriendlyError, validateRequired } from '@/lib/error-helpers'
 import { startOfWeek, addDays, format } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
+import { useSpeechInput } from '@/hooks/use-speech-input'
 
 const DEFAULT_CATEGORIES = ['Produce', 'Dairy', 'Meat', 'Pantry', 'Frozen', 'Bakery', 'Beverages', 'Household', 'Other']
 
@@ -64,6 +65,15 @@ export default function ShoppingSection() {
   const [quickQuantity, setQuickQuantity] = useState('1')
   const quickInputRef = useRef<HTMLInputElement | null>(null)
   const nameInputRef = useRef<HTMLInputElement | null>(null)
+  // Voice quick-add (E3): dictation fills the item field; the user reviews then
+  // taps Add. Progressive enhancement — the button is hidden where unsupported.
+  const speech = useSpeechInput({
+    onResult: (text) => {
+      setQuickItem(text)
+      quickInputRef.current?.focus()
+    },
+    onError: (message) => toast.error(message),
+  })
 
   const categoryOptions = (categoriesKV && categoriesKV.length > 0 ? categoriesKV : DEFAULT_CATEGORIES).sort()
   const storeOptions = (storesKV && storesKV.length > 0 ? storesKV : DEFAULT_STORES).sort()
@@ -788,12 +798,28 @@ export default function ShoppingSection() {
 
       <Card className="p-3 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
         <div className="flex-1 flex gap-2">
-          <Input
-            placeholder="Quick add item"
-            value={quickItem}
-            onChange={(e) => setQuickItem(e.target.value)}
-            ref={quickInputRef}
-          />
+          <div className="relative flex-1">
+            <Input
+              placeholder="Quick add item"
+              value={quickItem}
+              onChange={(e) => setQuickItem(e.target.value)}
+              ref={quickInputRef}
+              className={speech.supported ? 'pr-10' : undefined}
+            />
+            {speech.supported && (
+              <Button
+                type="button"
+                size="icon"
+                variant={speech.listening ? 'default' : 'ghost'}
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                onClick={() => (speech.listening ? speech.stop() : speech.start())}
+                aria-label={speech.listening ? 'Stop voice input' : 'Add by voice'}
+                title="Add by voice"
+              >
+                <Microphone size={16} className={speech.listening ? 'animate-pulse' : undefined} />
+              </Button>
+            )}
+          </div>
           <Input
             placeholder="Qty"
             value={quickQuantity}
