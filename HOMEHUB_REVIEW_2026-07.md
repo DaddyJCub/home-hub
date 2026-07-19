@@ -30,7 +30,12 @@ tracking, app settings.
 
 **Wall kiosk.** Clean Home-Assistant tile board (toggle/cover/lock/climate/media/sensor),
 camera-on-motion, alerts with mute/ack, night dimming, HA Lovelace embed, pairing by
-device token.
+device token. **HomeHub is already reachable here** — a `WALL_SHORTCUTS` entry
+(`{"label":"Home Hub","url":"/apps/home-hub"}`) puts a header button on the wall that opens
+the **full HomeHub app embedded inside the kiosk** (`openShortcut` → the "dashboard" embed
+view), keeping the wall bar on top so the kiosk stays sealed. URLs are sanitized to
+same-origin/http(s) in `parse_wall_shortcuts`. So the wall runs the whole interactive app,
+not nothing — the gap is a _glanceable native summary_, not integration itself (see E1).
 
 ---
 
@@ -64,17 +69,22 @@ Ranked by value-to-effort. Each is written to land in **all three surfaces** (or
 it can't) so the "build once" seam holds. Competitive framing draws on how Cozi, OurHome,
 Skylight, Hearth, and Fami package the same jobs (sources at the bottom).
 
-### E1 — Wall "Household Today" panel  ⭐ highest impact
-The kiosk shows smart-home entities but **zero HomeHub data**. A family wall display's #1
-job (per Skylight/Hearth) is _today at a glance_: today's chores + who's assigned, tonight's
-dinner, today's agenda, and the top of the shopping list.
+### E1 — Wall "Household Today" glance (native summary, not a full-app embed)  ⭐ highest impact
+**Correction to an earlier draft:** the wall is _not_ missing HomeHub — a `WALL_SHORTCUTS`
+button already opens the full HomeHub app embedded in the kiosk. What's missing is the
+_glanceable_ layer: a family display's #1 job (per Skylight/Hearth) is today-at-a-glance
+_without a tap_ — today's chores + who's assigned, tonight's dinner, today's agenda, and the
+top of the shopping list, shown inline on the tile board and readable from across the room.
 - **Backend:** `GET /api/wall/homehub` on CM (device-token authed) that reads one configured
   household via `MODULE_HOMEHUB_API_BASE` and returns a compact today-summary. Add a
-  `WALL_HOMEHUB_HOUSEHOLD` config key.
-- **Frontend:** a new wall view/tile next to "tiles"/"dashboard"; read-only, auto-refresh on
-  the existing poll. Tapping a chore can mark it done if the device `allow_control`.
-- _Why it matters:_ this is the single feature that turns the tablet from a light-switch
-  panel into a family command center.
+  `WALL_HOMEHUB_HOUSEHOLD` config key. This also makes the glance survive kiosk/offline and
+  avoids the embedded app needing its own interactive auth on an unattended tablet.
+- **Frontend:** a native summary tile/panel next to the existing tiles; read-only,
+  auto-refresh on the existing poll. Tapping a chore can mark it done when the device has
+  `allow_control`; a "Open HomeHub" affordance falls through to the existing shortcut embed
+  for full interaction.
+- _Why it matters:_ turns the tablet from "smart-home panel + a link to the app" into a
+  true family command center that shows the day without anyone touching it.
 
 ### E2 — Chore rewards / points & celebrations
 Chores already track streaks; add **points per chore → weekly leaderboard + milestone
@@ -146,7 +156,8 @@ household quiet-hours window (the wall already has night mode — share that con
 | Recoverable deletes | ✅ (now all) | ✅ (now all) | n/a |
 | AI (chore/meal/NL-add) | ✅ | ✅ (Ollama-gated) | n/a |
 | Auth / push / PWA / diagnostics | ✅ | shell-owned | shell-owned |
-| **HomeHub data on the wall** | n/a | n/a | **❌ E1 gap** |
+| Full HomeHub app on the wall | n/a | n/a | ✅ (embedded via `WALL_SHORTCUTS`) |
+| **Glanceable HomeHub summary on the wall** | n/a | n/a | **❌ E1 gap** |
 
 ---
 
