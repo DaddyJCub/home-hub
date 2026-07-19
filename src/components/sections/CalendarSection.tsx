@@ -18,6 +18,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { CalendarEvent, EventCategory, RecurrencePattern, ReminderTime } from '@/lib/types'
 import { toast } from 'sonner'
+import { toastWithUndo, restoreItem } from '@/lib/undo'
 import { showUserFriendlyError, validateRequired } from '@/lib/error-helpers'
 import { 
   format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, 
@@ -415,10 +416,21 @@ export default function CalendarSection() {
 
   const handleDeleteEvent = (id: string) => {
     // Also delete any events that have this as parent (recurring instances are virtual, but clean up real ones)
-    setEvents((current) => (current ?? []).filter((evt) => 
+    const removed = (allEvents ?? []).filter((evt) => evt.id === id || evt.recurrenceParentId === id)
+    setEvents((current) => (current ?? []).filter((evt) =>
       evt.id !== id && evt.recurrenceParentId !== id
     ))
-    toast.success('Event deleted')
+    if (removed.length > 0) {
+      toastWithUndo('Event deleted', () =>
+        setEvents((current) => {
+          const list = current ?? []
+          const seen = new Set(list.map((e) => e.id))
+          return [...list, ...removed.filter((e) => !seen.has(e.id))]
+        })
+      )
+    } else {
+      toast.success('Event deleted')
+    }
     setShowEventDetails(null)
   }
 

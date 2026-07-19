@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { useKV } from '@github/spark/hooks'
 import type { PersonalTask, TaskPriority } from '@/lib/types'
 import { toast } from 'sonner'
+import { toastWithUndo, restoreItem } from '@/lib/undo'
 import { useAuth } from '@/lib/AuthContext'
 import { startOfDay, endOfDay, addDays } from 'date-fns'
 
@@ -184,8 +185,13 @@ export function useTasks() {
   }, [tasksRaw, setTasks])
 
   const deleteTask = useCallback((id: string) => {
+    const removed = (tasksRaw ?? []).find(t => t.id === id)
     setTasks((tasksRaw ?? []).filter(t => t.id !== id))
-    toast.success('Task deleted')
+    if (removed) {
+      toastWithUndo('Task deleted', () => restoreItem(setTasks, removed))
+    } else {
+      toast.success('Task deleted')
+    }
   }, [tasksRaw, setTasks])
 
   const toggleComplete = useCallback((id: string) => {

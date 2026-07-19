@@ -14,6 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSepar
 import type { ShoppingItem, Meal, Recipe } from '@/lib/types'
 import EmptyState from '@/components/EmptyState'
 import { toast } from 'sonner'
+import { toastWithUndo, restoreItem } from '@/lib/undo'
 import { showUserFriendlyError, validateRequired } from '@/lib/error-helpers'
 import { startOfWeek, addDays, format } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
@@ -148,9 +149,13 @@ export default function ShoppingSection() {
   }
 
   const handleDeleteItem = (id: string) => {
-    const updated = allItems.filter((item) => item.id !== id)
-    setItems(updated)
-    toast.success('Item deleted')
+    const removed = allItems.find((item) => item.id === id)
+    setItems(allItems.filter((item) => item.id !== id))
+    if (removed) {
+      toastWithUndo('Item deleted', () => restoreItem(setItems, removed))
+    } else {
+      toast.success('Item deleted')
+    }
   }
 
   const openEditDialog = (item: ShoppingItem) => {
