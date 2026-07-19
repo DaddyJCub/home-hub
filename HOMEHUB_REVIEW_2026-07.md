@@ -63,28 +63,35 @@ Both apps typecheck clean, build clean, and the standalone unit suite (26 tests)
 
 ---
 
+## 2.2 Wall "Household Today" glance (E1) ✅ shipped
+
+Built in `jcubhub-central-management`. The tiles view now shows a native household
+glance above the smart-home tiles — chores due today (tap to complete), today's meals,
+today's agenda, and the top of the shopping list (tap to check off) — with check-offs
+gated on the device's `allow_control`.
+
+- **Backend:** `GET/PUT /api/wall/homehub` (device-token authed) + `app/wall/homehub.py`.
+  CM mints a short-lived, least-privilege broker token for a configured identity
+  (`WALL_HOMEHUB_IDENTITY_EMAIL`) and reads/relays over the `homehub/0.1.0` native
+  contract at `MODULE_HOMEHUB_API_BASE` — the tablet never holds a HomeHub credential.
+  Unit-tested (`tests/unit/test_wall_homehub.py`, 5 tests).
+- **Frontend:** self-contained `src/wall/HomehubGlance.tsx`, polled on its own cadence,
+  hides itself when unconfigured/unreachable. **Reuses** the module's `choreUtils` for
+  completion math (no Python re-implementation → no drift).
+- CM native-only check, `tsc -b`, `vite build`, and backend tests all pass.
+
 ## 3. Ten enhancements to make managing the home easier
 
 Ranked by value-to-effort. Each is written to land in **all three surfaces** (or notes why
 it can't) so the "build once" seam holds. Competitive framing draws on how Cozi, OurHome,
 Skylight, Hearth, and Fami package the same jobs (sources at the bottom).
 
-### E1 — Wall "Household Today" glance (native summary, not a full-app embed)  ⭐ highest impact
-**Correction to an earlier draft:** the wall is _not_ missing HomeHub — a `WALL_SHORTCUTS`
-button already opens the full HomeHub app embedded in the kiosk. What's missing is the
-_glanceable_ layer: a family display's #1 job (per Skylight/Hearth) is today-at-a-glance
-_without a tap_ — today's chores + who's assigned, tonight's dinner, today's agenda, and the
-top of the shopping list, shown inline on the tile board and readable from across the room.
-- **Backend:** `GET /api/wall/homehub` on CM (device-token authed) that reads one configured
-  household via `MODULE_HOMEHUB_API_BASE` and returns a compact today-summary. Add a
-  `WALL_HOMEHUB_HOUSEHOLD` config key. This also makes the glance survive kiosk/offline and
-  avoids the embedded app needing its own interactive auth on an unattended tablet.
-- **Frontend:** a native summary tile/panel next to the existing tiles; read-only,
-  auto-refresh on the existing poll. Tapping a chore can mark it done when the device has
-  `allow_control`; a "Open HomeHub" affordance falls through to the existing shortcut embed
-  for full interaction.
-- _Why it matters:_ turns the tablet from "smart-home panel + a link to the app" into a
-  true family command center that shows the day without anyone touching it.
+### E1 — Wall "Household Today" glance (native summary, not a full-app embed)  ✅ SHIPPED
+The glanceable layer a family display needs (per Skylight/Hearth): today-at-a-glance
+_without a tap_ — chores due today + who's assigned, today's meals, today's agenda, and the
+top of the shopping list, inline on the tile board and readable from across the room, with
+tap-to-complete for chores and tap-to-check-off for shopping. See §2.2 for the build. (The
+`WALL_SHORTCUTS` embed of the full app remains as the deep-interaction fallback.)
 
 ### E2 — Chore rewards / points & celebrations
 Chores already track streaks; add **points per chore → weekly leaderboard + milestone
@@ -157,7 +164,8 @@ household quiet-hours window (the wall already has night mode — share that con
 | AI (chore/meal/NL-add) | ✅ | ✅ (Ollama-gated) | n/a |
 | Auth / push / PWA / diagnostics | ✅ | shell-owned | shell-owned |
 | Full HomeHub app on the wall | n/a | n/a | ✅ (embedded via `WALL_SHORTCUTS`) |
-| **Glanceable HomeHub summary on the wall** | n/a | n/a | **❌ E1 gap** |
+| Glanceable HomeHub summary on the wall | n/a | n/a | ✅ (E1 shipped) |
+| Wall tap-to-complete chores / check-off shopping | n/a | n/a | ✅ (E1, `allow_control`-gated) |
 
 ---
 
