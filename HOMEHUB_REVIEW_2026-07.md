@@ -80,6 +80,21 @@ gated on the device's `allow_control`.
   completion math (no Python re-implementation → no drift).
 - CM native-only check, `tsc -b`, `vite build`, and backend tests all pass.
 
+## 2.3 Delivery status of the ten enhancements
+
+| # | Enhancement | Status |
+| - | ----------- | ------ |
+| E1 | Wall "Household Today" glance | ✅ shipped (wall) |
+| E2 | Chore points + leaderboard + celebrations | ✅ shipped (standalone + CM) |
+| E3 | Voice quick-add | ✅ shipped (standalone); CM port trivial |
+| E4 | Calendar conflict detection | ✅ shipped (standalone + CM) |
+| E5 | Recurring shopping templates | ✅ shipped (standalone + CM + native contract) |
+| E6 | Shared finance / expenses | 📋 planned — `docs/PLAN_E6_FINANCE.md` |
+| E7 | Meal-plan variety + leftovers | ✅ shipped (standalone + CM) |
+| E8 | Inventory & maintenance | 📋 planned — `docs/PLAN_E8_INVENTORY.md` |
+| E9 | Adaptive notifications + quiet hours | ✅ already present (standalone); wall night mode |
+| E10 | At-a-glance card + Focus mode | ✅ shipped (standalone); OS widgets need native work |
+
 ## 3. Ten enhancements to make managing the home easier
 
 Ranked by value-to-effort. Each is written to land in **all three surfaces** (or notes why
