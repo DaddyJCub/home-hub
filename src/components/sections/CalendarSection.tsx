@@ -4,7 +4,7 @@ import {
   Plus, Trash, Pencil, CalendarBlank, Clock, MapPin, Users, CaretLeft, CaretRight,
   Repeat, Bell, Eye, EyeSlash, CalendarCheck, ArrowsOutSimple, Calendar as CalendarIcon,
   Airplane, Gift, GraduationCap, Basketball, FirstAid, Star, DotsThree, Check,
-  Sun, ListBullets, SquaresFour, Link as LinkIcon
+  Sun, ListBullets, SquaresFour, Link as LinkIcon, Warning
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -134,6 +134,16 @@ export default function CalendarSection() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
   const [eventForm, setEventForm] = useState<EventFormState>(defaultFormState)
+  // Live overlap check for the event being edited (E4) — drives the persistent
+  // banner in the dialog so the warning can't be missed.
+  const formConflicts = useMemo(() => {
+    if (eventForm.isAllDay || !eventForm.startTime || !eventForm.startDate) return []
+    return conflictsForCandidate(
+      { date: eventForm.startDate, startTime: eventForm.startTime, endTime: eventForm.endTime || undefined, isAllDay: false },
+      currentHousehold ? allEvents.filter((e) => e.householdId === currentHousehold.id) : allEvents,
+      editingEvent?.id,
+    )
+  }, [eventForm.isAllDay, eventForm.startTime, eventForm.endTime, eventForm.startDate, editingEvent, allEvents, currentHousehold])
   const [showEventDetails, setShowEventDetails] = useState<CalendarEvent | null>(null)
   const [quickEventTitle, setQuickEventTitle] = useState('')
   const [quickEventCategory, setQuickEventCategory] = useState<EventCategory>('personal')
@@ -1133,6 +1143,18 @@ export default function CalendarSection() {
                     onChange={(e) => setEventForm({ ...eventForm, endTime: e.target.value })}
                   />
                 </div>
+              </div>
+            )}
+
+            {/* Persistent overlap warning (E4) — stays visible while editing, so
+                it isn't missed like the transient save-time toast. */}
+            {formConflicts.length > 0 && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                <Warning size={16} className="mt-0.5 shrink-0" />
+                <span>
+                  Overlaps {formConflicts.slice(0, 2).map((e) => `“${e.title}”`).join(', ')}
+                  {formConflicts.length > 2 ? ` +${formConflicts.length - 2} more` : ''} on this day.
+                </span>
               </div>
             )}
 
